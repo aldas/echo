@@ -1,13 +1,11 @@
 package middleware
 
 import (
+	"errors"
 	"fmt"
-	"net/http"
-	"reflect"
-	"strings"
-
-	"github.com/dgrijalva/jwt-go"
 	"github.com/labstack/echo/v4"
+	"net/http"
+	"strings"
 )
 
 type (
@@ -41,13 +39,16 @@ type (
 		// Optional. Default value HS256.
 		SigningMethod string
 
+		// KeyFunc is custom method to return signing key during token validation by TokenParser
+		// Optional. If not set middleware will use default implementation that checks if token algorithm matches singing
+		//           method and returns matching singing key for kid from SigningKeys
+		// Both `alg` (https://tools.ietf.org/html/rfc7515#section-4.1.1)
+		// and `kid` (https://tools.ietf.org/html/rfc7515#section-4.1.4) are JWT header parameter values
+		KeyFunc func(alg string, kid interface{}) (interface{}, error)
+
 		// Context key to store user information from the token into context.
 		// Optional. Default value "user".
 		ContextKey string
-
-		// Claims are extendable claims data defining token content.
-		// Optional. Default value jwt.MapClaims
-		Claims jwt.Claims
 
 		// TokenLookup is a string in the form of "<source>:<name>" that is used
 		// to extract token from the request.
@@ -64,7 +65,9 @@ type (
 		// Optional. Default value "Bearer".
 		AuthScheme string
 
-		keyFunc jwt.Keyfunc
+		// TokenParser is wrapper interface for different JWT token parsing implementations.
+		// Required.
+		TokenParser JwtTokenParser
 	}
 
 	// JWTSuccessHandler defines a function which is executed for a valid token.
@@ -98,7 +101,6 @@ var (
 		ContextKey:    "user",
 		TokenLookup:   "header:" + echo.HeaderAuthorization,
 		AuthScheme:    "Bearer",
-		Claims:        jwt.MapClaims{},
 	}
 )
 
@@ -119,12 +121,15 @@ func JWT(key interface{}) echo.MiddlewareFunc {
 // JWTWithConfig returns a JWT auth middleware with config.
 // See: `JWT()`.
 func JWTWithConfig(config JWTConfig) echo.MiddlewareFunc {
+	if config.SigningKey == nil && len(config.SigningKeys) == 0 {
+		panic("echo: jwt middleware requires signing key")
+	}
+	if config.TokenParser == nil {
+		panic("echo: jwt middleware requires token parser instance")
+	}
 	// Defaults
 	if config.Skipper == nil {
 		config.Skipper = DefaultJWTConfig.Skipper
-	}
-	if config.SigningKey == nil && len(config.SigningKeys) == 0 {
-		panic("echo: jwt middleware requires signing key")
 	}
 	if config.SigningMethod == "" {
 		config.SigningMethod = DefaultJWTConfig.SigningMethod
@@ -132,30 +137,30 @@ func JWTWithConfig(config JWTConfig) echo.MiddlewareFunc {
 	if config.ContextKey == "" {
 		config.ContextKey = DefaultJWTConfig.ContextKey
 	}
-	if config.Claims == nil {
-		config.Claims = DefaultJWTConfig.Claims
-	}
 	if config.TokenLookup == "" {
 		config.TokenLookup = DefaultJWTConfig.TokenLookup
 	}
 	if config.AuthScheme == "" {
 		config.AuthScheme = DefaultJWTConfig.AuthScheme
 	}
-	config.keyFunc = func(t *jwt.Token) (interface{}, error) {
-		// Check the signing method
-		if t.Method.Alg() != config.SigningMethod {
-			return nil, fmt.Errorf("unexpected jwt signing method=%v", t.Header["alg"])
-		}
-		if len(config.SigningKeys) > 0 {
-			if kid, ok := t.Header["kid"].(string); ok {
-				if key, ok := config.SigningKeys[kid]; ok {
-					return key, nil
-				}
+	if config.KeyFunc == nil {
+		config.KeyFunc = func(alg string, kid interface{}) (interface{}, error) {
+			// signature algorithm used for token must match our signing method
+			if alg != config.SigningMethod {
+				return nil, fmt.Errorf("unexpected jwt signing method=%s", alg)
 			}
-			return nil, fmt.Errorf("unexpected jwt key id=%v", t.Header["kid"])
+			if len(config.SigningKeys) == 0 {
+				return config.SigningKey, nil
+			}
+			kidStr, ok := kid.(string)
+			if !ok {
+				return nil, errors.New("failed to cast jwt key id as string")
+			}
+			if key, ok := config.SigningKeys[kidStr]; ok {
+				return key, nil
+			}
+			return nil, fmt.Errorf("unexpected jwt key id=%v", kid)
 		}
-
-		return config.SigningKey, nil
 	}
 
 	// Initialize
@@ -193,16 +198,8 @@ func JWTWithConfig(config JWTConfig) echo.MiddlewareFunc {
 				}
 				return err
 			}
-			token := new(jwt.Token)
-			// Issue #647, #656
-			if _, ok := config.Claims.(jwt.MapClaims); ok {
-				token, err = jwt.Parse(auth, config.keyFunc)
-			} else {
-				t := reflect.ValueOf(config.Claims).Type().Elem()
-				claims := reflect.New(t).Interface().(jwt.Claims)
-				token, err = jwt.ParseWithClaims(auth, claims, config.keyFunc)
-			}
-			if err == nil && token.Valid {
+			token, err := config.TokenParser.Parse(auth, config)
+			if err == nil {
 				// Store user information from token into context.
 				c.Set(config.ContextKey, token)
 				if config.SuccessHandler != nil {
@@ -223,6 +220,13 @@ func JWTWithConfig(config JWTConfig) echo.MiddlewareFunc {
 			}
 		}
 	}
+}
+
+// JwtTokenParser is wrapper interface for different JWT token parsing implementations.
+type JwtTokenParser interface {
+	// Parse parses token string to token instance that is set to echo.Context under JWTConfig.ContextKey
+	// Must return error when parsing failed, token is not valid or otherwise incorrect
+	Parse(tokenString string, config JWTConfig) (interface{}, error)
 }
 
 // jwtFromHeader returns a `jwtExtractor` that extracts token from the request header.

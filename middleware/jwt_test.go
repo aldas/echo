@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -11,6 +12,36 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 )
+
+type DgrijalvaJwtGoParser struct {
+	// DefaultClaimsFunc returns new claims instance for parsed token. This instance is used as destination when
+	// marshalling json to claims. Use our own custom claims implementation here.
+	// Defaults to jwt.MapClaims when not set
+	// NB: ALWAYS return new instance!!! or requests (goroutines) we would see panics runtime
+	DefaultClaimsFunc func() jwt.Claims
+}
+
+func (p *DgrijalvaJwtGoParser) Parse(tokenString string, config JWTConfig) (interface{}, error) {
+	var claims jwt.Claims = jwt.MapClaims{}
+	if p.DefaultClaimsFunc != nil {
+		claims = p.DefaultClaimsFunc()
+	}
+	token, err := new(jwt.Parser).ParseWithClaims(tokenString, claims, p.keyFunc(config))
+	if err != nil {
+		return nil, err
+	}
+	if !token.Valid {
+		return nil, errors.New("token is not valid")
+	}
+	return token, nil
+}
+
+func (p *DgrijalvaJwtGoParser) keyFunc(config JWTConfig) jwt.Keyfunc {
+	return func(t *jwt.Token) (interface{}, error) {
+		kid, _ := t.Header["kid"]
+		return config.KeyFunc(t.Method.Alg(), kid)
+	}
+}
 
 // jwtCustomInfo defines some custom types we're going to use within our tokens.
 type jwtCustomInfo struct {
@@ -34,7 +65,11 @@ func TestJWTRace(t *testing.T) {
 	validKey := []byte("secret")
 
 	h := JWTWithConfig(JWTConfig{
-		Claims:     &jwtCustomClaims{},
+		TokenParser: &DgrijalvaJwtGoParser{
+			DefaultClaimsFunc: func() jwt.Claims {
+				return &jwtCustomClaims{}
+			},
+		},
 		SigningKey: validKey,
 	})(handler)
 
@@ -70,15 +105,18 @@ func TestJWT(t *testing.T) {
 	invalidKey := []byte("invalid-key")
 	validAuth := DefaultJWTConfig.AuthScheme + " " + token
 
+	dgrijalvaJwtGoParser := DgrijalvaJwtGoParser{}
+
 	for _, tc := range []struct {
-		expPanic   bool
-		expErrCode int // 0 for Success
-		config     JWTConfig
-		reqURL     string // "/" if empty
-		hdrAuth    string
-		hdrCookie  string // test.Request doesn't provide SetCookie(); use name=val
-		formValues map[string]string
-		info       string
+		expPanic    bool
+		expErrCode  int // 0 for Success
+		config      JWTConfig
+		tokenParser JwtTokenParser
+		reqURL      string // "/" if empty
+		hdrAuth     string
+		hdrCookie   string // test.Request doesn't provide SetCookie(); use name=val
+		formValues  map[string]string
+		info        string
 	}{
 		{
 			expPanic: true,
@@ -111,7 +149,11 @@ func TestJWT(t *testing.T) {
 		{
 			hdrAuth: validAuth,
 			config: JWTConfig{
-				Claims:     &jwtCustomClaims{},
+				TokenParser: &DgrijalvaJwtGoParser{
+					DefaultClaimsFunc: func() jwt.Claims {
+						return &jwtCustomClaims{}
+					},
+				},
 				SigningKey: []byte("secret"),
 			},
 			info: "Valid JWT with custom claims",
@@ -247,6 +289,10 @@ func TestJWT(t *testing.T) {
 			c.SetParamValues(token)
 		}
 
+		if tc.config.TokenParser == nil {
+			tc.config.TokenParser = &dgrijalvaJwtGoParser
+		}
+
 		if tc.expPanic {
 			assert.Panics(t, func() {
 				JWTWithConfig(tc.config)
@@ -343,6 +389,8 @@ func TestJWTwithKID(t *testing.T) {
 		res := httptest.NewRecorder()
 		req.Header.Set(echo.HeaderAuthorization, tc.hdrAuth)
 		c := e.NewContext(req, res)
+
+		tc.config.TokenParser = &DgrijalvaJwtGoParser{}
 
 		if tc.expErrCode != 0 {
 			h := JWTWithConfig(tc.config)(handler)
