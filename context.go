@@ -49,23 +49,14 @@ type (
 		// Path returns the registered path for the handler.
 		Path() string
 
-		// SetPath sets the registered path for the handler.
-		SetPath(p string)
+		// PathParam returns path parameter by name.
+		PathParam(name string) string
 
-		// Param returns path parameter by name.
-		Param(name string) string
+		// PathParams returns path parameter values.
+		PathParams() PathParams
 
-		// ParamNames returns path parameter names.
-		ParamNames() []string
-
-		// SetParamNames sets path parameter names.
-		SetParamNames(names ...string)
-
-		// ParamValues returns path parameter values.
-		ParamValues() []string
-
-		// SetParamValues sets path parameter values.
-		SetParamValues(values ...string)
+		// SetPathParams set path parameter for during current request lifecycle.
+		SetPathParams(params PathParams)
 
 		// QueryParam returns the query param for the provided name.
 		QueryParam(name string) string
@@ -178,9 +169,6 @@ type (
 		// Handler returns the matched handler by router.
 		Handler() HandlerFunc
 
-		// SetHandler sets the matched handler by router.
-		SetHandler(h HandlerFunc)
-
 		// Logger returns the `Logger` instance.
 		Logger() Logger
 
@@ -189,6 +177,24 @@ type (
 
 		// Echo returns the `Echo` instance.
 		Echo() *Echo
+	}
+
+	// EditableContext is additional interface that structure implementing Context must implement. Methods inside this
+	// interface are meant for Echo internal usage (for mainly routing) and should not be used in middlewares.
+	EditableContext interface {
+		Context
+
+		// RawPathParams returns raw path pathParams value.
+		RawPathParams() *PathParams
+
+		// SetRawPathParams replaces any existing param values with new values for this context lifetime (request).
+		SetRawPathParams(params PathParams)
+
+		// SetPath sets the registered path for the handler.
+		SetPath(p string)
+
+		// SetHandler sets the matched handler by router.
+		SetHandler(h HandlerFunc)
 
 		// Reset resets the context after request completes. It must be called along
 		// with `Echo#AcquireContext()` and `Echo#ReleaseContext()`.
@@ -200,14 +206,19 @@ type (
 		request  *http.Request
 		response *Response
 		path     string
-		pnames   []string
-		pvalues  []string
-		query    url.Values
-		handler  HandlerFunc
-		store    Map
-		echo     *Echo
-		logger   Logger
-		lock     sync.RWMutex
+
+		// pathParams holds path/uri parameters determined by Router. Lifecycle handled by Echo to reduce allocations.
+		pathParams PathParams
+		// currentParams hold path parameters set by non-Echo implementation (custom middlewares, handlers) during the lifetime of Request.
+		// Lifecycle is not handle by Echo and could have excess allocations per served Request
+		currentParams PathParams
+
+		query   url.Values
+		handler HandlerFunc
+		store   Map
+		echo    *Echo
+		logger  Logger
+		lock    sync.RWMutex
 	}
 )
 
@@ -297,52 +308,34 @@ func (c *context) SetPath(p string) {
 	c.path = p
 }
 
-func (c *context) Param(name string) string {
-	for i, n := range c.pnames {
-		if i < len(c.pvalues) {
-			if n == name {
-				return c.pvalues[i]
-			}
-		}
-	}
-	return ""
+func (c *context) RawPathParams() *PathParams {
+	return &c.pathParams
 }
 
-func (c *context) ParamNames() []string {
-	return c.pnames
+func (c *context) SetRawPathParams(params PathParams) {
+	c.pathParams = params
 }
 
-func (c *context) SetParamNames(names ...string) {
-	c.pnames = names
-
-	l := len(names)
-	if *c.echo.maxParam < l {
-		*c.echo.maxParam = l
+func (c *context) PathParam(name string) string {
+	if c.currentParams != nil {
+		return c.currentParams.Get(name, "")
 	}
 
-	if len(c.pvalues) < l {
-		// Keeping the old pvalues just for backward compatibility, but it sounds that doesn't make sense to keep them,
-		// probably those values will be overriden in a Context#SetParamValues
-		newPvalues := make([]string, l)
-		copy(newPvalues, c.pvalues)
-		c.pvalues = newPvalues
-	}
+	return c.pathParams.Get(name, "")
 }
 
-func (c *context) ParamValues() []string {
-	return c.pvalues[:len(c.pnames)]
+func (c *context) PathParams() PathParams {
+	if c.currentParams != nil {
+		return c.currentParams
+	}
+
+	result := make(PathParams, len(c.pathParams))
+	copy(result, c.pathParams)
+	return result
 }
 
-func (c *context) SetParamValues(values ...string) {
-	// NOTE: Don't just set c.pvalues = values, because it has to have length c.echo.maxParam at all times
-	// It will brake the Router#Find code
-	limit := len(values)
-	if limit > *c.echo.maxParam {
-		limit = *c.echo.maxParam
-	}
-	for i := 0; i < limit; i++ {
-		c.pvalues[i] = values[i]
-	}
+func (c *context) SetPathParams(params PathParams) {
+	c.currentParams = params
 }
 
 func (c *context) QueryParam(name string) string {
@@ -653,10 +646,8 @@ func (c *context) Reset(r *http.Request, w http.ResponseWriter) {
 	c.handler = NotFoundHandler
 	c.store = nil
 	c.path = ""
-	c.pnames = nil
 	c.logger = nil
-	// NOTE: Don't reset because it has to have length c.echo.maxParam at all times
-	for i := 0; i < *c.echo.maxParam; i++ {
-		c.pvalues[i] = ""
-	}
+	// NOTE: Don't reset because it has to have length c.echo.contextPathParamAllocSize at all times
+	c.pathParams = c.pathParams[:0]
+	c.currentParams = nil
 }

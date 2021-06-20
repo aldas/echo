@@ -37,7 +37,6 @@ Learn more at https://echo.labstack.com
 package echo
 
 import (
-	"bytes"
 	stdContext "context"
 	"crypto/tls"
 	"errors"
@@ -50,8 +49,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"reflect"
-	"runtime"
 	"sync"
 	"time"
 
@@ -69,14 +66,16 @@ type (
 		common
 		// startupMutex is mutex to lock Echo instance access during server configuration and startup. Useful for to get
 		// listener address info (on which interface/port was listener binded) without having data races.
-		startupMutex     sync.RWMutex
-		StdLogger        *stdLog.Logger
-		colorer          *color.Color
-		premiddleware    []MiddlewareFunc
-		middleware       []MiddlewareFunc
-		maxParam         *int
-		router           *Router
-		routers          map[string]*Router
+		startupMutex  sync.RWMutex
+		StdLogger     *stdLog.Logger
+		colorer       *color.Color
+		premiddleware []MiddlewareFunc
+		middleware    []MiddlewareFunc
+
+		contextPathParamAllocSize int
+		router                    Router
+		routers                   map[string]Router
+
 		notFoundHandler  HandlerFunc
 		pool             sync.Pool
 		Server           *http.Server
@@ -97,13 +96,6 @@ type (
 		ListenerNetwork  string
 	}
 
-	// Route contains a handler and information for matching against requests.
-	Route struct {
-		Method string `json:"method"`
-		Path   string `json:"path"`
-		Name   string `json:"name"`
-	}
-
 	// HTTPError represents an error that occurred while handling a request.
 	HTTPError struct {
 		Code     int         `json:"-"`
@@ -112,13 +104,13 @@ type (
 	}
 
 	// MiddlewareFunc defines a function to process middleware.
-	MiddlewareFunc func(HandlerFunc) HandlerFunc
+	MiddlewareFunc func(next HandlerFunc) HandlerFunc
 
 	// HandlerFunc defines a function to serve HTTP requests.
-	HandlerFunc func(Context) error
+	HandlerFunc func(c Context) error
 
 	// HTTPErrorHandler is a centralized HTTP error handler.
-	HTTPErrorHandler func(error, Context)
+	HTTPErrorHandler func(err error, c Context)
 
 	// Validator is the interface that wraps the Validate function.
 	Validator interface {
@@ -308,7 +300,6 @@ func New() (e *Echo) {
 		},
 		Logger:          log.New("echo"),
 		colorer:         color.New(),
-		maxParam:        new(int),
 		ListenerNetwork: "tcp",
 	}
 	e.Server.Handler = e
@@ -321,29 +312,29 @@ func New() (e *Echo) {
 		return e.NewContext(nil, nil)
 	}
 	e.router = NewRouter(e)
-	e.routers = map[string]*Router{}
+	e.routers = make(map[string]Router)
 	return
 }
 
 // NewContext returns a Context instance.
 func (e *Echo) NewContext(r *http.Request, w http.ResponseWriter) Context {
 	return &context{
-		request:  r,
-		response: NewResponse(w, e),
-		store:    make(Map),
-		echo:     e,
-		pvalues:  make([]string, *e.maxParam),
-		handler:  NotFoundHandler,
+		request:    r,
+		response:   NewResponse(w, e),
+		store:      make(Map),
+		echo:       e,
+		pathParams: make([]PathParam, e.contextPathParamAllocSize),
+		handler:    NotFoundHandler,
 	}
 }
 
 // Router returns the default router.
-func (e *Echo) Router() *Router {
+func (e *Echo) Router() Router {
 	return e.router
 }
 
 // Routers returns the map of host => router.
-func (e *Echo) Routers() map[string]*Router {
+func (e *Echo) Routers() map[string]Router {
 	return e.routers
 }
 
@@ -388,74 +379,75 @@ func (e *Echo) DefaultHTTPErrorHandler(err error, c Context) {
 	}
 }
 
-// Pre adds middleware to the chain which is run before router.
+// Pre adds middleware to the chain which is run before router tries to find matching route.
+// Meaning middleware is executed even for 404 (not found) cases.
 func (e *Echo) Pre(middleware ...MiddlewareFunc) {
 	e.premiddleware = append(e.premiddleware, middleware...)
 }
 
-// Use adds middleware to the chain which is run after router.
+// Use adds middleware to the chain which is run after router has found matching route and before route/request handler method is executed.
 func (e *Echo) Use(middleware ...MiddlewareFunc) {
 	e.middleware = append(e.middleware, middleware...)
 }
 
 // CONNECT registers a new CONNECT route for a path with matching handler in the
 // router with optional route-level middleware.
-func (e *Echo) CONNECT(path string, h HandlerFunc, m ...MiddlewareFunc) *Route {
+func (e *Echo) CONNECT(path string, h HandlerFunc, m ...MiddlewareFunc) error {
 	return e.Add(http.MethodConnect, path, h, m...)
 }
 
 // DELETE registers a new DELETE route for a path with matching handler in the router
 // with optional route-level middleware.
-func (e *Echo) DELETE(path string, h HandlerFunc, m ...MiddlewareFunc) *Route {
+func (e *Echo) DELETE(path string, h HandlerFunc, m ...MiddlewareFunc) error {
 	return e.Add(http.MethodDelete, path, h, m...)
 }
 
 // GET registers a new GET route for a path with matching handler in the router
 // with optional route-level middleware.
-func (e *Echo) GET(path string, h HandlerFunc, m ...MiddlewareFunc) *Route {
+func (e *Echo) GET(path string, h HandlerFunc, m ...MiddlewareFunc) error {
 	return e.Add(http.MethodGet, path, h, m...)
 }
 
 // HEAD registers a new HEAD route for a path with matching handler in the
 // router with optional route-level middleware.
-func (e *Echo) HEAD(path string, h HandlerFunc, m ...MiddlewareFunc) *Route {
+func (e *Echo) HEAD(path string, h HandlerFunc, m ...MiddlewareFunc) error {
 	return e.Add(http.MethodHead, path, h, m...)
 }
 
 // OPTIONS registers a new OPTIONS route for a path with matching handler in the
 // router with optional route-level middleware.
-func (e *Echo) OPTIONS(path string, h HandlerFunc, m ...MiddlewareFunc) *Route {
+func (e *Echo) OPTIONS(path string, h HandlerFunc, m ...MiddlewareFunc) error {
 	return e.Add(http.MethodOptions, path, h, m...)
 }
 
 // PATCH registers a new PATCH route for a path with matching handler in the
 // router with optional route-level middleware.
-func (e *Echo) PATCH(path string, h HandlerFunc, m ...MiddlewareFunc) *Route {
+func (e *Echo) PATCH(path string, h HandlerFunc, m ...MiddlewareFunc) error {
 	return e.Add(http.MethodPatch, path, h, m...)
 }
 
 // POST registers a new POST route for a path with matching handler in the
 // router with optional route-level middleware.
-func (e *Echo) POST(path string, h HandlerFunc, m ...MiddlewareFunc) *Route {
+func (e *Echo) POST(path string, h HandlerFunc, m ...MiddlewareFunc) error {
 	return e.Add(http.MethodPost, path, h, m...)
 }
 
 // PUT registers a new PUT route for a path with matching handler in the
 // router with optional route-level middleware.
-func (e *Echo) PUT(path string, h HandlerFunc, m ...MiddlewareFunc) *Route {
+func (e *Echo) PUT(path string, h HandlerFunc, m ...MiddlewareFunc) error {
 	return e.Add(http.MethodPut, path, h, m...)
 }
 
 // TRACE registers a new TRACE route for a path with matching handler in the
 // router with optional route-level middleware.
-func (e *Echo) TRACE(path string, h HandlerFunc, m ...MiddlewareFunc) *Route {
+func (e *Echo) TRACE(path string, h HandlerFunc, m ...MiddlewareFunc) error {
 	return e.Add(http.MethodTrace, path, h, m...)
 }
 
-// Any registers a new route for all HTTP methods and path with matching handler
+// Any registers a new route for all supported HTTP methods and path with matching handler
 // in the router with optional route-level middleware.
-func (e *Echo) Any(path string, handler HandlerFunc, middleware ...MiddlewareFunc) []*Route {
-	routes := make([]*Route, len(methods))
+func (e *Echo) Any(path string, handler HandlerFunc, middleware ...MiddlewareFunc) []error {
+	routes := make([]error, len(methods))
 	for i, m := range methods {
 		routes[i] = e.Add(m, path, handler, middleware...)
 	}
@@ -464,8 +456,8 @@ func (e *Echo) Any(path string, handler HandlerFunc, middleware ...MiddlewareFun
 
 // Match registers a new route for multiple HTTP methods and path with matching
 // handler in the router with optional route-level middleware.
-func (e *Echo) Match(methods []string, path string, handler HandlerFunc, middleware ...MiddlewareFunc) []*Route {
-	routes := make([]*Route, len(methods))
+func (e *Echo) Match(methods []string, path string, handler HandlerFunc, middleware ...MiddlewareFunc) []error {
+	routes := make([]error, len(methods))
 	for i, m := range methods {
 		routes[i] = e.Add(m, path, handler, middleware...)
 	}
@@ -474,16 +466,21 @@ func (e *Echo) Match(methods []string, path string, handler HandlerFunc, middlew
 
 // Static registers a new route with path prefix to serve static files from the
 // provided root directory.
-func (e *Echo) Static(prefix, root string) *Route {
+func (e *Echo) Static(prefix, root string, middleware ...MiddlewareFunc) error {
 	if root == "" {
 		root = "." // For security we want to restrict to CWD.
 	}
-	return e.static(prefix, root, e.GET)
+	return e.static(prefix, root, e.GET, middleware...)
 }
 
-func (common) static(prefix, root string, get func(string, HandlerFunc, ...MiddlewareFunc) *Route) *Route {
+func (common) static(
+	prefix string,
+	root string,
+	get func(string, HandlerFunc, ...MiddlewareFunc) error,
+	middleware ...MiddlewareFunc,
+) error {
 	h := func(c Context) error {
-		p, err := url.PathUnescape(c.Param("*"))
+		p, err := url.PathUnescape(c.PathParam("*"))
 		if err != nil {
 			return err
 		}
@@ -511,43 +508,66 @@ func (common) static(prefix, root string, get func(string, HandlerFunc, ...Middl
 			// Only add any route for intentional trailing slash
 			return get(prefix+"*", h)
 		}
-		get(prefix, h)
+		err := get(prefix, h)
+		if err != nil {
+			return err
+		}
 	}
-	return get(prefix+"/*", h)
+	return get(prefix+"/*", h, middleware...)
 }
 
-func (common) file(path, file string, get func(string, HandlerFunc, ...MiddlewareFunc) *Route,
-	m ...MiddlewareFunc) *Route {
+func (common) file(
+	path string,
+	file string,
+	get func(string, HandlerFunc, ...MiddlewareFunc) error,
+	m ...MiddlewareFunc,
+) error {
 	return get(path, func(c Context) error {
 		return c.File(file)
 	}, m...)
 }
 
 // File registers a new route with path to serve a static file with optional route-level middleware.
-func (e *Echo) File(path, file string, m ...MiddlewareFunc) *Route {
+func (e *Echo) File(path, file string, m ...MiddlewareFunc) error {
 	return e.file(path, file, e.GET, m...)
 }
 
-func (e *Echo) add(host, method, path string, handler HandlerFunc, middleware ...MiddlewareFunc) *Route {
-	name := handlerName(handler)
+// AddRoute registers a new Route with default host Router
+func (e *Echo) AddRoute(route Route) error {
+	return e.add("", route)
+}
+
+func (e *Echo) add(host string, route Route) error {
+	e.updateContextMaxParamCount(route.Path)
 	router := e.findRouter(host)
-	router.Add(method, path, func(c Context) error {
-		h := applyMiddleware(handler, middleware...)
-		return h(c)
-	})
-	r := &Route{
-		Method: method,
-		Path:   path,
-		Name:   name,
+	return router.Add(route)
+}
+
+func (e *Echo) updateContextMaxParamCount(path string) {
+	count := 0
+	for _, c := range path {
+		if c == '*' || c == ':' {
+			count++
+		}
 	}
-	e.router.routes[method+path] = r
-	return r
+	if count > e.contextPathParamAllocSize {
+		e.contextPathParamAllocSize = count
+	}
 }
 
 // Add registers a new route for an HTTP method and path with matching handler
 // in the router with optional route-level middleware.
-func (e *Echo) Add(method, path string, handler HandlerFunc, middleware ...MiddlewareFunc) *Route {
-	return e.add("", method, path, handler, middleware...)
+func (e *Echo) Add(method, path string, handler HandlerFunc, middleware ...MiddlewareFunc) error {
+	return e.add(
+		"",
+		Route{
+			Method:      method,
+			Path:        path,
+			Handler:     handler,
+			Middlewares: middleware,
+			Name:        "",
+		},
+	)
 }
 
 // Host creates a new router group for the provided host and optional host-level middleware.
@@ -565,50 +585,6 @@ func (e *Echo) Group(prefix string, m ...MiddlewareFunc) (g *Group) {
 	return
 }
 
-// URI generates a URI from handler.
-func (e *Echo) URI(handler HandlerFunc, params ...interface{}) string {
-	name := handlerName(handler)
-	return e.Reverse(name, params...)
-}
-
-// URL is an alias for `URI` function.
-func (e *Echo) URL(h HandlerFunc, params ...interface{}) string {
-	return e.URI(h, params...)
-}
-
-// Reverse generates an URL from route name and provided parameters.
-func (e *Echo) Reverse(name string, params ...interface{}) string {
-	uri := new(bytes.Buffer)
-	ln := len(params)
-	n := 0
-	for _, r := range e.router.routes {
-		if r.Name == name {
-			for i, l := 0, len(r.Path); i < l; i++ {
-				if (r.Path[i] == ':' || r.Path[i] == '*') && n < ln {
-					for ; i < l && r.Path[i] != '/'; i++ {
-					}
-					uri.WriteString(fmt.Sprintf("%v", params[n]))
-					n++
-				}
-				if i < l {
-					uri.WriteByte(r.Path[i])
-				}
-			}
-			break
-		}
-	}
-	return uri.String()
-}
-
-// Routes returns the registered routes.
-func (e *Echo) Routes() []*Route {
-	routes := make([]*Route, 0, len(e.router.routes))
-	for _, v := range e.router.routes {
-		routes = append(routes, v)
-	}
-	return routes
-}
-
 // AcquireContext returns an empty `Context` instance from the pool.
 // You must return the context by calling `ReleaseContext()`.
 func (e *Echo) AcquireContext() Context {
@@ -624,20 +600,29 @@ func (e *Echo) ReleaseContext(c Context) {
 // ServeHTTP implements `http.Handler` interface, which serves HTTP requests.
 func (e *Echo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Acquire context
-	c := e.pool.Get().(*context)
+	c := e.pool.Get().(EditableContext)
 	c.Reset(r, w)
-	h := NotFoundHandler
+	var h func(c Context) error
 
+	match := &RouteMatch{
+		PathParams: *c.RawPathParams(),
+		Handler:    NotFoundHandler,
+	}
 	if e.premiddleware == nil {
-		e.findRouter(r.Host).Find(r.Method, GetPath(r), c)
-		h = c.Handler()
-		h = applyMiddleware(h, e.middleware...)
+		e.findRouter(r.Host).Match(r, match)
+
+		c.SetRawPathParams(match.PathParams)
+		c.SetPath(match.RoutePath)
+		h = applyMiddleware(match.Handler, e.middleware...)
 	} else {
-		h = func(c Context) error {
-			e.findRouter(r.Host).Find(r.Method, GetPath(r), c)
-			h := c.Handler()
-			h = applyMiddleware(h, e.middleware...)
-			return h(c)
+		h = func(cc Context) error {
+			e.findRouter(r.Host).Match(r, match)
+			// NOTE: router will be executed after pre middlewares have been run. We assume here that context we receive after pre middlewares
+			// is the same we began with. If not - this is use-case we do not support and is probably abuse from developer.
+			c.SetRawPathParams(match.PathParams)
+			c.SetPath(match.RoutePath)
+			h = applyMiddleware(match.Handler, e.middleware...)
+			return h(cc)
 		}
 		h = applyMiddleware(h, e.premiddleware...)
 	}
@@ -921,21 +906,13 @@ func GetPath(r *http.Request) string {
 	return path
 }
 
-func (e *Echo) findRouter(host string) *Router {
+func (e *Echo) findRouter(host string) Router {
 	if len(e.routers) > 0 {
 		if r, ok := e.routers[host]; ok {
 			return r
 		}
 	}
 	return e.router
-}
-
-func handlerName(h HandlerFunc) string {
-	t := reflect.ValueOf(h).Type()
-	if t.Kind() == reflect.Func {
-		return runtime.FuncForPC(reflect.ValueOf(h).Pointer()).Name()
-	}
-	return t.String()
 }
 
 // // PathUnescape is wraps `url.PathUnescape`

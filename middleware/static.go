@@ -158,7 +158,7 @@ func StaticWithConfig(config StaticConfig) echo.MiddlewareFunc {
 	// Index template
 	t, err := template.New("index").Parse(html)
 	if err != nil {
-		panic(fmt.Sprintf("echo: %v", err))
+		panic(fmt.Sprintf("echo: %v", err)) //
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
@@ -169,7 +169,7 @@ func StaticWithConfig(config StaticConfig) echo.MiddlewareFunc {
 
 			p := c.Request().URL.Path
 			if strings.HasSuffix(c.Path(), "*") { // When serving from a group, e.g. `/static*`.
-				p = c.Param("*")
+				p = c.PathParam("*")
 			}
 			p, err = url.PathUnescape(p)
 			if err != nil {

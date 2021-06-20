@@ -281,8 +281,10 @@ func TestJWT(t *testing.T) {
 		c := e.NewContext(req, res)
 
 		if tc.reqURL == "/"+token {
-			c.SetParamNames("jwt")
-			c.SetParamValues(token)
+			cc := c.(echo.EditableContext)
+			cc.SetRawPathParams(echo.PathParams{
+				{Name: "jwt", Value: token},
+			})
 		}
 
 		if tc.expPanic {

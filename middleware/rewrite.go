@@ -52,7 +52,7 @@ func Rewrite(rules map[string]string) echo.MiddlewareFunc {
 func RewriteWithConfig(config RewriteConfig) echo.MiddlewareFunc {
 	// Defaults
 	if config.Rules == nil && config.RegexRules == nil {
-		panic("echo: rewrite middleware requires url path rewrite rules or regex rules")
+		panic("echo: rewrite middleware requires url path rewrite rules or regex rules") //
 	}
 
 	if config.Skipper == nil {

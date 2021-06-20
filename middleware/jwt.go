@@ -138,7 +138,7 @@ func JWTWithConfig(config JWTConfig) echo.MiddlewareFunc {
 		config.Skipper = DefaultJWTConfig.Skipper
 	}
 	if config.SigningKey == nil && len(config.SigningKeys) == 0 && config.KeyFunc == nil {
-		panic("echo: jwt middleware requires signing key")
+		panic("echo: jwt middleware requires signing key") //
 	}
 	if config.SigningMethod == "" {
 		config.SigningMethod = DefaultJWTConfig.SigningMethod
@@ -287,7 +287,7 @@ func jwtFromQuery(param string) jwtExtractor {
 // jwtFromParam returns a `jwtExtractor` that extracts token from the url param string.
 func jwtFromParam(param string) jwtExtractor {
 	return func(c echo.Context) (string, error) {
-		token := c.Param(param)
+		token := c.PathParam(param)
 		if token == "" {
 			return "", ErrJWTMissing
 		}

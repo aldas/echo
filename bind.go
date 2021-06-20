@@ -32,11 +32,9 @@ type (
 
 // BindPathParams binds path params to bindable object
 func (b *DefaultBinder) BindPathParams(c Context, i interface{}) error {
-	names := c.ParamNames()
-	values := c.ParamValues()
 	params := map[string][]string{}
-	for i, name := range names {
-		params[name] = []string{values[i]}
+	for _, param := range c.PathParams() {
+		params[param.Name] = []string{param.Value}
 	}
 	if err := b.bindData(i, params, "param"); err != nil {
 		return NewHTTPError(http.StatusBadRequest, err.Error()).SetInternal(err)

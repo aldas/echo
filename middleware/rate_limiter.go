@@ -124,7 +124,7 @@ func RateLimiterWithConfig(config RateLimiterConfig) echo.MiddlewareFunc {
 		config.DenyHandler = DefaultRateLimiterConfig.DenyHandler
 	}
 	if config.Store == nil {
-		panic("Store configuration must be provided")
+		panic("Store configuration must be provided") //
 	}
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {

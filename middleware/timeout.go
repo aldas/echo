@@ -97,7 +97,7 @@ func (t echoHandlerFuncWrapper) ServeHTTP(rw http.ResponseWriter, r *http.Reques
 	defer func() {
 		if err := recover(); err != nil {
 			t.ctx.Response().Writer = originalWriter
-			panic(err)
+			panic(err) //
 		}
 	}()
 

@@ -55,7 +55,7 @@ func BasicAuth(fn BasicAuthValidator) echo.MiddlewareFunc {
 func BasicAuthWithConfig(config BasicAuthConfig) echo.MiddlewareFunc {
 	// Defaults
 	if config.Validator == nil {
-		panic("echo: basic-auth middleware requires a validator function")
+		panic("echo: basic-auth middleware requires a validator function") //
 	}
 	if config.Skipper == nil {
 		config.Skipper = DefaultBasicAuthConfig.Skipper

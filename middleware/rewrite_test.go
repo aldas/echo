@@ -24,10 +24,10 @@ func TestRewriteAfterRouting(t *testing.T) {
 		},
 	}))
 	e.GET("/public/*", func(c echo.Context) error {
-		return c.String(http.StatusOK, c.Param("*"))
+		return c.String(http.StatusOK, c.PathParam("*"))
 	})
 	e.GET("/*", func(c echo.Context) error {
-		return c.String(http.StatusOK, c.Param("*"))
+		return c.String(http.StatusOK, c.PathParam("*"))
 	})
 
 	var testCases = []struct {
@@ -93,7 +93,6 @@ func TestRewriteAfterRouting(t *testing.T) {
 // Issue #1086
 func TestEchoRewritePreMiddleware(t *testing.T) {
 	e := echo.New()
-	r := e.Router()
 
 	// Rewrite old url to new one
 	// middlewares added with `Pre()` are executed before routing is done and therefore change which handler matches
@@ -103,7 +102,7 @@ func TestEchoRewritePreMiddleware(t *testing.T) {
 	))
 
 	// Route
-	r.Add(http.MethodGet, "/new", func(c echo.Context) error {
+	e.Add(http.MethodGet, "/new", func(c echo.Context) error {
 		return c.NoContent(http.StatusOK)
 	})
 
@@ -117,7 +116,6 @@ func TestEchoRewritePreMiddleware(t *testing.T) {
 // Issue #1143
 func TestRewriteWithConfigPreMiddleware_Issue1143(t *testing.T) {
 	e := echo.New()
-	r := e.Router()
 
 	// middlewares added with `Pre()` are executed before routing is done and therefore change which handler matches
 	e.Pre(RewriteWithConfig(RewriteConfig{
@@ -127,10 +125,10 @@ func TestRewriteWithConfigPreMiddleware_Issue1143(t *testing.T) {
 		},
 	}))
 
-	r.Add(http.MethodGet, "/api/:version/hosts/:name", func(c echo.Context) error {
+	e.Add(http.MethodGet, "/api/:version/hosts/:name", func(c echo.Context) error {
 		return c.String(http.StatusOK, "hosts")
 	})
-	r.Add(http.MethodGet, "/api/:version/eng", func(c echo.Context) error {
+	e.Add(http.MethodGet, "/api/:version/eng", func(c echo.Context) error {
 		return c.String(http.StatusOK, "eng")
 	})
 

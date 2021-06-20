@@ -417,68 +417,13 @@ func TestEchoMatch(t *testing.T) { // JFC
 	})
 }
 
-func TestEchoURL(t *testing.T) {
-	e := New()
-	static := func(Context) error { return nil }
-	getUser := func(Context) error { return nil }
-	getAny := func(Context) error { return nil }
-	getFile := func(Context) error { return nil }
-
-	e.GET("/static/file", static)
-	e.GET("/users/:id", getUser)
-	e.GET("/documents/*", getAny)
-	g := e.Group("/group")
-	g.GET("/users/:uid/files/:fid", getFile)
-
-	assert := assert.New(t)
-
-	assert.Equal("/static/file", e.URL(static))
-	assert.Equal("/users/:id", e.URL(getUser))
-	assert.Equal("/users/1", e.URL(getUser, "1"))
-	assert.Equal("/users/1", e.URL(getUser, "1"))
-	assert.Equal("/documents/foo.txt", e.URL(getAny, "foo.txt"))
-	assert.Equal("/documents/*", e.URL(getAny))
-	assert.Equal("/group/users/1/files/:fid", e.URL(getFile, "1"))
-	assert.Equal("/group/users/1/files/1", e.URL(getFile, "1", "1"))
-}
-
-func TestEchoRoutes(t *testing.T) {
-	e := New()
-	routes := []*Route{
-		{http.MethodGet, "/users/:user/events", ""},
-		{http.MethodGet, "/users/:user/events/public", ""},
-		{http.MethodPost, "/repos/:owner/:repo/git/refs", ""},
-		{http.MethodPost, "/repos/:owner/:repo/git/tags", ""},
-	}
-	for _, r := range routes {
-		e.Add(r.Method, r.Path, func(c Context) error {
-			return c.String(http.StatusOK, "OK")
-		})
-	}
-
-	if assert.Equal(t, len(routes), len(e.Routes())) {
-		for _, r := range e.Routes() {
-			found := false
-			for _, rr := range routes {
-				if r.Method == rr.Method && r.Path == rr.Path {
-					found = true
-					break
-				}
-			}
-			if !found {
-				t.Errorf("Route %s %s not found", r.Method, r.Path)
-			}
-		}
-	}
-}
-
 func TestEchoServeHTTPPathEncoding(t *testing.T) {
 	e := New()
 	e.GET("/with/slash", func(c Context) error {
 		return c.String(http.StatusOK, "/with/slash")
 	})
 	e.GET("/:id", func(c Context) error {
-		return c.String(http.StatusOK, c.Param("id"))
+		return c.String(http.StatusOK, c.PathParam("id"))
 	})
 
 	var testCases = []struct {
@@ -1141,31 +1086,6 @@ func TestEchoListenerNetworkInvalid(t *testing.T) {
 	assert.Equal(t, ErrInvalidListenerNetwork, e.Start(":1323"))
 }
 
-func TestEchoReverse(t *testing.T) {
-	assert := assert.New(t)
-
-	e := New()
-	dummyHandler := func(Context) error { return nil }
-
-	e.GET("/static", dummyHandler).Name = "/static"
-	e.GET("/static/*", dummyHandler).Name = "/static/*"
-	e.GET("/params/:foo", dummyHandler).Name = "/params/:foo"
-	e.GET("/params/:foo/bar/:qux", dummyHandler).Name = "/params/:foo/bar/:qux"
-	e.GET("/params/:foo/bar/:qux/*", dummyHandler).Name = "/params/:foo/bar/:qux/*"
-
-	assert.Equal("/static", e.Reverse("/static"))
-	assert.Equal("/static", e.Reverse("/static", "missing param"))
-	assert.Equal("/static/*", e.Reverse("/static/*"))
-	assert.Equal("/static/foo.txt", e.Reverse("/static/*", "foo.txt"))
-
-	assert.Equal("/params/:foo", e.Reverse("/params/:foo"))
-	assert.Equal("/params/one", e.Reverse("/params/:foo", "one"))
-	assert.Equal("/params/:foo/bar/:qux", e.Reverse("/params/:foo/bar/:qux"))
-	assert.Equal("/params/one/bar/:qux", e.Reverse("/params/:foo/bar/:qux", "one"))
-	assert.Equal("/params/one/bar/two", e.Reverse("/params/:foo/bar/:qux", "one", "two"))
-	assert.Equal("/params/one/bar/two/three", e.Reverse("/params/:foo/bar/:qux/*", "one", "two", "three"))
-}
-
 func TestEcho_ListenerAddr(t *testing.T) {
 	e := New()
 
@@ -1290,22 +1210,22 @@ func benchmarkEchoRoutes(b *testing.B, routes []*Route) {
 	}
 }
 
-func BenchmarkEchoStaticRoutes(b *testing.B) {
-	benchmarkEchoRoutes(b, staticRoutes)
-}
-
-func BenchmarkEchoStaticRoutesMisses(b *testing.B) {
-	benchmarkEchoRoutes(b, staticRoutes)
-}
-
-func BenchmarkEchoGitHubAPI(b *testing.B) {
-	benchmarkEchoRoutes(b, gitHubAPI)
-}
-
-func BenchmarkEchoGitHubAPIMisses(b *testing.B) {
-	benchmarkEchoRoutes(b, gitHubAPI)
-}
-
-func BenchmarkEchoParseAPI(b *testing.B) {
-	benchmarkEchoRoutes(b, parseAPI)
-}
+//func BenchmarkEchoStaticRoutes(b *testing.B) {
+//	benchmarkEchoRoutes(b, staticRoutes)
+//}
+//
+//func BenchmarkEchoStaticRoutesMisses(b *testing.B) {
+//	benchmarkEchoRoutes(b, staticRoutes)
+//}
+//
+//func BenchmarkEchoGitHubAPI(b *testing.B) {
+//	benchmarkEchoRoutes(b, gitHubAPI)
+//}
+//
+//func BenchmarkEchoGitHubAPIMisses(b *testing.B) {
+//	benchmarkEchoRoutes(b, gitHubAPI)
+//}
+//
+//func BenchmarkEchoParseAPI(b *testing.B) {
+//	benchmarkEchoRoutes(b, parseAPI)
+//}

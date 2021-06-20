@@ -211,7 +211,7 @@ func ProxyWithConfig(config ProxyConfig) echo.MiddlewareFunc {
 		config.Skipper = DefaultProxyConfig.Skipper
 	}
 	if config.Balancer == nil {
-		panic("echo: proxy middleware requires balancer")
+		panic("echo: proxy middleware requires balancer") //
 	}
 
 	if config.Rewrite != nil {
