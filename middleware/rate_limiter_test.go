@@ -28,16 +28,16 @@ func TestRateLimiter(t *testing.T) {
 	mw := RateLimiter(inMemoryStore)
 
 	testCases := []struct {
-		id   string
-		code int
+		id        string
+		expectErr string
 	}{
-		{"127.0.0.1", http.StatusOK},
-		{"127.0.0.1", http.StatusOK},
-		{"127.0.0.1", http.StatusOK},
-		{"127.0.0.1", http.StatusTooManyRequests},
-		{"127.0.0.1", http.StatusTooManyRequests},
-		{"127.0.0.1", http.StatusTooManyRequests},
-		{"127.0.0.1", http.StatusTooManyRequests},
+		{id: "127.0.0.1"},
+		{id: "127.0.0.1"},
+		{id: "127.0.0.1"},
+		{id: "127.0.0.1", expectErr: "code=429, message=rate limit exceeded"},
+		{id: "127.0.0.1", expectErr: "code=429, message=rate limit exceeded"},
+		{id: "127.0.0.1", expectErr: "code=429, message=rate limit exceeded"},
+		{id: "127.0.0.1", expectErr: "code=429, message=rate limit exceeded"},
 	}
 
 	for _, tc := range testCases {
@@ -47,8 +47,13 @@ func TestRateLimiter(t *testing.T) {
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
 
-		_ = mw(handler)(c)
-		assert.Equal(t, tc.code, rec.Code)
+		err := mw(handler)(c)
+		if tc.expectErr != "" {
+			assert.EqualError(t, err, tc.expectErr)
+		} else {
+			assert.NoError(t, err)
+		}
+		assert.Equal(t, http.StatusOK, rec.Code)
 	}
 }
 
@@ -111,8 +116,9 @@ func TestRateLimiterWithConfig(t *testing.T) {
 
 		c := e.NewContext(req, rec)
 
-		_ = mw(handler)(c)
+		err := mw(handler)(c)
 
+		assert.NoError(t, err)
 		assert.Equal(t, tc.code, rec.Code)
 	}
 }
@@ -138,16 +144,16 @@ func TestRateLimiterWithConfig_defaultDenyHandler(t *testing.T) {
 	})
 
 	testCases := []struct {
-		id   string
-		code int
+		id        string
+		expectErr string
 	}{
-		{"127.0.0.1", http.StatusOK},
-		{"127.0.0.1", http.StatusOK},
-		{"127.0.0.1", http.StatusOK},
-		{"127.0.0.1", http.StatusTooManyRequests},
-		{"", http.StatusForbidden},
-		{"127.0.0.1", http.StatusTooManyRequests},
-		{"127.0.0.1", http.StatusTooManyRequests},
+		{id: "127.0.0.1"},
+		{id: "127.0.0.1"},
+		{id: "127.0.0.1"},
+		{id: "127.0.0.1", expectErr: "code=429, message=rate limit exceeded"},
+		{expectErr: "code=403, message=error while extracting identifier, internal=invalid identifier"},
+		{id: "127.0.0.1", expectErr: "code=429, message=rate limit exceeded"},
+		{id: "127.0.0.1", expectErr: "code=429, message=rate limit exceeded"},
 	}
 
 	for _, tc := range testCases {
@@ -158,9 +164,13 @@ func TestRateLimiterWithConfig_defaultDenyHandler(t *testing.T) {
 
 		c := e.NewContext(req, rec)
 
-		_ = mw(handler)(c)
-
-		assert.Equal(t, tc.code, rec.Code)
+		err := mw(handler)(c)
+		if tc.expectErr != "" {
+			assert.EqualError(t, err, tc.expectErr)
+		} else {
+			assert.NoError(t, err)
+		}
+		assert.Equal(t, http.StatusOK, rec.Code)
 	}
 }
 
@@ -179,16 +189,16 @@ func TestRateLimiterWithConfig_defaultConfig(t *testing.T) {
 		})
 
 		testCases := []struct {
-			id   string
-			code int
+			id        string
+			expectErr string
 		}{
-			{"127.0.0.1", http.StatusOK},
-			{"127.0.0.1", http.StatusOK},
-			{"127.0.0.1", http.StatusOK},
-			{"127.0.0.1", http.StatusTooManyRequests},
-			{"127.0.0.1", http.StatusTooManyRequests},
-			{"127.0.0.1", http.StatusTooManyRequests},
-			{"127.0.0.1", http.StatusTooManyRequests},
+			{id: "127.0.0.1"},
+			{id: "127.0.0.1"},
+			{id: "127.0.0.1"},
+			{id: "127.0.0.1", expectErr: "code=429, message=rate limit exceeded"},
+			{id: "127.0.0.1", expectErr: "code=429, message=rate limit exceeded"},
+			{id: "127.0.0.1", expectErr: "code=429, message=rate limit exceeded"},
+			{id: "127.0.0.1", expectErr: "code=429, message=rate limit exceeded"},
 		}
 
 		for _, tc := range testCases {
@@ -199,9 +209,13 @@ func TestRateLimiterWithConfig_defaultConfig(t *testing.T) {
 
 			c := e.NewContext(req, rec)
 
-			_ = mw(handler)(c)
-
-			assert.Equal(t, tc.code, rec.Code)
+			err := mw(handler)(c)
+			if tc.expectErr != "" {
+				assert.EqualError(t, err, tc.expectErr)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, http.StatusOK, rec.Code)
 		}
 	}
 }
@@ -235,8 +249,9 @@ func TestRateLimiterWithConfig_skipper(t *testing.T) {
 		},
 	})
 
-	_ = mw(handler)(c)
+	err := mw(handler)(c)
 
+	assert.NoError(t, err)
 	assert.Equal(t, false, beforeFuncRan)
 }
 
@@ -301,8 +316,9 @@ func TestRateLimiterWithConfig_beforeFunc(t *testing.T) {
 		},
 	})
 
-	_ = mw(handler)(c)
+	err := mw(handler)(c)
 
+	assert.NoError(t, err)
 	assert.Equal(t, true, beforeRan)
 }
 

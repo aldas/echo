@@ -2,6 +2,7 @@ package echo
 
 import (
 	"bufio"
+	"errors"
 	"net"
 	"net/http"
 )
@@ -53,7 +54,7 @@ func (r *Response) After(fn func()) {
 // used to send error codes.
 func (r *Response) WriteHeader(code int) {
 	if r.Committed {
-		r.echo.Logger.Warn("response already committed")
+		r.echo.Logger.Error(errors.New("response already committed"))
 		return
 	}
 	r.Status = code

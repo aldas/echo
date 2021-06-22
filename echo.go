@@ -56,7 +56,6 @@ import (
 	"time"
 
 	"github.com/labstack/gommon/color"
-	"github.com/labstack/gommon/log"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/http2"
@@ -70,7 +69,6 @@ type (
 		// startupMutex is mutex to lock Echo instance access during server configuration and startup. Useful for to get
 		// listener address info (on which interface/port was listener binded) without having data races.
 		startupMutex     sync.RWMutex
-		StdLogger        *stdLog.Logger
 		colorer          *color.Color
 		premiddleware    []MiddlewareFunc
 		middleware       []MiddlewareFunc
@@ -306,7 +304,7 @@ func New() (e *Echo) {
 		AutoTLSManager: autocert.Manager{
 			Prompt: autocert.AcceptTOS,
 		},
-		Logger:          log.New("echo"),
+		Logger:          newStdLogger(),
 		colorer:         color.New(),
 		maxParam:        new(int),
 		ListenerNetwork: "tcp",
@@ -315,8 +313,6 @@ func New() (e *Echo) {
 	e.TLSServer.Handler = e
 	e.HTTPErrorHandler = e.DefaultHTTPErrorHandler
 	e.Binder = &DefaultBinder{}
-	e.Logger.SetLevel(log.ERROR)
-	e.StdLogger = stdLog.New(e.Logger.Output(), e.Logger.Prefix()+": ", 0)
 	e.pool.New = func() interface{} {
 		return e.NewContext(nil, nil)
 	}
@@ -751,11 +747,8 @@ func (e *Echo) StartServer(s *http.Server) (err error) {
 func (e *Echo) configureServer(s *http.Server) (err error) {
 	// Setup
 	e.colorer.SetOutput(e.Logger.Output())
-	s.ErrorLog = e.StdLogger
+	s.ErrorLog = stdLog.New(e.Logger.Output(), "http.server: ", 0)
 	s.Handler = e
-	if e.Debug {
-		e.Logger.SetLevel(log.DEBUG)
-	}
 
 	if !e.HideBanner {
 		e.colorer.Printf(banner, e.colorer.Red("v"+Version), e.colorer.Blue(website))
@@ -813,11 +806,8 @@ func (e *Echo) StartH2CServer(address string, h2s *http2.Server) (err error) {
 	s := e.Server
 	s.Addr = address
 	e.colorer.SetOutput(e.Logger.Output())
-	s.ErrorLog = e.StdLogger
+	s.ErrorLog = stdLog.New(e.Logger.Output(), "http.server: ", 0)
 	s.Handler = h2c.NewHandler(e, h2s)
-	if e.Debug {
-		e.Logger.SetLevel(log.DEBUG)
-	}
 
 	if !e.HideBanner {
 		e.colorer.Printf(banner, e.colorer.Red("v"+Version), e.colorer.Blue(website))

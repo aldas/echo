@@ -60,7 +60,7 @@ func BodyDumpWithConfig(config BodyDumpConfig) echo.MiddlewareFunc {
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) (err error) {
+		return func(c echo.Context) error {
 			if config.Skipper(c) {
 				return next(c)
 			}
@@ -78,14 +78,12 @@ func BodyDumpWithConfig(config BodyDumpConfig) echo.MiddlewareFunc {
 			writer := &bodyDumpResponseWriter{Writer: mw, ResponseWriter: c.Response().Writer}
 			c.Response().Writer = writer
 
-			if err = next(c); err != nil {
-				c.Error(err)
-			}
+			err := next(c)
 
 			// Callback
 			config.Handler(c, reqBody, resBody.Bytes())
 
-			return
+			return err
 		}
 	}
 }

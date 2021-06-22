@@ -64,9 +64,9 @@ func TestBodyDumpFails(t *testing.T) {
 
 	mw := BodyDump(func(c echo.Context, reqBody, resBody []byte) {})
 
-	if !assert.Error(t, mw(h)(c)) {
-		t.FailNow()
-	}
+	err := mw(h)(c)
+	assert.EqualError(t, err, "some error")
+	assert.Equal(t, http.StatusOK, rec.Code)
 
 	assert.Panics(t, func() {
 		mw = BodyDumpWithConfig(BodyDumpConfig{

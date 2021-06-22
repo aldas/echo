@@ -137,13 +137,11 @@ func RateLimiterWithConfig(config RateLimiterConfig) echo.MiddlewareFunc {
 
 			identifier, err := config.IdentifierExtractor(c)
 			if err != nil {
-				c.Error(config.ErrorHandler(c, err))
-				return nil
+				return config.ErrorHandler(c, err)
 			}
 
-			if allow, err := config.Store.Allow(identifier); !allow {
-				c.Error(config.DenyHandler(c, identifier, err))
-				return nil
+			if allow, allowErr := config.Store.Allow(identifier); !allow {
+				return config.DenyHandler(c, identifier, allowErr)
 			}
 			return next(c)
 		}
