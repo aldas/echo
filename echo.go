@@ -77,7 +77,8 @@ type (
 		routers                   map[string]Router
 
 		notFoundHandler  HandlerFunc
-		pool             sync.Pool
+		contextPool      sync.Pool
+		routeMatchPool   sync.Pool
 		Server           *http.Server
 		TLSServer        *http.Server
 		Listener         net.Listener
@@ -308,11 +309,14 @@ func New() (e *Echo) {
 	e.Binder = &DefaultBinder{}
 	e.Logger.SetLevel(log.ERROR)
 	e.StdLogger = stdLog.New(e.Logger.Output(), e.Logger.Prefix()+": ", 0)
-	e.pool.New = func() interface{} {
+	e.contextPool.New = func() interface{} {
 		return e.NewContext(nil, nil)
 	}
 	e.router = NewRouter(e)
 	e.routers = make(map[string]Router)
+	e.routeMatchPool.New = func() interface{} {
+		return &RouteMatch{}
+	}
 	return
 }
 
@@ -588,26 +592,27 @@ func (e *Echo) Group(prefix string, m ...MiddlewareFunc) (g *Group) {
 // AcquireContext returns an empty `Context` instance from the pool.
 // You must return the context by calling `ReleaseContext()`.
 func (e *Echo) AcquireContext() Context {
-	return e.pool.Get().(Context)
+	return e.contextPool.Get().(Context)
 }
 
 // ReleaseContext returns the `Context` instance back to the pool.
 // You must call it after `AcquireContext()`.
 func (e *Echo) ReleaseContext(c Context) {
-	e.pool.Put(c)
+	e.contextPool.Put(c)
 }
 
 // ServeHTTP implements `http.Handler` interface, which serves HTTP requests.
 func (e *Echo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Acquire context
-	c := e.pool.Get().(EditableContext)
+	c := e.contextPool.Get().(EditableContext)
 	c.Reset(r, w)
 	var h func(c Context) error
 
-	match := &RouteMatch{
-		PathParams: *c.RawPathParams(),
-		Handler:    NotFoundHandler,
-	}
+	match := e.routeMatchPool.Get().(*RouteMatch)
+	match.PathParams = *c.RawPathParams()
+	match.RoutePath = ""
+	match.Handler = NotFoundHandler
+
 	if e.premiddleware == nil {
 		e.findRouter(r.Host).Match(r, match)
 
@@ -621,8 +626,8 @@ func (e *Echo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// is the same we began with. If not - this is use-case we do not support and is probably abuse from developer.
 			c.SetRawPathParams(match.PathParams)
 			c.SetPath(match.RoutePath)
-			h = applyMiddleware(match.Handler, e.middleware...)
-			return h(cc)
+			h1 := applyMiddleware(match.Handler, e.middleware...)
+			return h1(cc)
 		}
 		h = applyMiddleware(h, e.premiddleware...)
 	}
@@ -632,8 +637,8 @@ func (e *Echo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		e.HTTPErrorHandler(err, c)
 	}
 
-	// Release context
-	e.pool.Put(c)
+	e.routeMatchPool.Put(match)
+	e.contextPool.Put(c)
 }
 
 // Start starts an HTTP server.

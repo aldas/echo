@@ -1184,7 +1184,7 @@ func TestEcho_StartServer(t *testing.T) {
 	}
 }
 
-func benchmarkEchoRoutes(b *testing.B, routes []*Route) {
+func benchmarkEchoRoutes(b *testing.B, routes []testRoute) {
 	e := New()
 	req := httptest.NewRequest("GET", "/", nil)
 	u := req.URL
@@ -1210,22 +1210,22 @@ func benchmarkEchoRoutes(b *testing.B, routes []*Route) {
 	}
 }
 
-//func BenchmarkEchoStaticRoutes(b *testing.B) {
-//	benchmarkEchoRoutes(b, staticRoutes)
-//}
-//
-//func BenchmarkEchoStaticRoutesMisses(b *testing.B) {
-//	benchmarkEchoRoutes(b, staticRoutes)
-//}
-//
-//func BenchmarkEchoGitHubAPI(b *testing.B) {
-//	benchmarkEchoRoutes(b, gitHubAPI)
-//}
-//
-//func BenchmarkEchoGitHubAPIMisses(b *testing.B) {
-//	benchmarkEchoRoutes(b, gitHubAPI)
-//}
-//
-//func BenchmarkEchoParseAPI(b *testing.B) {
-//	benchmarkEchoRoutes(b, parseAPI)
-//}
+func BenchmarkEchoStaticRoutes(b *testing.B) {
+	benchmarkEchoRoutes(b, staticRoutes)
+}
+
+func BenchmarkEchoStaticRoutesMisses(b *testing.B) {
+	benchmarkEchoRoutes(b, staticRoutes)
+}
+
+func BenchmarkEchoGitHubAPI(b *testing.B) {
+	benchmarkEchoRoutes(b, gitHubAPI)
+}
+
+func BenchmarkEchoGitHubAPIMisses(b *testing.B) {
+	benchmarkEchoRoutes(b, gitHubAPI)
+}
+
+func BenchmarkEchoParseAPI(b *testing.B) {
+	benchmarkEchoRoutes(b, parseAPI)
+}

@@ -2497,15 +2497,17 @@ func benchmarkRouterRoutes(b *testing.B, routes []testRoute, routesToFind []test
 	// Find routes
 	for i := 0; i < b.N; i++ {
 		for _, route := range routesToFind {
-			c := e.pool.Get().(*context)
+			c := e.contextPool.Get().(*context)
+			match := e.routeMatchPool.Get().(*RouteMatch)
 
 			req.Method = route.Method
 			req.URL.Path = route.Path
 
-			match := &RouteMatch{PathParams: c.pathParams}
+			match.PathParams = c.pathParams
 			r.Match(req, match)
 
-			e.pool.Put(c)
+			e.routeMatchPool.Put(match)
+			e.contextPool.Put(c)
 		}
 	}
 }
