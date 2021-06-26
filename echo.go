@@ -604,6 +604,10 @@ func (e *Echo) ReleaseContext(c Context) {
 // ServeHTTP implements `http.Handler` interface, which serves HTTP requests.
 func (e *Echo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Acquire context
+	// FIXME casting to interface vs pointer to struct is in +24% slower (3233 ns/op vs 2605 ns/op)
+	// TODO: some info about casting https://www.reddit.com/r/golang/comments/9xs0r2/why_is_type_assertion_so_fast/e9wpi94
+	// TODO: https://stackoverflow.com/a/31584377
+	// TODO: "it's even worse with interface-to-interface assertion, because you also need to ensure that the type implements the interface."
 	c := e.contextPool.Get().(EditableContext)
 	c.Reset(r, w)
 	var h func(c Context) error
