@@ -40,6 +40,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
@@ -47,60 +48,62 @@ import (
 	"sync"
 )
 
-type (
-	// Echo is the top-level framework instance.
-	Echo struct {
-		common
-		premiddleware []MiddlewareFunc
-		middleware    []MiddlewareFunc
+// Echo is the top-level framework instance.
+type Echo struct {
+	common
+	// premiddleware are middlewares that are run for every request before routing is done
+	premiddleware []MiddlewareFunc
+	// middleware are middlewares that are run after router found a matching route (not found and method not found are also matches)
+	middleware []MiddlewareFunc
 
-		contextPathParamAllocSize int
-		router                    Router
-		routers                   map[string]Router
+	contextPathParamAllocSize int
+	router                    Router
+	routers                   map[string]Router
+	contextPool               sync.Pool
 
-		notFoundHandler  HandlerFunc
-		contextPool      sync.Pool
-		Debug            bool
-		HTTPErrorHandler HTTPErrorHandler
-		Binder           Binder
-		Validator        Validator
-		Renderer         Renderer
-		Logger           Logger
-		IPExtractor      IPExtractor
-	}
+	Debug            bool
+	HTTPErrorHandler HTTPErrorHandler
+	Binder           Binder
+	Validator        Validator
+	Renderer         Renderer
+	Logger           Logger
+	IPExtractor      IPExtractor
+	// Filesystem is file system used by Static and File handler to access files.
+	// Defaults to os.DirFS(".")
+	Filesystem fs.FS
+}
 
-	// HTTPError represents an error that occurred while handling a request.
-	HTTPError struct {
-		Code     int         `json:"-"`
-		Message  interface{} `json:"message"`
-		Internal error       `json:"-"` // Stores the error returned by an external dependency
-	}
+// HTTPError represents an error that occurred while handling a request.
+type HTTPError struct {
+	Code     int         `json:"-"`
+	Message  interface{} `json:"message"`
+	Internal error       `json:"-"` // Stores the error returned by an external dependency
+}
 
-	// MiddlewareFunc defines a function to process middleware.
-	MiddlewareFunc func(next HandlerFunc) HandlerFunc
+// HandlerFunc defines a function to serve HTTP requests.
+type HandlerFunc func(c Context) error
 
-	// HandlerFunc defines a function to serve HTTP requests.
-	HandlerFunc func(c Context) error
+// MiddlewareFunc defines a function to process middleware.
+type MiddlewareFunc func(next HandlerFunc) HandlerFunc
 
-	// HTTPErrorHandler is a centralized HTTP error handler.
-	HTTPErrorHandler func(err error, c Context)
+// HTTPErrorHandler is a centralized HTTP error handler.
+type HTTPErrorHandler func(err error, c Context)
 
-	// Validator is the interface that wraps the Validate function.
-	Validator interface {
-		Validate(i interface{}) error
-	}
+// Validator is the interface that wraps the Validate function.
+type Validator interface {
+	Validate(i interface{}) error
+}
 
-	// Renderer is the interface that wraps the Render function.
-	Renderer interface {
-		Render(io.Writer, string, interface{}, Context) error
-	}
+// Renderer is the interface that wraps the Render function.
+type Renderer interface {
+	Render(io.Writer, string, interface{}, Context) error
+}
 
-	// Map defines a generic map of type `map[string]interface{}`.
-	Map map[string]interface{}
+// Map defines a generic map of type `map[string]interface{}`.
+type Map map[string]interface{}
 
-	// Common struct for Echo & Group.
-	common struct{}
-)
+// Common struct for Echo & Group.
+type common struct{}
 
 // HTTP methods
 // NOTE: Deprecated, please use the stdlib constants directly instead.
@@ -199,24 +202,22 @@ const (
 
 const (
 	// Version of Echo
-	Version = "4.3.0"
+	Version = "5.0.X"
 )
 
-var (
-	methods = [...]string{
-		http.MethodConnect,
-		http.MethodDelete,
-		http.MethodGet,
-		http.MethodHead,
-		http.MethodOptions,
-		http.MethodPatch,
-		http.MethodPost,
-		PROPFIND,
-		http.MethodPut,
-		http.MethodTrace,
-		REPORT,
-	}
-)
+var methods = [...]string{
+	http.MethodConnect,
+	http.MethodDelete,
+	http.MethodGet,
+	http.MethodHead,
+	http.MethodOptions,
+	http.MethodPatch,
+	http.MethodPost,
+	PROPFIND,
+	http.MethodPut,
+	http.MethodTrace,
+	REPORT,
+}
 
 // Errors
 var (
@@ -240,31 +241,33 @@ var (
 	ErrInvalidListenerNetwork      = errors.New("invalid listener network")
 )
 
-// Error handlers
-var (
-	NotFoundHandler = func(c Context) error {
-		return ErrNotFound
-	}
+// NotFoundHandler is handler for 404 cases
+var NotFoundHandler = func(c Context) error {
+	return ErrNotFound
+}
 
-	MethodNotAllowedHandler = func(c Context) error {
-		return ErrMethodNotAllowed
-	}
-)
+// MethodNotAllowedHandler is handler for case when route for path+method match was not found
+var MethodNotAllowedHandler = func(c Context) error {
+	return ErrMethodNotAllowed
+}
 
 // New creates an instance of Echo.
-func New() (e *Echo) {
-	e = &Echo{
-		Logger:          newStdLogger(),
+func New() *Echo {
+	logger := newStdLogger()
+	e := &Echo{
+		Logger:     logger,
+		Filesystem: os.DirFS("."),
+		Binder:     &DefaultBinder{},
+
+		routers: make(map[string]Router),
 	}
 
-	e.HTTPErrorHandler = e.DefaultHTTPErrorHandler
-	e.Binder = &DefaultBinder{}
+	e.router = NewRouter(e)
+	e.HTTPErrorHandler = DefaultHTTPErrorHandler(false)
 	e.contextPool.New = func() interface{} {
 		return e.NewContext(nil, nil)
 	}
-	e.router = NewRouter(e)
-	e.routers = make(map[string]Router)
-	return
+	return e
 }
 
 // NewContext returns a Context instance.
@@ -290,43 +293,49 @@ func (e *Echo) Routers() map[string]Router {
 	return e.routers
 }
 
-// DefaultHTTPErrorHandler is the default HTTP error handler. It sends a JSON response
+// DefaultHTTPErrorHandler creates new default HTTP error handler implementation. It sends a JSON response
 // with status code.
-func (e *Echo) DefaultHTTPErrorHandler(err error, c Context) {
-	he, ok := err.(*HTTPError)
-	if ok {
-		if he.Internal != nil {
-			if herr, ok := he.Internal.(*HTTPError); ok {
-				he = herr
+// `exposeError` parameter decides if returned message will contain also error message or not
+//
+// Note: DefaultHTTPErrorHandler does not log errors. Use middleware for it if errors need to be logged (separately)
+func DefaultHTTPErrorHandler(exposeError bool) HTTPErrorHandler {
+	return func(err error, c Context) {
+		he, ok := err.(*HTTPError)
+		if ok {
+			if he.Internal != nil {
+				if herr, ok := he.Internal.(*HTTPError); ok {
+					he = herr
+				}
+			}
+		} else {
+			he = &HTTPError{
+				Code:    http.StatusInternalServerError,
+				Message: http.StatusText(http.StatusInternalServerError),
 			}
 		}
-	} else {
-		he = &HTTPError{
-			Code:    http.StatusInternalServerError,
-			Message: http.StatusText(http.StatusInternalServerError),
-		}
-	}
 
-	// Issue #1426
-	code := he.Code
-	message := he.Message
-	if m, ok := he.Message.(string); ok {
-		if e.Debug {
-			message = Map{"message": m, "error": err.Error()}
-		} else {
-			message = Map{"message": m}
+		// Issue #1426
+		code := he.Code
+		message := he.Message
+		if m, ok := he.Message.(string); ok {
+			if exposeError {
+				message = Map{"message": m, "error": err.Error()}
+			} else {
+				message = Map{"message": m}
+			}
 		}
-	}
 
-	// Send response
-	if !c.Response().Committed {
-		if c.Request().Method == http.MethodHead { // Issue #608
-			err = c.NoContent(he.Code)
-		} else {
-			err = c.JSON(code, message)
-		}
-		if err != nil {
-			e.Logger.Error(err)
+		// Send response
+		if !c.Response().Committed {
+			var cErr error
+			if c.Request().Method == http.MethodHead { // Issue #608
+				cErr = c.NoContent(he.Code)
+			} else {
+				cErr = c.JSON(code, message)
+			}
+			if cErr != nil {
+				c.Echo().Logger.Error(err) // truly rare case. ala client already disconnected
+			}
 		}
 	}
 }
@@ -438,7 +447,7 @@ func (common) static(
 		}
 
 		name := filepath.Join(root, filepath.Clean("/"+p)) // "/"+ for security
-		fi, err := os.Stat(name)
+		fi, err := fs.Stat(c.Echo().Filesystem, name)
 		if err != nil {
 			// The access path does not exist
 			return NotFoundHandler(c)
@@ -562,7 +571,7 @@ func (e *Echo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// FIXME: e.contextPool.Get().(*context)              2.08µs ± 1%    1.86µs ± 0%  -10.55%  (p=0.001 n=7+7)
 	// FIXME: e.contextPool.Get().(EditableContext)       2.08µs ± 1%    2.76µs ± 3%  +32.82%  (p=0.001 n=7+7)
 	c := e.contextPool.Get().(*context)
-	//c := e.contextPool.Get().(EditableContext) // would allow custom context for users (but cast is significantly slower)
+	//c := e.contextPool.Get().(EditableContext) // would allow custom context for users (but cast is "significantly" slower)
 	c.Reset(r, w)
 	var h func(c Context) error
 

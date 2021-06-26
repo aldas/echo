@@ -38,7 +38,7 @@ func TestRecover_skipper(t *testing.T) {
 			return true
 		},
 	}
-	h := RecoverWithConfig(config)(func(c echo.Context) error {
+	h := MustRecoverWithConfig(config)(func(c echo.Context) error {
 		panic("testPANIC")
 	})
 
@@ -88,7 +88,7 @@ func TestRecoverWithConfig(t *testing.T) {
 			c := e.NewContext(req, rec)
 
 			config := tc.whenConfig
-			h := RecoverWithConfig(config)(func(c echo.Context) error {
+			h := MustRecoverWithConfig(config)(func(c echo.Context) error {
 				if tc.givenNoPanic {
 					return nil
 				}

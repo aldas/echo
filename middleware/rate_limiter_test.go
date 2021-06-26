@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/gommon/random"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/time/rate"
 )
@@ -25,7 +24,7 @@ func TestRateLimiter(t *testing.T) {
 
 	var inMemoryStore = NewRateLimiterMemoryStoreWithConfig(RateLimiterMemoryStoreConfig{Rate: 1, Burst: 3})
 
-	mw := RateLimiter(inMemoryStore)
+	mw := MustRateLimiterWithConfig(RateLimiterConfig{Store: inMemoryStore})
 
 	testCases := []struct {
 		id        string
@@ -57,15 +56,15 @@ func TestRateLimiter(t *testing.T) {
 	}
 }
 
-func TestRateLimiter_panicBehaviour(t *testing.T) {
+func TestMustRateLimiterWithConfig_panicBehaviour(t *testing.T) {
 	var inMemoryStore = NewRateLimiterMemoryStoreWithConfig(RateLimiterMemoryStoreConfig{Rate: 1, Burst: 3})
 
 	assert.Panics(t, func() {
-		RateLimiter(nil)
+		MustRateLimiterWithConfig(RateLimiterConfig{})
 	})
 
 	assert.NotPanics(t, func() {
-		RateLimiter(inMemoryStore)
+		MustRateLimiterWithConfig(RateLimiterConfig{Store: inMemoryStore})
 	})
 }
 
@@ -78,7 +77,7 @@ func TestRateLimiterWithConfig(t *testing.T) {
 		return c.String(http.StatusOK, "test")
 	}
 
-	mw := RateLimiterWithConfig(RateLimiterConfig{
+	mw, err := RateLimiterWithConfig(RateLimiterConfig{
 		IdentifierExtractor: func(c echo.Context) (string, error) {
 			id := c.Request().Header.Get(echo.HeaderXRealIP)
 			if id == "" {
@@ -94,6 +93,7 @@ func TestRateLimiterWithConfig(t *testing.T) {
 		},
 		Store: inMemoryStore,
 	})
+	assert.NoError(t, err)
 
 	testCases := []struct {
 		id   string
@@ -132,7 +132,7 @@ func TestRateLimiterWithConfig_defaultDenyHandler(t *testing.T) {
 		return c.String(http.StatusOK, "test")
 	}
 
-	mw := RateLimiterWithConfig(RateLimiterConfig{
+	mw, err := RateLimiterWithConfig(RateLimiterConfig{
 		IdentifierExtractor: func(c echo.Context) (string, error) {
 			id := c.Request().Header.Get(echo.HeaderXRealIP)
 			if id == "" {
@@ -142,6 +142,7 @@ func TestRateLimiterWithConfig_defaultDenyHandler(t *testing.T) {
 		},
 		Store: inMemoryStore,
 	})
+	assert.NoError(t, err)
 
 	testCases := []struct {
 		id        string
@@ -184,9 +185,10 @@ func TestRateLimiterWithConfig_defaultConfig(t *testing.T) {
 			return c.String(http.StatusOK, "test")
 		}
 
-		mw := RateLimiterWithConfig(RateLimiterConfig{
+		mw, err := RateLimiterWithConfig(RateLimiterConfig{
 			Store: inMemoryStore,
 		})
+		assert.NoError(t, err)
 
 		testCases := []struct {
 			id        string
@@ -236,7 +238,7 @@ func TestRateLimiterWithConfig_skipper(t *testing.T) {
 
 	c := e.NewContext(req, rec)
 
-	mw := RateLimiterWithConfig(RateLimiterConfig{
+	mw, err := RateLimiterWithConfig(RateLimiterConfig{
 		Skipper: func(c echo.Context) bool {
 			return true
 		},
@@ -248,8 +250,9 @@ func TestRateLimiterWithConfig_skipper(t *testing.T) {
 			return "127.0.0.1", nil
 		},
 	})
+	assert.NoError(t, err)
 
-	err := mw(handler)(c)
+	err = mw(handler)(c)
 
 	assert.NoError(t, err)
 	assert.Equal(t, false, beforeFuncRan)
@@ -271,7 +274,7 @@ func TestRateLimiterWithConfig_skipperNoSkip(t *testing.T) {
 
 	c := e.NewContext(req, rec)
 
-	mw := RateLimiterWithConfig(RateLimiterConfig{
+	mw, err := RateLimiterWithConfig(RateLimiterConfig{
 		Skipper: func(c echo.Context) bool {
 			return false
 		},
@@ -283,6 +286,7 @@ func TestRateLimiterWithConfig_skipperNoSkip(t *testing.T) {
 			return "127.0.0.1", nil
 		},
 	})
+	assert.NoError(t, err)
 
 	_ = mw(handler)(c)
 
@@ -306,7 +310,7 @@ func TestRateLimiterWithConfig_beforeFunc(t *testing.T) {
 
 	c := e.NewContext(req, rec)
 
-	mw := RateLimiterWithConfig(RateLimiterConfig{
+	mw, err := RateLimiterWithConfig(RateLimiterConfig{
 		BeforeFunc: func(c echo.Context) {
 			beforeRan = true
 		},
@@ -315,8 +319,9 @@ func TestRateLimiterWithConfig_beforeFunc(t *testing.T) {
 			return "127.0.0.1", nil
 		},
 	})
+	assert.NoError(t, err)
 
-	err := mw(handler)(c)
+	err = mw(handler)(c)
 
 	assert.NoError(t, err)
 	assert.Equal(t, true, beforeRan)
@@ -429,7 +434,7 @@ func TestNewRateLimiterMemoryStore(t *testing.T) {
 func generateAddressList(count int) []string {
 	addrs := make([]string, count)
 	for i := 0; i < count; i++ {
-		addrs[i] = random.String(15)
+		addrs[i] = randomString(15)
 	}
 	return addrs
 }

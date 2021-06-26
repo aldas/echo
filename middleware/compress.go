@@ -3,6 +3,7 @@ package middleware
 import (
 	"bufio"
 	"compress/gzip"
+	"errors"
 	"io"
 	"io/ioutil"
 	"net"
@@ -13,50 +14,50 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-type (
-	// GzipConfig defines the config for Gzip middleware.
-	GzipConfig struct {
-		// Skipper defines a function to skip middleware.
-		Skipper Skipper
-
-		// Gzip compression level.
-		// Optional. Default value -1.
-		Level int `yaml:"level"`
-	}
-
-	gzipResponseWriter struct {
-		io.Writer
-		http.ResponseWriter
-	}
-)
-
 const (
 	gzipScheme = "gzip"
 )
 
-var (
-	// DefaultGzipConfig is the default Gzip middleware config.
-	DefaultGzipConfig = GzipConfig{
-		Skipper: DefaultSkipper,
-		Level:   -1,
-	}
-)
+// GzipConfig defines the config for Gzip middleware.
+type GzipConfig struct {
+	// Skipper defines a function to skip middleware.
+	Skipper Skipper
 
-// Gzip returns a middleware which compresses HTTP response using gzip compression
-// scheme.
+	// Gzip compression level.
+	// Optional. Default value -1.
+	Level int `yaml:"level"`
+}
+
+type gzipResponseWriter struct {
+	io.Writer
+	http.ResponseWriter
+}
+
+// Gzip returns a middleware which compresses HTTP response using gzip compression scheme.
 func Gzip() echo.MiddlewareFunc {
-	return GzipWithConfig(DefaultGzipConfig)
+	mw, _ := GzipWithConfig(GzipConfig{})
+	return mw
+}
+
+// MustGzipWithConfig returns a middleware which compresses HTTP response using gzip compression scheme.
+func MustGzipWithConfig(config GzipConfig) echo.MiddlewareFunc {
+	mw, err := GzipWithConfig(config)
+	if err != nil {
+		panic(err)
+	}
+	return mw
 }
 
 // GzipWithConfig return Gzip middleware with config.
-// See: `Gzip()`.
-func GzipWithConfig(config GzipConfig) echo.MiddlewareFunc {
-	// Defaults
+func GzipWithConfig(config GzipConfig) (echo.MiddlewareFunc, error) {
 	if config.Skipper == nil {
-		config.Skipper = DefaultGzipConfig.Skipper
+		config.Skipper = DefaultSkipper
+	}
+	if config.Level < -2 || config.Level > 9 { // these are consts: gzip.HuffmanOnly and gzip.BestCompression
+		return nil, errors.New("invalid gzip level")
 	}
 	if config.Level == 0 {
-		config.Level = DefaultGzipConfig.Level
+		config.Level = -1
 	}
 
 	pool := gzipCompressPool(config)
@@ -97,7 +98,7 @@ func GzipWithConfig(config GzipConfig) echo.MiddlewareFunc {
 			}
 			return next(c)
 		}
-	}
+	}, nil
 }
 
 func (w *gzipResponseWriter) WriteHeader(code int) {

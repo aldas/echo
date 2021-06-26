@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func testKeyValidator(key string, c echo.Context) (bool, error) {
+func testKeyValidator(c echo.Context, key string, keyType ExtractorType) (bool, error) {
 	switch key {
 	case "valid-key":
 		return true, nil
@@ -28,7 +28,7 @@ func TestKeyAuth(t *testing.T) {
 		handlerCalled = true
 		return c.String(http.StatusOK, "test")
 	}
-	middlewareChain := KeyAuth(testKeyValidator)(handler)
+	middlewareChain := MustKeyAuthWithConfig(KeyAuthConfig{Validator: testKeyValidator})(handler)
 
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -76,7 +76,7 @@ func TestKeyAuthWithConfig(t *testing.T) {
 				req.Header.Set(echo.HeaderAuthorization, "Bearer invalid-key")
 			},
 			expectHandlerCalled: false,
-			expectError:         "code=401, message=Unauthorized",
+			expectError:         "code=401, message=Unauthorized, internal=code=401, message=invalid key",
 		},
 		{
 			name: "nok, defaults, invalid scheme in header",
@@ -84,13 +84,13 @@ func TestKeyAuthWithConfig(t *testing.T) {
 				req.Header.Set(echo.HeaderAuthorization, "Bear valid-key")
 			},
 			expectHandlerCalled: false,
-			expectError:         "code=400, message=invalid key in the request header",
+			expectError:         "code=400, message=missing key",
 		},
 		{
 			name:                "nok, defaults, missing header",
 			givenRequest:        func(req *http.Request) {},
 			expectHandlerCalled: false,
-			expectError:         "code=400, message=missing key in request header",
+			expectError:         "code=400, message=missing key",
 		},
 		{
 			name: "ok, custom key lookup, header",
@@ -110,7 +110,7 @@ func TestKeyAuthWithConfig(t *testing.T) {
 				conf.KeyLookup = "header:API-Key"
 			},
 			expectHandlerCalled: false,
-			expectError:         "code=400, message=missing key in request header",
+			expectError:         "code=400, message=missing key",
 		},
 		{
 			name: "ok, custom key lookup, query",
@@ -130,7 +130,7 @@ func TestKeyAuthWithConfig(t *testing.T) {
 				conf.KeyLookup = "query:key"
 			},
 			expectHandlerCalled: false,
-			expectError:         "code=400, message=missing key in the query string",
+			expectError:         "code=400, message=missing key",
 		},
 		{
 			name: "ok, custom key lookup, form",
@@ -155,7 +155,7 @@ func TestKeyAuthWithConfig(t *testing.T) {
 				conf.KeyLookup = "form:key"
 			},
 			expectHandlerCalled: false,
-			expectError:         "code=400, message=missing key in the form",
+			expectError:         "code=400, message=missing key",
 		},
 		{
 			name: "nok, custom errorHandler, error from extractor",
@@ -168,7 +168,7 @@ func TestKeyAuthWithConfig(t *testing.T) {
 				}
 			},
 			expectHandlerCalled: false,
-			expectError:         "code=418, message=custom, internal=missing key in request header",
+			expectError:         "code=418, message=custom, internal=code=400, message=missing or malformed value",
 		},
 		{
 			name: "nok, custom errorHandler, error from validator",
@@ -192,7 +192,7 @@ func TestKeyAuthWithConfig(t *testing.T) {
 			},
 			whenConfig:          func(conf *KeyAuthConfig) {},
 			expectHandlerCalled: false,
-			expectError:         "code=401, message=invalid key, internal=some user defined error",
+			expectError:         "code=401, message=Unauthorized, internal=some user defined error",
 		},
 	}
 
@@ -209,7 +209,7 @@ func TestKeyAuthWithConfig(t *testing.T) {
 			if tc.whenConfig != nil {
 				tc.whenConfig(&config)
 			}
-			middlewareChain := KeyAuthWithConfig(config)(handler)
+			middlewareChain := MustKeyAuthWithConfig(config)(handler)
 
 			e := echo.New()
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -232,4 +232,67 @@ func TestKeyAuthWithConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestKeyAuthWithConfig_errors(t *testing.T) {
+	var testCases = []struct {
+		name        string
+		whenConfig  KeyAuthConfig
+		expectError string
+	}{
+		{
+			name: "ok, no error",
+			whenConfig: KeyAuthConfig{
+				Validator: func(c echo.Context, key string, keyType ExtractorType) (bool, error) {
+					return false, nil
+				},
+			},
+		},
+		{
+			name: "ok, missing validator func",
+			whenConfig: KeyAuthConfig{
+				Validator: nil,
+			},
+			expectError: "echo key-auth middleware requires a validator function",
+		},
+		{
+			name: "ok, extractor source can not be split",
+			whenConfig: KeyAuthConfig{
+				KeyLookup: "nope",
+				Validator: func(c echo.Context, key string, keyType ExtractorType) (bool, error) {
+					return false, nil
+				},
+			},
+			expectError: "echo key-auth middleware could not create key extractor: extractor source for lookup could not be split into needed parts: nope",
+		},
+		{
+			name: "ok, no extractors",
+			whenConfig: KeyAuthConfig{
+				KeyLookup: "nope:nope",
+				Validator: func(c echo.Context, key string, keyType ExtractorType) (bool, error) {
+					return false, nil
+				},
+			},
+			expectError: "echo key-auth middleware could not create extractors from TokenLookup string",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mw, err := KeyAuthWithConfig(tc.whenConfig)
+			if tc.expectError != "" {
+				assert.Nil(t, mw)
+				assert.EqualError(t, err, tc.expectError)
+			} else {
+				assert.NotNil(t, mw)
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestMustKeyAuthWithConfig_panic(t *testing.T) {
+	assert.Panics(t, func() {
+		MustKeyAuthWithConfig(KeyAuthConfig{})
+	})
 }

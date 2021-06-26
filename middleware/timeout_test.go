@@ -15,7 +15,7 @@ import (
 
 func TestTimeoutSkipper(t *testing.T) {
 	t.Parallel()
-	m := TimeoutWithConfig(TimeoutConfig{
+	m := MustTimeoutWithConfig(TimeoutConfig{
 		Skipper: func(context echo.Context) bool {
 			return true
 		},
@@ -57,7 +57,7 @@ func TestTimeoutWithTimeout0(t *testing.T) {
 
 func TestTimeoutErrorOutInHandler(t *testing.T) {
 	t.Parallel()
-	m := TimeoutWithConfig(TimeoutConfig{
+	m := MustTimeoutWithConfig(TimeoutConfig{
 		// Timeout has to be defined or the whole flow for timeout middleware will be skipped
 		Timeout: 50 * time.Millisecond,
 	})
@@ -79,7 +79,7 @@ func TestTimeoutErrorOutInHandler(t *testing.T) {
 
 func TestTimeoutSuccessfulRequest(t *testing.T) {
 	t.Parallel()
-	m := TimeoutWithConfig(TimeoutConfig{
+	m := MustTimeoutWithConfig(TimeoutConfig{
 		// Timeout has to be defined or the whole flow for timeout middleware will be skipped
 		Timeout: 50 * time.Millisecond,
 	})
@@ -103,7 +103,7 @@ func TestTimeoutOnTimeoutRouteErrorHandler(t *testing.T) {
 	t.Parallel()
 
 	actualErrChan := make(chan error, 1)
-	m := TimeoutWithConfig(TimeoutConfig{
+	m := MustTimeoutWithConfig(TimeoutConfig{
 		Timeout: 1 * time.Millisecond,
 		OnTimeoutRouteErrorHandler: func(err error, c echo.Context) {
 			actualErrChan <- err
@@ -135,7 +135,7 @@ func TestTimeoutTestRequestClone(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
 
-	m := TimeoutWithConfig(TimeoutConfig{
+	m := MustTimeoutWithConfig(TimeoutConfig{
 		// Timeout has to be defined or the whole flow for timeout middleware will be skipped
 		Timeout: 1 * time.Second,
 	})
@@ -169,7 +169,7 @@ func TestTimeoutRecoversPanic(t *testing.T) {
 	t.Parallel()
 	e := echo.New()
 	e.Use(Recover()) // recover middleware will handler our panic
-	e.Use(TimeoutWithConfig(TimeoutConfig{
+	e.Use(MustTimeoutWithConfig(TimeoutConfig{
 		Timeout: 50 * time.Millisecond,
 	}))
 
@@ -189,7 +189,7 @@ func TestTimeoutDataRace(t *testing.T) {
 	t.Parallel()
 
 	timeout := 1 * time.Millisecond
-	m := TimeoutWithConfig(TimeoutConfig{
+	m := MustTimeoutWithConfig(TimeoutConfig{
 		Timeout:      timeout,
 		ErrorMessage: "Timeout! change me",
 	})
@@ -221,7 +221,7 @@ func TestTimeoutWithErrorMessage(t *testing.T) {
 	t.Parallel()
 
 	timeout := 1 * time.Millisecond
-	m := TimeoutWithConfig(TimeoutConfig{
+	m := MustTimeoutWithConfig(TimeoutConfig{
 		Timeout:      timeout,
 		ErrorMessage: "Timeout! change me",
 	})
@@ -251,7 +251,7 @@ func TestTimeoutWithDefaultErrorMessage(t *testing.T) {
 	t.Parallel()
 
 	timeout := 1 * time.Millisecond
-	m := TimeoutWithConfig(TimeoutConfig{
+	m := MustTimeoutWithConfig(TimeoutConfig{
 		Timeout:      timeout,
 		ErrorMessage: "",
 	})

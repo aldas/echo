@@ -7,46 +7,51 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-type (
-	// RecoverConfig defines the config for Recover middleware.
-	RecoverConfig struct {
-		// Skipper defines a function to skip middleware.
-		Skipper Skipper
+// RecoverConfig defines the config for Recover middleware.
+type RecoverConfig struct {
+	// Skipper defines a function to skip middleware.
+	Skipper Skipper
 
-		// Size of the stack to be printed.
-		// Optional. Default value 4KB.
-		StackSize int `yaml:"stack_size"`
+	// Size of the stack to be printed.
+	// Optional. Default value 4KB.
+	StackSize int `yaml:"stack_size"`
 
-		// DisableStackAll disables formatting stack traces of all other goroutines
-		// into buffer after the trace for the current goroutine.
-		// Optional. Default value false.
-		DisableStackAll bool `yaml:"disable_stack_all"`
+	// DisableStackAll disables formatting stack traces of all other goroutines
+	// into buffer after the trace for the current goroutine.
+	// Optional. Default value false.
+	DisableStackAll bool `yaml:"disable_stack_all"`
 
-		// DisablePrintStack disables printing stack trace.
-		// Optional. Default value as false.
-		DisablePrintStack bool `yaml:"disable_print_stack"`
-	}
-)
+	// DisablePrintStack disables printing stack trace.
+	// Optional. Default value as false.
+	DisablePrintStack bool `yaml:"disable_print_stack"`
+}
 
-var (
-	// DefaultRecoverConfig is the default Recover middleware config.
-	DefaultRecoverConfig = RecoverConfig{
-		Skipper:           DefaultSkipper,
-		StackSize:         4 << 10, // 4 KB
-		DisableStackAll:   false,
-		DisablePrintStack: false,
-	}
-)
+// DefaultRecoverConfig is the default Recover middleware config.
+var DefaultRecoverConfig = RecoverConfig{
+	Skipper:           DefaultSkipper,
+	StackSize:         4 << 10, // 4 KB
+	DisableStackAll:   false,
+	DisablePrintStack: false,
+}
 
 // Recover returns a middleware which recovers from panics anywhere in the chain
 // and handles the control to the centralized HTTPErrorHandler.
 func Recover() echo.MiddlewareFunc {
-	return RecoverWithConfig(DefaultRecoverConfig)
+	return MustRecoverWithConfig(DefaultRecoverConfig)
+}
+
+// MustRecoverWithConfig returns a Recovery middleware with config or panics on invalid configuration.
+func MustRecoverWithConfig(config RecoverConfig) echo.MiddlewareFunc {
+	mw, err := RecoverWithConfig(config)
+	if err != nil {
+		panic(err)
+	}
+	return mw
 }
 
 // RecoverWithConfig returns a Recover middleware with config.
 // See: `Recover()`.
-func RecoverWithConfig(config RecoverConfig) echo.MiddlewareFunc {
+func RecoverWithConfig(config RecoverConfig) (echo.MiddlewareFunc, error) {
 	// Defaults
 	if config.Skipper == nil {
 		config.Skipper = DefaultRecoverConfig.Skipper
@@ -77,5 +82,5 @@ func RecoverWithConfig(config RecoverConfig) echo.MiddlewareFunc {
 			}()
 			return next(c)
 		}
-	}
+	}, nil
 }

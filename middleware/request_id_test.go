@@ -18,13 +18,48 @@ func TestRequestID(t *testing.T) {
 		return c.String(http.StatusOK, "test")
 	}
 
-	rid := RequestIDWithConfig(RequestIDConfig{})
+	rid := RequestID()
+	h := rid(handler)
+	err := h(c)
+	assert.NoError(t, err)
+	assert.Len(t, rec.Header().Get(echo.HeaderXRequestID), 32)
+}
+
+func TestMustRequestIDWithConfig_customGenerator(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	handler := func(c echo.Context) error {
+		return c.String(http.StatusOK, "test")
+	}
+
+	rid := MustRequestIDWithConfig(RequestIDConfig{
+		Generator: func() string { return "customGenerator" },
+	})
+	h := rid(handler)
+	err := h(c)
+	assert.NoError(t, err)
+	assert.Equal(t, rec.Header().Get(echo.HeaderXRequestID), "customGenerator")
+}
+
+func TestRequestIDWithConfig(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	handler := func(c echo.Context) error {
+		return c.String(http.StatusOK, "test")
+	}
+
+	rid, err := RequestIDWithConfig(RequestIDConfig{})
+	assert.NoError(t, err)
 	h := rid(handler)
 	h(c)
 	assert.Len(t, rec.Header().Get(echo.HeaderXRequestID), 32)
 
 	// Custom generator
-	rid = RequestIDWithConfig(RequestIDConfig{
+	rid = MustRequestIDWithConfig(RequestIDConfig{
 		Generator: func() string { return "customGenerator" },
 	})
 	h = rid(handler)
@@ -43,7 +78,7 @@ func TestRequestID_IDNotAltered(t *testing.T) {
 		return c.String(http.StatusOK, "test")
 	}
 
-	rid := RequestIDWithConfig(RequestIDConfig{})
+	rid := MustRequestIDWithConfig(RequestIDConfig{})
 	h := rid(handler)
 	_ = h(c)
 	assert.Equal(t, rec.Header().Get(echo.HeaderXRequestID), "<sample-request-id>")

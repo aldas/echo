@@ -12,7 +12,7 @@ type testLogger struct {
 	output io.Writer
 }
 
-func (l *testLogger) Output() io.Writer {
+func (l *testLogger) Writer() io.Writer {
 	return l.output
 }
 
@@ -111,3 +111,5 @@ func Test_matchSubdomain(t *testing.T) {
 		assert.Equal(t, v.expected, matchSubdomain(v.domain, v.pattern))
 	}
 }
+
+// FIXME: add randomString tests. nothing to take from https://github.com/labstack/gommon/blob/master/random/random_test.go

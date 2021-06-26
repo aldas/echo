@@ -248,7 +248,7 @@ func TestNonWWWRedirectWithConfig(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.whenHost, func(t *testing.T) {
 			middleware := func() echo.MiddlewareFunc {
-				return NonWWWRedirectWithConfig(RedirectConfig{
+				return MustNonWWWRedirectWithConfig(RedirectConfig{
 					Skipper: tc.givenSkipFunc,
 					Code:    tc.givenCode,
 				})

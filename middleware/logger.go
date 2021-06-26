@@ -14,75 +14,80 @@ import (
 	"github.com/valyala/fasttemplate"
 )
 
-type (
-	// LoggerConfig defines the config for Logger middleware.
-	LoggerConfig struct {
-		// Skipper defines a function to skip middleware.
-		Skipper Skipper
+// LoggerConfig defines the config for Logger middleware.
+type LoggerConfig struct {
+	// Skipper defines a function to skip middleware.
+	Skipper Skipper
 
-		// Tags to construct the logger format.
-		//
-		// - time_unix
-		// - time_unix_nano
-		// - time_rfc3339
-		// - time_rfc3339_nano
-		// - time_custom
-		// - id (Request ID)
-		// - remote_ip
-		// - uri
-		// - host
-		// - method
-		// - path
-		// - protocol
-		// - referer
-		// - user_agent
-		// - status
-		// - error
-		// - latency (In nanoseconds)
-		// - latency_human (Human readable)
-		// - bytes_in (Bytes received)
-		// - bytes_out (Bytes sent)
-		// - header:<NAME>
-		// - query:<NAME>
-		// - form:<NAME>
-		//
-		// Example "${remote_ip} ${status}"
-		//
-		// Optional. Default value DefaultLoggerConfig.Format.
-		Format string `yaml:"format"`
+	// Tags to construct the logger format.
+	//
+	// - time_unix
+	// - time_unix_nano
+	// - time_rfc3339
+	// - time_rfc3339_nano
+	// - time_custom
+	// - id (Request ID)
+	// - remote_ip
+	// - uri
+	// - host
+	// - method
+	// - path
+	// - protocol
+	// - referer
+	// - user_agent
+	// - status
+	// - error
+	// - latency (In nanoseconds)
+	// - latency_human (Human readable)
+	// - bytes_in (Bytes received)
+	// - bytes_out (Bytes sent)
+	// - header:<NAME>
+	// - query:<NAME>
+	// - form:<NAME>
+	//
+	// Example "${remote_ip} ${status}"
+	//
+	// Optional. Default value DefaultLoggerConfig.Format.
+	Format string `yaml:"format"`
 
-		// Optional. Default value DefaultLoggerConfig.CustomTimeFormat.
-		CustomTimeFormat string `yaml:"custom_time_format"`
+	// Optional. Default value DefaultLoggerConfig.CustomTimeFormat.
+	CustomTimeFormat string `yaml:"custom_time_format"`
 
-		// Output is a writer where logs in JSON format are written.
-		// Optional. Default destination `echo.Logger.Infof()`
-		Output io.Writer
+	// Output is a writer where logs in JSON format are written.
+	// Optional. Default destination `echo.Logger.Infof()`
+	Output io.Writer
 
-		template *fasttemplate.Template
-		pool     *sync.Pool
-	}
-)
+	template *fasttemplate.Template
+	pool     *sync.Pool
+}
 
-var (
-	// DefaultLoggerConfig is the default Logger middleware config.
-	DefaultLoggerConfig = LoggerConfig{
-		Skipper: DefaultSkipper,
-		Format: `{"time":"${time_rfc3339_nano}","id":"${id}","remote_ip":"${remote_ip}",` +
-			`"host":"${host}","method":"${method}","uri":"${uri}","user_agent":"${user_agent}",` +
-			`"status":${status},"error":"${error}","latency":${latency},"latency_human":"${latency_human}"` +
-			`,"bytes_in":${bytes_in},"bytes_out":${bytes_out}}` + "\n",
-		CustomTimeFormat: "2006-01-02 15:04:05.00000",
-	}
-)
+// DefaultLoggerConfig is the default Logger middleware config.
+var DefaultLoggerConfig = LoggerConfig{
+	Skipper: DefaultSkipper,
+	Format: `{"time":"${time_rfc3339_nano}","id":"${id}","remote_ip":"${remote_ip}",` +
+		`"host":"${host}","method":"${method}","uri":"${uri}","user_agent":"${user_agent}",` +
+		`"status":${status},"error":"${error}","latency":${latency},"latency_human":"${latency_human}"` +
+		`,"bytes_in":${bytes_in},"bytes_out":${bytes_out}}` + "\n",
+	CustomTimeFormat: "2006-01-02 15:04:05.00000",
+}
 
 // Logger returns a middleware that logs HTTP requests.
 func Logger() echo.MiddlewareFunc {
-	return LoggerWithConfig(DefaultLoggerConfig)
+	return MustLoggerWithConfig(DefaultLoggerConfig)
+}
+
+// MustLoggerWithConfig returns a Logger middleware with config or panics on invalid configuration.
+func MustLoggerWithConfig(config LoggerConfig) echo.MiddlewareFunc {
+	mw, err := LoggerWithConfig(config)
+	if err != nil {
+		panic(err)
+	}
+	return mw
 }
 
 // LoggerWithConfig returns a Logger middleware with config.
 // See: `Logger()`.
-func LoggerWithConfig(config LoggerConfig) echo.MiddlewareFunc {
+func LoggerWithConfig(config LoggerConfig) (echo.MiddlewareFunc, error) {
 	// Defaults
 	if config.Skipper == nil {
 		config.Skipper = DefaultLoggerConfig.Skipper
@@ -209,5 +214,5 @@ func LoggerWithConfig(config LoggerConfig) echo.MiddlewareFunc {
 			}
 			return err
 		}
-	}
+	}, nil
 }

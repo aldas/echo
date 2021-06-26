@@ -6,11 +6,12 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"github.com/labstack/gommon/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/http2"
+	"io"
 	"io/ioutil"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -24,13 +25,16 @@ func startOnRandomPort(ctx stdContext.Context, e *Echo) (string, error) {
 	errCh := make(chan error)
 
 	go func() {
-		errCh <- NewServerConfig().
-			WithAddress(":0").
-			WithGracefulShutdownContext(ctx, 100*time.Millisecond).
-			WithListenerAddrFunc(func(listener net.Addr) {
-				addrChan <- listener.String()
-			}).
-			Start(e)
+		errCh <- (&StartConfig{
+			Address: ":0",
+			GracefulShutdown: GracefulShutdownConfig{
+				Context: ctx,
+				Timeout: 100 * time.Millisecond,
+			},
+			ListenerAddrFunc: func(addr net.Addr) {
+				addrChan <- addr.String()
+			},
+		}).Start(e)
 	}()
 
 	return waitForServerStart(addrChan, errCh)
@@ -71,7 +75,7 @@ func doGet(url string) (int, string, error) {
 	return resp.StatusCode, string(body), nil
 }
 
-func TestEchoStart(t *testing.T) {
+func TestStartConfig_Start(t *testing.T) {
 	e := New()
 	e.GET("/ok", func(c Context) error {
 		return c.String(http.StatusOK, "OK")
@@ -83,13 +87,15 @@ func TestEchoStart(t *testing.T) {
 	ctx, shutdown := stdContext.WithTimeout(stdContext.Background(), 200*time.Millisecond)
 	defer shutdown()
 	go func() {
-		errCh <- NewServerConfig().
-			WithAddress(":0").
-			WithGracefulShutdownContext(ctx, 100*time.Millisecond).
-			WithListenerAddrFunc(func(listener net.Addr) {
-				addrChan <- listener.String()
-			}).
-			Start(e)
+		errCh <- (&StartConfig{
+			Address: ":0",
+			GracefulShutdown: GracefulShutdownConfig{
+				Context: ctx,
+			},
+			ListenerAddrFunc: func(addr net.Addr) {
+				addrChan <- addr.String()
+			},
+		}).Start(e)
 	}()
 
 	addr, err := waitForServerStart(addrChan, errCh)
@@ -115,7 +121,135 @@ func TestEchoStart(t *testing.T) {
 	assert.Equal(t, "", body)
 }
 
-func TestEcho_StartTLS(t *testing.T) {
+func TestStartConfig_GracefulShutdown(t *testing.T) {
+	var testCases = []struct {
+		name                   string
+		whenHandlerTakesLonger bool
+		expectBody             string
+		expectGracefulError    string
+	}{
+		{
+			name:                   "ok, all handlers returns before graceful shutdown deadline",
+			whenHandlerTakesLonger: false,
+			expectBody:             "OK",
+			expectGracefulError:    "",
+		},
+		{
+			name:                   "nok, handlers do not returns before graceful shutdown deadline",
+			whenHandlerTakesLonger: true,
+			expectBody:             "timeout",
+			expectGracefulError:    stdContext.DeadlineExceeded.Error(),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := New()
+
+			e.GET("/ok", func(c Context) error {
+				msg := "OK"
+				if tc.whenHandlerTakesLonger {
+					time.Sleep(150 * time.Millisecond)
+					msg = "timeout"
+				}
+				return c.String(http.StatusOK, msg)
+			})
+
+			addrChan := make(chan string)
+			errCh := make(chan error)
+
+			ctx, shutdown := stdContext.WithTimeout(stdContext.Background(), 50*time.Millisecond)
+			defer shutdown()
+
+			shutdownErrChan := make(chan error, 1)
+			go func() {
+				errCh <- (&StartConfig{
+					Address: ":0",
+					GracefulShutdown: GracefulShutdownConfig{
+						Context: ctx,
+						Timeout: 50 * time.Millisecond,
+						OnShutdownError: func(err error) {
+							shutdownErrChan <- err
+						},
+					},
+					ListenerAddrFunc: func(addr net.Addr) {
+						addrChan <- addr.String()
+					},
+				}).Start(e)
+			}()
+
+			addr, err := waitForServerStart(addrChan, errCh)
+			assert.NoError(t, err)
+
+			code, body, err := doGet(fmt.Sprintf("http://%v/ok", addr))
+			if err != nil {
+				assert.NoError(t, err)
+				return
+			}
+			assert.Equal(t, http.StatusOK, code)
+			assert.Equal(t, tc.expectBody, body)
+
+			var shutdownErr error
+			select {
+			case shutdownErr = <-shutdownErrChan:
+			default:
+			}
+			if tc.expectGracefulError != "" {
+				assert.EqualError(t, shutdownErr, tc.expectGracefulError)
+			} else {
+				assert.NoError(t, shutdownErr)
+			}
+
+			shutdown()
+
+			<-errCh // we will be blocking here until server returns from http.Serve
+
+			// check if server was stopped
+			code, body, err = doGet(fmt.Sprintf("http://%v/ok", addr))
+			assert.True(t, strings.Contains(err.Error(), "connect: connection refused"))
+			assert.Equal(t, 0, code)
+			assert.Equal(t, "", body)
+		})
+	}
+}
+
+func TestStartConfig_Start_withTLSConfigFunc(t *testing.T) {
+	e := New()
+
+	tlsConfigCalled := false
+	s := &StartConfig{
+		Address: ":0",
+		TLSConfigFunc: func(tlsConfig *tls.Config) {
+			tlsConfig.GetCertificate = func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
+				return nil, errors.New("not_implemented")
+			}
+			tlsConfigCalled = true
+		},
+		BeforeServeFunc: func(s *http.Server) error {
+			return errors.New("stop_now")
+		},
+	}
+	err := s.Start(e)
+	assert.EqualError(t, err, "stop_now")
+	assert.True(t, tlsConfigCalled)
+}
+
+func TestStartConfig_Start_createListenerError(t *testing.T) {
+	e := New()
+
+	s := &StartConfig{
+		Address: ":0",
+		TLSConfigFunc: func(tlsConfig *tls.Config) {
+		},
+		BeforeServeFunc: func(s *http.Server) error {
+			return errors.New("stop_now")
+		},
+	}
+	err := s.Start(e)
+	assert.EqualError(t, err, "tls: neither Certificates, GetCertificate, nor GetConfigForClient set in Config")
+}
+
+func TestStartConfig_StartTLS(t *testing.T) {
 	var testCases = []struct {
 		name        string
 		addr        string
@@ -171,13 +305,17 @@ func TestEcho_StartTLS(t *testing.T) {
 					keyFile = tc.keyFile
 				}
 
-				errCh <- NewServerConfig().
-					WithAddress(tc.addr).
-					WithGracefulShutdownContext(ctx, 100*time.Millisecond).
-					WithListenerAddrFunc(func(listener net.Addr) {
-						addrChan <- listener.String()
-					}).
-					StartTLS(e, certFile, keyFile)
+				s := &StartConfig{
+					Address: tc.addr,
+					GracefulShutdown: GracefulShutdownConfig{
+						Context: ctx,
+						Timeout: 100 * time.Millisecond,
+					},
+					ListenerAddrFunc: func(addr net.Addr) {
+						addrChan <- addr.String()
+					},
+				}
+				errCh <- s.StartTLS(e, certFile, keyFile)
 			}()
 
 			_, err := waitForServerStart(addrChan, errCh)
@@ -195,7 +333,27 @@ func TestEcho_StartTLS(t *testing.T) {
 	}
 }
 
-func TestEchoStartTLSAndStart(t *testing.T) {
+func TestStartConfig_StartTLS_withTLSConfigFunc(t *testing.T) {
+	e := New()
+
+	tlsConfigCalled := false
+	s := &StartConfig{
+		Address: ":0",
+		TLSConfigFunc: func(tlsConfig *tls.Config) {
+			assert.Len(t, tlsConfig.Certificates, 1)
+			tlsConfigCalled = true
+		},
+		BeforeServeFunc: func(s *http.Server) error {
+			return errors.New("stop_now")
+		},
+	}
+	err := s.StartTLS(e, "_fixture/certs/cert.pem", "_fixture/certs/key.pem")
+
+	assert.EqualError(t, err, "stop_now")
+	assert.True(t, tlsConfigCalled)
+}
+
+func TestStartConfig_StartTLSAndStart(t *testing.T) {
 	// We name if Echo and listeners work correctly when Echo is simultaneously attached to HTTP and HTTPS server
 	e := New()
 	e.GET("/", func(c Context) error {
@@ -207,15 +365,17 @@ func TestEchoStartTLSAndStart(t *testing.T) {
 	addrTLSChan := make(chan string)
 	errTLSChan := make(chan error)
 	go func() {
-		certFile := "_fixture/certs/cert.pem"
-		keyFile := "_fixture/certs/key.pem"
-		errTLSChan <- NewServerConfig().
-			WithAddress(":0").
-			WithGracefulShutdownContext(tlsCtx, 100*time.Millisecond).
-			WithListenerAddrFunc(func(listener net.Addr) {
-				addrTLSChan <- listener.String()
-			}).
-			StartTLS(e, certFile, keyFile)
+		s := &StartConfig{
+			Address: ":0",
+			GracefulShutdown: GracefulShutdownConfig{
+				Context: tlsCtx,
+				Timeout: 100 * time.Millisecond,
+			},
+			ListenerAddrFunc: func(addr net.Addr) {
+				addrTLSChan <- addr.String()
+			},
+		}
+		errTLSChan <- s.StartTLS(e, "_fixture/certs/cert.pem", "_fixture/certs/key.pem")
 	}()
 
 	tlsAddr, err := waitForServerStart(addrTLSChan, errTLSChan)
@@ -234,13 +394,17 @@ func TestEchoStartTLSAndStart(t *testing.T) {
 	addrChan := make(chan string)
 	errChan := make(chan error)
 	go func() {
-		errChan <- NewServerConfig().
-			WithAddress(":0").
-			WithGracefulShutdownContext(ctx, 100*time.Millisecond).
-			WithListenerAddrFunc(func(listener net.Addr) {
-				addrChan <- listener.String()
-			}).
-			Start(e)
+		s := &StartConfig{
+			Address: ":0",
+			GracefulShutdown: GracefulShutdownConfig{
+				Context: ctx,
+				Timeout: 100 * time.Millisecond,
+			},
+			ListenerAddrFunc: func(addr net.Addr) {
+				addrChan <- addr.String()
+			},
+		}
+		errChan <- s.Start(e)
 	}()
 
 	addr, err := waitForServerStart(addrChan, errChan)
@@ -312,14 +476,18 @@ func TestFilepathOrContent(t *testing.T) {
 			defer shutdown()
 
 			go func() {
-				errCh <- NewServerConfig().
-					WithAddress(":0").
-					WithCertFilesystem(os.DirFS(".")).
-					WithGracefulShutdownContext(ctx, 100*time.Millisecond).
-					WithListenerAddrFunc(func(listener net.Addr) {
-						addrChan <- listener.String()
-					}).
-					StartTLS(e, tc.cert, tc.key)
+				s := &StartConfig{
+					Address:        ":0",
+					CertFilesystem: os.DirFS("."),
+					GracefulShutdown: GracefulShutdownConfig{
+						Context: ctx,
+						Timeout: 100 * time.Millisecond,
+					},
+					ListenerAddrFunc: func(addr net.Addr) {
+						addrChan <- addr.String()
+					},
+				}
+				errCh <- s.StartTLS(e, tc.cert, tc.key)
 			}()
 
 			_, err := waitForServerStart(addrChan, errCh)
@@ -332,7 +500,7 @@ func TestFilepathOrContent(t *testing.T) {
 	}
 }
 
-func TestEcho_StartAutoTLS(t *testing.T) {
+func TestStartConfig_StartAutoTLS(t *testing.T) {
 	var testCases = []struct {
 		name        string
 		addr        string
@@ -359,13 +527,17 @@ func TestEcho_StartAutoTLS(t *testing.T) {
 			defer shutdown()
 
 			go func() {
-				errCh <- NewServerConfig().
-					WithAddress(tc.addr).
-					WithGracefulShutdownContext(ctx, 100*time.Millisecond).
-					WithListenerAddrFunc(func(listener net.Addr) {
-						addrChan <- listener.String()
-					}).
-					StartAutoTLS(e)
+				s := &StartConfig{
+					Address: tc.addr,
+					GracefulShutdown: GracefulShutdownConfig{
+						Context: ctx,
+						Timeout: 100 * time.Millisecond,
+					},
+					ListenerAddrFunc: func(addr net.Addr) {
+						addrChan <- addr.String()
+					},
+				}
+				errCh <- s.StartAutoTLS(e)
 			}()
 
 			_, err := waitForServerStart(addrChan, errCh)
@@ -378,7 +550,27 @@ func TestEcho_StartAutoTLS(t *testing.T) {
 	}
 }
 
-func TestEcho_StartH2CServer(t *testing.T) {
+func TestStartConfig_StartAutoTLS_withTLSConfigFunc(t *testing.T) {
+	e := New()
+
+	tlsConfigCalled := false
+	s := &StartConfig{
+		Address: ":0",
+		TLSConfigFunc: func(tlsConfig *tls.Config) {
+			assert.NotNil(t, tlsConfig.GetCertificate)
+			tlsConfigCalled = true
+		},
+		BeforeServeFunc: func(s *http.Server) error {
+			return errors.New("stop_now")
+		},
+	}
+	err := s.StartAutoTLS(e)
+
+	assert.EqualError(t, err, "stop_now")
+	assert.True(t, tlsConfigCalled)
+}
+
+func TestStartConfig_StartH2CServer(t *testing.T) {
 	var testCases = []struct {
 		name        string
 		addr        string
@@ -406,14 +598,17 @@ func TestEcho_StartH2CServer(t *testing.T) {
 
 			go func() {
 				h2s := &http2.Server{}
-
-				errCh <- NewServerConfig().
-					WithAddress(tc.addr).
-					WithGracefulShutdownContext(ctx, 100*time.Millisecond).
-					WithListenerAddrFunc(func(listener net.Addr) {
-						addrChan <- listener.String()
-					}).
-					StartH2CServer(e, h2s)
+				s := &StartConfig{
+					Address: tc.addr,
+					GracefulShutdown: GracefulShutdownConfig{
+						Context: ctx,
+						Timeout: 100 * time.Millisecond,
+					},
+					ListenerAddrFunc: func(addr net.Addr) {
+						addrChan <- addr.String()
+					},
+				}
+				errCh <- s.StartH2CServer(e, h2s)
 			}()
 
 			_, err := waitForServerStart(addrChan, errCh)
@@ -437,7 +632,7 @@ func supportsIPv6() bool {
 	return false
 }
 
-func TestWithListenerNetwork(t *testing.T) {
+func TestStartConfig_WithListenerNetwork(t *testing.T) {
 	testCases := []struct {
 		name    string
 		network string
@@ -484,14 +679,18 @@ func TestWithListenerNetwork(t *testing.T) {
 			defer shutdown()
 
 			go func() {
-				errCh <- NewServerConfig().
-					WithAddress(tc.address).
-					WithListenerNetwork(tc.network).
-					WithGracefulShutdownContext(ctx, 100*time.Millisecond).
-					WithListenerAddrFunc(func(listener net.Addr) {
-						addrChan <- listener.String()
-					}).
-					Start(e)
+				s := &StartConfig{
+					Address:         tc.address,
+					ListenerNetwork: tc.network,
+					GracefulShutdown: GracefulShutdownConfig{
+						Context: ctx,
+						Timeout: 100 * time.Millisecond,
+					},
+					ListenerAddrFunc: func(addr net.Addr) {
+						addrChan <- addr.String()
+					},
+				}
+				errCh <- s.Start(e)
 			}()
 
 			_, err := waitForServerStart(addrChan, errCh)
@@ -505,7 +704,7 @@ func TestWithListenerNetwork(t *testing.T) {
 	}
 }
 
-func TestWithHideBanner(t *testing.T) {
+func TestStartConfig_WithHideBanner(t *testing.T) {
 	var testCases = []struct {
 		name       string
 		hideBanner bool
@@ -523,10 +722,8 @@ func TestWithHideBanner(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			e := New()
 
-			var buf bytes.Buffer
-			l := log.New("echo")
-			l.SetOutput(&buf)
-			e.Logger = l
+			buf := new(bytes.Buffer)
+			e.Logger = &testLogger{output: buf}
 
 			e.GET("/ok", func(c Context) error {
 				return c.String(http.StatusOK, "OK")
@@ -544,15 +741,19 @@ func TestWithHideBanner(t *testing.T) {
 				shutdown()
 			}()
 
-			err := NewServerConfig().
-				WithAddress(":0").
-				WithHideBanner(tc.hideBanner).
-				WithGracefulShutdownContext(ctx, 100*time.Millisecond).
-				WithListenerAddrFunc(func(listener net.Addr) {
-					addrChan <- listener.String()
-				}).
-				Start(e)
-			if err != http.ErrServerClosed {
+			s := &StartConfig{
+				Address:    ":0",
+				HideBanner: tc.hideBanner,
+				GracefulShutdown: GracefulShutdownConfig{
+					Context: ctx,
+					Timeout: 100 * time.Millisecond,
+				},
+				ListenerAddrFunc: func(addr net.Addr) {
+					addrChan <- addr.String()
+				},
+			}
+
+			if err := s.Start(e); err != http.ErrServerClosed {
 				assert.NoError(t, err)
 			}
 			assert.NoError(t, <-errCh)
@@ -567,7 +768,7 @@ func TestWithHideBanner(t *testing.T) {
 	}
 }
 
-func TestWithHidePort(t *testing.T) {
+func TestStartConfig_WithHidePort(t *testing.T) {
 	var testCases = []struct {
 		name     string
 		hidePort bool
@@ -585,10 +786,8 @@ func TestWithHidePort(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			e := New()
 
-			var buf bytes.Buffer
-			l := log.New("echo")
-			l.SetOutput(&buf)
-			e.Logger = l
+			buf := new(bytes.Buffer)
+			e.Logger = &testLogger{output: buf}
 
 			e.GET("/ok", func(c Context) error {
 				return c.String(http.StatusOK, "OK")
@@ -605,15 +804,18 @@ func TestWithHidePort(t *testing.T) {
 				shutdown()
 			}()
 
-			err := NewServerConfig().
-				WithAddress(":0").
-				WithHidePort(tc.hidePort).
-				WithGracefulShutdownContext(ctx, 100*time.Millisecond).
-				WithListenerAddrFunc(func(listener net.Addr) {
-					addrChan <- listener.String()
-				}).
-				Start(e)
-			if err != http.ErrServerClosed {
+			s := &StartConfig{
+				Address:  ":0",
+				HidePort: tc.hidePort,
+				GracefulShutdown: GracefulShutdownConfig{
+					Context: ctx,
+					Timeout: 100 * time.Millisecond,
+				},
+				ListenerAddrFunc: func(addr net.Addr) {
+					addrChan <- addr.String()
+				},
+			}
+			if err := s.Start(e); err != http.ErrServerClosed {
 				assert.NoError(t, err)
 			}
 			assert.NoError(t, <-errCh)
@@ -629,19 +831,20 @@ func TestWithHidePort(t *testing.T) {
 	}
 }
 
-func TestWithBeforeServeFunc(t *testing.T) {
+func TestStartConfig_WithBeforeServeFunc(t *testing.T) {
 	e := New()
 
 	e.GET("/ok", func(c Context) error {
 		return c.String(http.StatusOK, "OK")
 	})
 
-	err := NewServerConfig().
-		WithAddress(":0").
-		WithBeforeServeFunc(func(s *http.Server) error {
+	s := &StartConfig{
+		Address: ":0",
+		BeforeServeFunc: func(s *http.Server) error {
 			return errors.New("is called before serve")
-		}).
-		Start(e)
+		},
+	}
+	err := s.Start(e)
 	assert.EqualError(t, err, "is called before serve")
 }
 
@@ -678,14 +881,18 @@ func TestWithDisableHTTP2(t *testing.T) {
 				certFile := "_fixture/certs/cert.pem"
 				keyFile := "_fixture/certs/key.pem"
 
-				errCh <- NewServerConfig().
-					WithAddress(":0").
-					WithDisableHTTP2(tc.disableHTTP2).
-					WithGracefulShutdownContext(ctx, 100*time.Millisecond).
-					WithListenerAddrFunc(func(listener net.Addr) {
-						addrChan <- listener.String()
-					}).
-					StartTLS(e, certFile, keyFile)
+				s := &StartConfig{
+					Address:      ":0",
+					DisableHTTP2: tc.disableHTTP2,
+					GracefulShutdown: GracefulShutdownConfig{
+						Context: ctx,
+						Timeout: 100 * time.Millisecond,
+					},
+					ListenerAddrFunc: func(addr net.Addr) {
+						addrChan <- addr.String()
+					},
+				}
+				errCh <- s.StartTLS(e, certFile, keyFile)
 			}()
 
 			addr, err := waitForServerStart(addrChan, errCh)
@@ -724,4 +931,20 @@ func TestWithDisableHTTP2(t *testing.T) {
 
 		})
 	}
+}
+
+type testLogger struct {
+	output io.Writer
+}
+
+func (l *testLogger) Writer() io.Writer {
+	return l.output
+}
+
+func (l *testLogger) Printf(format string, args ...interface{}) {
+	_, _ = l.output.Write([]byte(fmt.Sprintf(format, args...)))
+}
+
+func (l *testLogger) Error(err error) {
+	_, _ = l.output.Write([]byte(err.Error()))
 }

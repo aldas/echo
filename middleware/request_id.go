@@ -2,42 +2,43 @@ package middleware
 
 import (
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/gommon/random"
 )
 
-type (
-	// RequestIDConfig defines the config for RequestID middleware.
-	RequestIDConfig struct {
-		// Skipper defines a function to skip middleware.
-		Skipper Skipper
+// RequestIDConfig defines the config for RequestID middleware.
+type RequestIDConfig struct {
+	// Skipper defines a function to skip middleware.
+	Skipper Skipper
 
-		// Generator defines a function to generate an ID.
-		// Optional. Default value random.String(32).
-		Generator func() string
-	}
-)
-
-var (
-	// DefaultRequestIDConfig is the default RequestID middleware config.
-	DefaultRequestIDConfig = RequestIDConfig{
-		Skipper:   DefaultSkipper,
-		Generator: generator,
-	}
-)
+	// Generator defines a function to generate an ID.
+	// Optional. Default value random.String(32).
+	Generator func() string
+}
 
 // RequestID returns a X-Request-ID middleware.
 func RequestID() echo.MiddlewareFunc {
-	return RequestIDWithConfig(DefaultRequestIDConfig)
+	mw, err := RequestIDWithConfig(RequestIDConfig{})
+	if err != nil {
+		panic(err)
+	}
+	return mw
+}
+
+// MustRequestIDWithConfig returns a X-Request-ID middleware with config or panics on invalid configuration.
+func MustRequestIDWithConfig(config RequestIDConfig) echo.MiddlewareFunc {
+	mw, err := RequestIDWithConfig(config)
+	if err != nil {
+		panic(err)
+	}
+	return mw
 }
 
 // RequestIDWithConfig returns a X-Request-ID middleware with config.
-func RequestIDWithConfig(config RequestIDConfig) echo.MiddlewareFunc {
-	// Defaults
+func RequestIDWithConfig(config RequestIDConfig) (echo.MiddlewareFunc, error) {
 	if config.Skipper == nil {
-		config.Skipper = DefaultRequestIDConfig.Skipper
+		config.Skipper = DefaultSkipper
 	}
 	if config.Generator == nil {
-		config.Generator = generator
+		config.Generator = createRandomStringGenerator(32)
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
@@ -56,9 +57,5 @@ func RequestIDWithConfig(config RequestIDConfig) echo.MiddlewareFunc {
 
 			return next(c)
 		}
-	}
-}
-
-func generator() string {
-	return random.String(32)
+	}, nil
 }

@@ -16,12 +16,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type (
-	user struct {
-		ID   int    `json:"id" xml:"id" form:"id" query:"id" param:"id" header:"id"`
-		Name string `json:"name" xml:"name" form:"name" query:"name" param:"name" header:"name"`
-	}
-)
+type user struct {
+	ID   int    `json:"id" xml:"id" form:"id" query:"id" param:"id" header:"id"`
+	Name string `json:"name" xml:"name" form:"name" query:"name" param:"name" header:"name"`
+}
 
 const (
 	userJSON                    = `{"id":1,"name":"Jon Snow"}`
@@ -55,8 +53,8 @@ func TestEcho(t *testing.T) {
 	// Router
 	assert.NotNil(t, e.Router())
 
-	// DefaultHTTPErrorHandler
-	e.DefaultHTTPErrorHandler(errors.New("error"), c)
+	e.HTTPErrorHandler(errors.New("error"), c)
+
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 }
 
@@ -575,48 +573,95 @@ func TestHTTPError_Unwrap(t *testing.T) {
 }
 
 func TestDefaultHTTPErrorHandler(t *testing.T) {
-	e := New()
-	e.Debug = true
-	e.Any("/plain", func(c Context) error {
-		return errors.New("An error occurred")
-	})
-	e.Any("/badrequest", func(c Context) error {
-		return NewHTTPError(http.StatusBadRequest, "Invalid request")
-	})
-	e.Any("/servererror", func(c Context) error {
-		return NewHTTPError(http.StatusInternalServerError, map[string]interface{}{
-			"code":    33,
-			"message": "Something bad happened",
-			"error":   "stackinfo",
+	var testCases = []struct {
+		name             string
+		givenExposeError bool
+		givenLoggerFunc  bool
+		whenMethod       string
+		whenError        error
+		expectBody       string
+		expectStatus     int
+		expectLogged     string
+	}{
+		{
+			name:             "ok, expose error = true, HTTPError",
+			givenExposeError: true,
+			whenError:        NewHTTPError(http.StatusTeapot, "my_error"),
+			expectStatus:     http.StatusTeapot,
+			expectBody:       `{"error":"code=418, message=my_error","message":"my_error"}` + "\n",
+		},
+		{
+			name:             "ok, expose error = true, HTTPError + internal error",
+			givenExposeError: true,
+			whenError:        NewHTTPError(http.StatusTeapot, "my_error").SetInternal(errors.New("internal_error")),
+			expectStatus:     http.StatusTeapot,
+			expectBody:       `{"error":"code=418, message=my_error, internal=internal_error","message":"my_error"}` + "\n",
+		},
+		{
+			name:             "ok, expose error = true, HTTPError + internal HTTPError",
+			givenExposeError: true,
+			whenError:        NewHTTPError(http.StatusTeapot, "my_error").SetInternal(NewHTTPError(http.StatusTooEarly, "early_error")),
+			expectStatus:     http.StatusTooEarly,
+			expectBody:       `{"error":"code=418, message=my_error, internal=code=425, message=early_error","message":"early_error"}` + "\n",
+		},
+		{
+			name:         "ok, expose error = false, HTTPError",
+			whenError:    NewHTTPError(http.StatusTeapot, "my_error"),
+			expectStatus: http.StatusTeapot,
+			expectBody:   `{"message":"my_error"}` + "\n",
+		},
+		{
+			name:         "ok, expose error = false, HTTPError + internal HTTPError",
+			whenError:    NewHTTPError(http.StatusTeapot, "my_error").SetInternal(NewHTTPError(http.StatusTooEarly, "early_error")),
+			expectStatus: http.StatusTooEarly,
+			expectBody:   `{"message":"early_error"}` + "\n",
+		},
+		{
+			name:             "ok, expose error = true, Error",
+			givenExposeError: true,
+			whenError:        fmt.Errorf("my errors wraps: %w", errors.New("internal_error")),
+			expectStatus:     http.StatusInternalServerError,
+			expectBody:       `{"error":"my errors wraps: internal_error","message":"Internal Server Error"}` + "\n",
+		},
+		{
+			name:         "ok, expose error = false, Error",
+			whenError:    fmt.Errorf("my errors wraps: %w", errors.New("internal_error")),
+			expectStatus: http.StatusInternalServerError,
+			expectBody:   `{"message":"Internal Server Error"}` + "\n",
+		},
+		{
+			name:             "ok, http.HEAD, expose error = true, Error",
+			givenExposeError: true,
+			whenMethod:       http.MethodHead,
+			whenError:        fmt.Errorf("my errors wraps: %w", errors.New("internal_error")),
+			expectStatus:     http.StatusInternalServerError,
+			expectBody:       ``,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			logger := newBufferLogger()
+			e := New()
+			e.Logger = logger
+			e.Any("/path", func(c Context) error {
+				return tc.whenError
+			})
+
+			e.HTTPErrorHandler = DefaultHTTPErrorHandler(tc.givenExposeError)
+
+			method := http.MethodGet
+			if tc.whenMethod != "" {
+				method = tc.whenMethod
+			}
+			c, b := request(method, "/path", e)
+
+			assert.Equal(t, tc.expectStatus, c)
+			assert.Equal(t, tc.expectBody, b)
+			assert.Equal(t, tc.expectLogged, logger.buffer.String())
 		})
-	})
-	// With Debug=true plain response contains error message
-	c, b := request(http.MethodGet, "/plain", e)
-	assert.Equal(t, http.StatusInternalServerError, c)
-	assert.Equal(t, "{\n  \"error\": \"An error occurred\",\n  \"message\": \"Internal Server Error\"\n}\n", b)
-	// and special handling for HTTPError
-	c, b = request(http.MethodGet, "/badrequest", e)
-	assert.Equal(t, http.StatusBadRequest, c)
-	assert.Equal(t, "{\n  \"error\": \"code=400, message=Invalid request\",\n  \"message\": \"Invalid request\"\n}\n", b)
-	// complex errors are serialized to pretty JSON
-	c, b = request(http.MethodGet, "/servererror", e)
-	assert.Equal(t, http.StatusInternalServerError, c)
-	assert.Equal(t, "{\n  \"code\": 33,\n  \"error\": \"stackinfo\",\n  \"message\": \"Something bad happened\"\n}\n", b)
-
-	e.Debug = false
-	// With Debug=false the error response is shortened
-	c, b = request(http.MethodGet, "/plain", e)
-	assert.Equal(t, http.StatusInternalServerError, c)
-	assert.Equal(t, "{\"message\":\"Internal Server Error\"}\n", b)
-	c, b = request(http.MethodGet, "/badrequest", e)
-	assert.Equal(t, http.StatusBadRequest, c)
-	assert.Equal(t, "{\"message\":\"Invalid request\"}\n", b)
-	// No difference for error response with non plain string errors
-	c, b = request(http.MethodGet, "/servererror", e)
-	assert.Equal(t, http.StatusInternalServerError, c)
-	assert.Equal(t, "{\"code\":33,\"error\":\"stackinfo\",\"message\":\"Something bad happened\"}\n", b)
+	}
 }
-
 
 func benchmarkEchoRoutes(b *testing.B, routes []testRoute) {
 	e := New()

@@ -35,12 +35,21 @@ var DefaultRedirectConfig = RedirectConfig{
 //
 // Usage `Echo#Pre(HTTPSRedirect())`
 func HTTPSRedirect() echo.MiddlewareFunc {
-	return HTTPSRedirectWithConfig(DefaultRedirectConfig)
+	return MustHTTPSRedirectWithConfig(DefaultRedirectConfig)
+}
+
+// MustHTTPSRedirectWithConfig returns a HTTPS redirect middleware with config or panics on invalid configuration.
+func MustHTTPSRedirectWithConfig(config RedirectConfig) echo.MiddlewareFunc {
+	mw, err := HTTPSRedirectWithConfig(config)
+	if err != nil {
+		panic(err)
+	}
+	return mw
 }
 
 // HTTPSRedirectWithConfig returns an HTTPSRedirect middleware with config.
 // See `HTTPSRedirect()`.
-func HTTPSRedirectWithConfig(config RedirectConfig) echo.MiddlewareFunc {
+func HTTPSRedirectWithConfig(config RedirectConfig) (echo.MiddlewareFunc, error) {
 	return redirect(config, func(scheme, host, uri string) (bool, string) {
 		if scheme != "https" {
 			return true, "https://" + host + uri
@@ -54,12 +63,21 @@ func HTTPSRedirectWithConfig(config RedirectConfig) echo.MiddlewareFunc {
 //
 // Usage `Echo#Pre(HTTPSWWWRedirect())`
 func HTTPSWWWRedirect() echo.MiddlewareFunc {
-	return HTTPSWWWRedirectWithConfig(DefaultRedirectConfig)
+	return MustHTTPSWWWRedirectWithConfig(DefaultRedirectConfig)
+}
+
+// MustHTTPSWWWRedirectWithConfig returns a HTTPS WWW redirect middleware with config or panics on invalid configuration.
+func MustHTTPSWWWRedirectWithConfig(config RedirectConfig) echo.MiddlewareFunc {
+	mw, err := HTTPSWWWRedirectWithConfig(config)
+	if err != nil {
+		panic(err)
+	}
+	return mw
 }
 
 // HTTPSWWWRedirectWithConfig returns an HTTPSRedirect middleware with config.
 // See `HTTPSWWWRedirect()`.
-func HTTPSWWWRedirectWithConfig(config RedirectConfig) echo.MiddlewareFunc {
+func HTTPSWWWRedirectWithConfig(config RedirectConfig) (echo.MiddlewareFunc, error) {
 	return redirect(config, func(scheme, host, uri string) (bool, string) {
 		if scheme != "https" && !strings.HasPrefix(host, www) {
 			return true, "https://www." + host + uri
@@ -73,12 +91,21 @@ func HTTPSWWWRedirectWithConfig(config RedirectConfig) echo.MiddlewareFunc {
 //
 // Usage `Echo#Pre(HTTPSNonWWWRedirect())`
 func HTTPSNonWWWRedirect() echo.MiddlewareFunc {
-	return HTTPSNonWWWRedirectWithConfig(DefaultRedirectConfig)
+	return MustHTTPSNonWWWRedirectWithConfig(DefaultRedirectConfig)
+}
+
+// MustHTTPSNonWWWRedirectWithConfig returns a HTTPS Non-WWW redirect middleware with config or panics on invalid configuration.
+func MustHTTPSNonWWWRedirectWithConfig(config RedirectConfig) echo.MiddlewareFunc {
+	mw, err := HTTPSNonWWWRedirectWithConfig(config)
+	if err != nil {
+		panic(err)
+	}
+	return mw
 }
 
 // HTTPSNonWWWRedirectWithConfig returns an HTTPSRedirect middleware with config.
 // See `HTTPSNonWWWRedirect()`.
-func HTTPSNonWWWRedirectWithConfig(config RedirectConfig) echo.MiddlewareFunc {
+func HTTPSNonWWWRedirectWithConfig(config RedirectConfig) (echo.MiddlewareFunc, error) {
 	return redirect(config, func(scheme, host, uri string) (ok bool, url string) {
 		if scheme != "https" {
 			host = strings.TrimPrefix(host, www)
@@ -93,12 +120,21 @@ func HTTPSNonWWWRedirectWithConfig(config RedirectConfig) echo.MiddlewareFunc {
 //
 // Usage `Echo#Pre(WWWRedirect())`
 func WWWRedirect() echo.MiddlewareFunc {
-	return WWWRedirectWithConfig(DefaultRedirectConfig)
+	return MustWWWRedirectWithConfig(DefaultRedirectConfig)
+}
+
+// MustWWWRedirectWithConfig returns a WWW redirect middleware with config or panics on invalid configuration.
+func MustWWWRedirectWithConfig(config RedirectConfig) echo.MiddlewareFunc {
+	mw, err := WWWRedirectWithConfig(config)
+	if err != nil {
+		panic(err)
+	}
+	return mw
 }
 
 // WWWRedirectWithConfig returns an HTTPSRedirect middleware with config.
 // See `WWWRedirect()`.
-func WWWRedirectWithConfig(config RedirectConfig) echo.MiddlewareFunc {
+func WWWRedirectWithConfig(config RedirectConfig) (echo.MiddlewareFunc, error) {
 	return redirect(config, func(scheme, host, uri string) (bool, string) {
 		if !strings.HasPrefix(host, www) {
 			return true, scheme + "://www." + host + uri
@@ -112,12 +148,21 @@ func WWWRedirectWithConfig(config RedirectConfig) echo.MiddlewareFunc {
 //
 // Usage `Echo#Pre(NonWWWRedirect())`
 func NonWWWRedirect() echo.MiddlewareFunc {
-	return NonWWWRedirectWithConfig(DefaultRedirectConfig)
+	return MustNonWWWRedirectWithConfig(DefaultRedirectConfig)
+}
+
+// MustNonWWWRedirectWithConfig returns a Non-WWW redirect middleware with config or panics on invalid configuration.
+func MustNonWWWRedirectWithConfig(config RedirectConfig) echo.MiddlewareFunc {
+	mw, err := NonWWWRedirectWithConfig(config)
+	if err != nil {
+		panic(err)
+	}
+	return mw
 }
 
 // NonWWWRedirectWithConfig returns an HTTPSRedirect middleware with config.
 // See `NonWWWRedirect()`.
-func NonWWWRedirectWithConfig(config RedirectConfig) echo.MiddlewareFunc {
+func NonWWWRedirectWithConfig(config RedirectConfig) (echo.MiddlewareFunc, error) {
 	return redirect(config, func(scheme, host, uri string) (bool, string) {
 		if strings.HasPrefix(host, www) {
 			return true, scheme + "://" + host[4:] + uri
@@ -126,7 +171,7 @@ func NonWWWRedirectWithConfig(config RedirectConfig) echo.MiddlewareFunc {
 	})
 }
 
-func redirect(config RedirectConfig, cb redirectLogic) echo.MiddlewareFunc {
+func redirect(config RedirectConfig, cb redirectLogic) (echo.MiddlewareFunc, error) {
 	if config.Skipper == nil {
 		config.Skipper = DefaultRedirectConfig.Skipper
 	}
@@ -148,5 +193,5 @@ func redirect(config RedirectConfig, cb redirectLogic) echo.MiddlewareFunc {
 
 			return next(c)
 		}
-	}
+	}, nil
 }

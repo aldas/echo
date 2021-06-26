@@ -6,88 +6,90 @@ import (
 	"net/url"
 )
 
-type (
-	// Router is interface for routing requests to registered routes.
-	Router interface {
-		// Add registers Route with Router
-		Add(route Route) error
-		// Remove removes route from router
-		Remove(method string, path string) error
-		// Routes returns all registered routes
-		Routes() Routes
+// Router is interface for routing requests to registered routes.
+type Router interface {
+	// Add registers Route with Router
+	Add(route Route) error
+	// Remove removes route from router
+	Remove(method string, path string) error
+	// Routes returns all registered routes
+	Routes() Routes
 
-		// Match searches Router for matching route and applies it to result fields.
-		Match(req *http.Request, params *PathParams) RouteMatch
-	}
+	// Match searches Router for matching route and applies it to result fields.
+	Match(req *http.Request, params *PathParams) RouteMatch
+}
 
-	// RouteBuilder is optional interface that Router implementation could implement. RouteBuilder allows (re)building Router
-	// just before Echo server is started. This allows Router act as factory and return different router instances
-	// depending on registered routes and their characteristics (i.e. if no param/any routes are registered, Build could return
-	// instance that has code paths only for static routes and therefore being more efficient).
-	RouteBuilder interface {
-		Build() (Router, error)
-	}
+// RouteBuilder is optional interface that Router implementation could implement. RouteBuilder allows (re)building Router
+// just before Echo server is started. This allows Router act as factory and return different router instances
+// depending on registered routes and their characteristics (i.e. if no param/any routes are registered, Build could return
+// instance that has code paths only for static routes and therefore being more efficient).
+type RouteBuilder interface {
+	Build() (Router, error) // FIXME: implement somewhere or delete
+}
 
-	// RouteMatch is result object for Router.Match. Its main purpose is to avoid allocating memory for PathParams inside router.
-	RouteMatch struct {
-		// RoutePath contains original path with what matched route was registered with (including placeholders etc).
-		RoutePath string
-		// Handler handler chain/function that was matched by router. In case of no match could result to NotFoundHandler or MethodNotAllowedHandler.
-		Handler HandlerFunc
-	}
+// RouteMatch is result object for Router.Match. Its main purpose is to avoid allocating memory for PathParams inside router.
+type RouteMatch struct {
+	// RoutePath contains original path with what matched route was registered with (including placeholders etc).
+	RoutePath string
+	// Handler handler chain/function that was matched by router. In case of no match could result to NotFoundHandler or MethodNotAllowedHandler.
+	Handler HandlerFunc
+}
 
-	// PathParams is collections of PathParam instances with various helper methods
-	PathParams []PathParam
+// PathParams is collections of PathParam instances with various helper methods
+type PathParams []PathParam
 
-	// PathParam is path parameter name and value tuple
-	PathParam struct {
-		Name  string
-		Value string
-	}
+// PathParam is path parameter name and value tuple
+type PathParam struct {
+	Name  string
+	Value string
+}
 
-	// DefaultRouter is the registry of all registered routes for an `Echo` instance for
-	// request matching and URL path parameter parsing.
-	DefaultRouter struct {
-		tree   *node
-		routes Routes
-		echo   *Echo
+// DefaultRouter is the registry of all registered routes for an `Echo` instance for
+// request matching and URL path parameter parsing.
+type DefaultRouter struct {
+	tree   *node
+	routes Routes
+	echo   *Echo
 
-		duplicateRouteOverwritesRoute bool
-		unescapePathParamValues       bool
-	}
+	duplicateRouteOverwritesRoute bool
+	unescapePathParamValues       bool
+}
 
-	node struct {
-		kind           kind
-		label          byte
-		prefix         string
-		parent         *node
-		staticChildren children
-		originalPath   string
-		paramNames     []string
-		methodHandler  *methodHandler
-		paramChild     *node
-		anyChild       *node
-		// isLeaf indicates that node does not have child routes
-		isLeaf bool
-		// isHandler indicates that node has at least one handler registered to it
-		isHandler bool
-	}
-	kind          uint8
-	children      []*node
-	methodHandler struct {
-		connect  HandlerFunc // FIXME: add paramNames for each method type to support different names for param/any parameters
-		delete   HandlerFunc
-		get      HandlerFunc
-		head     HandlerFunc
-		options  HandlerFunc
-		patch    HandlerFunc
-		post     HandlerFunc
-		propfind HandlerFunc
-		put      HandlerFunc
-		trace    HandlerFunc
-		report   HandlerFunc
-	}
-)
+type children []*node
+
+type node struct {
+	kind           kind
+	label          byte
+	prefix         string
+	parent         *node
+	staticChildren children
+	originalPath   string
+	paramNames     []string
+	methodHandler  *methodHandler
+	paramChild     *node
+	anyChild       *node
+	// isLeaf indicates that node does not have child routes
+	isLeaf bool
+	// isHandler indicates that node has at least one handler registered to it
+	isHandler bool
+}
+
+type kind uint8
+
+type methodHandler struct {
+	connect  HandlerFunc // FIXME: add paramNames for each method type to support different names for param/any parameters
+	delete   HandlerFunc
+	get      HandlerFunc
+	head     HandlerFunc
+	options  HandlerFunc
+	patch    HandlerFunc
+	post     HandlerFunc
+	propfind HandlerFunc
+	put      HandlerFunc
+	trace    HandlerFunc
+	report   HandlerFunc
+	// FIXME map for any other user given method to support arbitrary methods
+}
 
 const (
 	staticKind kind = iota
@@ -157,10 +159,10 @@ func (r *DefaultRouter) Build() (Router, error) {
 
 // Remove unregisters registered route
 func (r *DefaultRouter) Remove(method string, path string) error {
-	panic("not implemented")
+	panic("not implemented") // FIXME: implement
 }
 
-// AddRouteError is error returned by Router.Add containing information what actual route adding failed. Usefaul for
+// AddRouteError is error returned by Router.Add containing information what actual route adding failed. Useful for
 // mass adding (i.e. Any() routes)
 type AddRouteError struct {
 	Method string
@@ -680,9 +682,9 @@ func (r *DefaultRouter) Match(req *http.Request, pathParams *PathParams) RouteMa
 		// See issue #1531, #1258 - there are cases when path parameter need to be unescaped
 		for i, p := range *pathParams {
 			tmpVal, err := url.PathUnescape(p.Value)
-			if err != nil {
+			if err == nil { // handle problems by ignoring them.
+				(*pathParams)[i].Value = tmpVal
 			}
-			(*pathParams)[i].Value = tmpVal
 		}
 	}
 
