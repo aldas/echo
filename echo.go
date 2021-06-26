@@ -37,36 +37,20 @@ Learn more at https://echo.labstack.com
 package echo
 
 import (
-	stdContext "context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
-	stdLog "log"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
-
-	"github.com/labstack/gommon/color"
-	"golang.org/x/crypto/acme"
-	"golang.org/x/crypto/acme/autocert"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 )
 
 type (
 	// Echo is the top-level framework instance.
 	Echo struct {
 		common
-		// startupMutex is mutex to lock Echo instance access during server configuration and startup. Useful for to get
-		// listener address info (on which interface/port was listener binded) without having data races.
-		startupMutex  sync.RWMutex
-		colorer       *color.Color
 		premiddleware []MiddlewareFunc
 		middleware    []MiddlewareFunc
 
@@ -76,22 +60,13 @@ type (
 
 		notFoundHandler  HandlerFunc
 		contextPool      sync.Pool
-		Server           *http.Server
-		TLSServer        *http.Server
-		Listener         net.Listener
-		TLSListener      net.Listener
-		AutoTLSManager   autocert.Manager
-		DisableHTTP2     bool
 		Debug            bool
-		HideBanner       bool
-		HidePort         bool
 		HTTPErrorHandler HTTPErrorHandler
 		Binder           Binder
 		Validator        Validator
 		Renderer         Renderer
 		Logger           Logger
 		IPExtractor      IPExtractor
-		ListenerNetwork  string
 	}
 
 	// HTTPError represents an error that occurred while handling a request.
@@ -225,18 +200,6 @@ const (
 const (
 	// Version of Echo
 	Version = "4.3.0"
-	website = "https://echo.labstack.com"
-	// http://patorjk.com/software/taag/#p=display&f=Small%20Slant&t=Echo
-	banner = `
-   ____    __
-  / __/___/ /  ___
- / _// __/ _ \/ _ \
-/___/\__/_//_/\___/ %s
-High performance, minimalist Go web framework
-%s
-____________________________________O/_______
-                                    O\
-`
 )
 
 var (
@@ -291,17 +254,9 @@ var (
 // New creates an instance of Echo.
 func New() (e *Echo) {
 	e = &Echo{
-		Server:    new(http.Server),
-		TLSServer: new(http.Server),
-		AutoTLSManager: autocert.Manager{
-			Prompt: autocert.AcceptTOS,
-		},
 		Logger:          newStdLogger(),
-		colorer:         color.New(),
-		ListenerNetwork: "tcp",
 	}
-	e.Server.Handler = e
-	e.TLSServer.Handler = e
+
 	e.HTTPErrorHandler = e.DefaultHTTPErrorHandler
 	e.Binder = &DefaultBinder{}
 	e.contextPool.New = func() interface{} {
@@ -640,208 +595,6 @@ func (e *Echo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	e.contextPool.Put(c)
 }
 
-// Start starts an HTTP server.
-func (e *Echo) Start(address string) error {
-	e.startupMutex.Lock()
-	e.Server.Addr = address
-	if err := e.configureServer(e.Server); err != nil {
-		e.startupMutex.Unlock()
-		return err
-	}
-	e.startupMutex.Unlock()
-	return e.Server.Serve(e.Listener)
-}
-
-// StartTLS starts an HTTPS server.
-// If `certFile` or `keyFile` is `string` the values are treated as file paths.
-// If `certFile` or `keyFile` is `[]byte` the values are treated as the certificate or key as-is.
-func (e *Echo) StartTLS(address string, certFile, keyFile interface{}) (err error) {
-	e.startupMutex.Lock()
-	var cert []byte
-	if cert, err = filepathOrContent(certFile); err != nil {
-		e.startupMutex.Unlock()
-		return
-	}
-
-	var key []byte
-	if key, err = filepathOrContent(keyFile); err != nil {
-		e.startupMutex.Unlock()
-		return
-	}
-
-	s := e.TLSServer
-	s.TLSConfig = new(tls.Config)
-	s.TLSConfig.Certificates = make([]tls.Certificate, 1)
-	if s.TLSConfig.Certificates[0], err = tls.X509KeyPair(cert, key); err != nil {
-		e.startupMutex.Unlock()
-		return
-	}
-
-	e.configureTLS(address)
-	if err := e.configureServer(s); err != nil {
-		e.startupMutex.Unlock()
-		return err
-	}
-	e.startupMutex.Unlock()
-	return s.Serve(e.TLSListener)
-}
-
-func filepathOrContent(fileOrContent interface{}) (content []byte, err error) {
-	switch v := fileOrContent.(type) {
-	case string:
-		return ioutil.ReadFile(v)
-	case []byte:
-		return v, nil
-	default:
-		return nil, ErrInvalidCertOrKeyType
-	}
-}
-
-// StartAutoTLS starts an HTTPS server using certificates automatically installed from https://letsencrypt.org.
-func (e *Echo) StartAutoTLS(address string) error {
-	e.startupMutex.Lock()
-	s := e.TLSServer
-	s.TLSConfig = new(tls.Config)
-	s.TLSConfig.GetCertificate = e.AutoTLSManager.GetCertificate
-	s.TLSConfig.NextProtos = append(s.TLSConfig.NextProtos, acme.ALPNProto)
-
-	e.configureTLS(address)
-	if err := e.configureServer(s); err != nil {
-		e.startupMutex.Unlock()
-		return err
-	}
-	e.startupMutex.Unlock()
-	return s.Serve(e.TLSListener)
-}
-
-func (e *Echo) configureTLS(address string) {
-	s := e.TLSServer
-	s.Addr = address
-	if !e.DisableHTTP2 {
-		s.TLSConfig.NextProtos = append(s.TLSConfig.NextProtos, "h2")
-	}
-}
-
-// StartServer starts a custom http server.
-func (e *Echo) StartServer(s *http.Server) (err error) {
-	e.startupMutex.Lock()
-	if err := e.configureServer(s); err != nil {
-		e.startupMutex.Unlock()
-		return err
-	}
-	if s.TLSConfig != nil {
-		e.startupMutex.Unlock()
-		return s.Serve(e.TLSListener)
-	}
-	e.startupMutex.Unlock()
-	return s.Serve(e.Listener)
-}
-
-func (e *Echo) configureServer(s *http.Server) (err error) {
-	// Setup
-	e.colorer.SetOutput(e.Logger.Output())
-	s.ErrorLog = stdLog.New(e.Logger.Output(), "http.server: ", 0)
-	s.Handler = e
-
-	if !e.HideBanner {
-		e.colorer.Printf(banner, e.colorer.Red("v"+Version), e.colorer.Blue(website))
-	}
-
-	if s.TLSConfig == nil {
-		if e.Listener == nil {
-			e.Listener, err = newListener(s.Addr, e.ListenerNetwork)
-			if err != nil {
-				return err
-			}
-		}
-		if !e.HidePort {
-			e.colorer.Printf("⇨ http server started on %s\n", e.colorer.Green(e.Listener.Addr()))
-		}
-		return nil
-	}
-	if e.TLSListener == nil {
-		l, err := newListener(s.Addr, e.ListenerNetwork)
-		if err != nil {
-			return err
-		}
-		e.TLSListener = tls.NewListener(l, s.TLSConfig)
-	}
-	if !e.HidePort {
-		e.colorer.Printf("⇨ https server started on %s\n", e.colorer.Green(e.TLSListener.Addr()))
-	}
-	return nil
-}
-
-// ListenerAddr returns net.Addr for Listener
-func (e *Echo) ListenerAddr() net.Addr {
-	e.startupMutex.RLock()
-	defer e.startupMutex.RUnlock()
-	if e.Listener == nil {
-		return nil
-	}
-	return e.Listener.Addr()
-}
-
-// TLSListenerAddr returns net.Addr for TLSListener
-func (e *Echo) TLSListenerAddr() net.Addr {
-	e.startupMutex.RLock()
-	defer e.startupMutex.RUnlock()
-	if e.TLSListener == nil {
-		return nil
-	}
-	return e.TLSListener.Addr()
-}
-
-// StartH2CServer starts a custom http/2 server with h2c (HTTP/2 Cleartext).
-func (e *Echo) StartH2CServer(address string, h2s *http2.Server) (err error) {
-	e.startupMutex.Lock()
-	// Setup
-	s := e.Server
-	s.Addr = address
-	e.colorer.SetOutput(e.Logger.Output())
-	s.ErrorLog = stdLog.New(e.Logger.Output(), "http.server: ", 0)
-	s.Handler = h2c.NewHandler(e, h2s)
-
-	if !e.HideBanner {
-		e.colorer.Printf(banner, e.colorer.Red("v"+Version), e.colorer.Blue(website))
-	}
-
-	if e.Listener == nil {
-		e.Listener, err = newListener(s.Addr, e.ListenerNetwork)
-		if err != nil {
-			e.startupMutex.Unlock()
-			return err
-		}
-	}
-	if !e.HidePort {
-		e.colorer.Printf("⇨ http server started on %s\n", e.colorer.Green(e.Listener.Addr()))
-	}
-	e.startupMutex.Unlock()
-	return s.Serve(e.Listener)
-}
-
-// Close immediately stops the server.
-// It internally calls `http.Server#Close()`.
-func (e *Echo) Close() error {
-	e.startupMutex.Lock()
-	defer e.startupMutex.Unlock()
-	if err := e.TLSServer.Close(); err != nil {
-		return err
-	}
-	return e.Server.Close()
-}
-
-// Shutdown stops the server gracefully.
-// It internally calls `http.Server#Shutdown()`.
-func (e *Echo) Shutdown(ctx stdContext.Context) error {
-	e.startupMutex.Lock()
-	defer e.startupMutex.Unlock()
-	if err := e.TLSServer.Shutdown(ctx); err != nil {
-		return err
-	}
-	return e.Server.Shutdown(ctx)
-}
-
 // NewHTTPError creates a new HTTPError instance.
 func NewHTTPError(code int, message ...interface{}) *HTTPError {
 	he := &HTTPError{Code: code, Message: http.StatusText(code)}
@@ -911,42 +664,6 @@ func (e *Echo) findRouter(host string) Router {
 		}
 	}
 	return e.router
-}
-
-// // PathUnescape is wraps `url.PathUnescape`
-// func PathUnescape(s string) (string, error) {
-// 	return url.PathUnescape(s)
-// }
-
-// tcpKeepAliveListener sets TCP keep-alive timeouts on accepted
-// connections. It's used by ListenAndServe and ListenAndServeTLS so
-// dead TCP connections (e.g. closing laptop mid-download) eventually
-// go away.
-type tcpKeepAliveListener struct {
-	*net.TCPListener
-}
-
-func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
-	if c, err = ln.AcceptTCP(); err != nil {
-		return
-	} else if err = c.(*net.TCPConn).SetKeepAlive(true); err != nil {
-		return
-	}
-	// Ignore error from setting the KeepAlivePeriod as some systems, such as
-	// OpenBSD, do not support setting TCP_USER_TIMEOUT on IPPROTO_TCP
-	_ = c.(*net.TCPConn).SetKeepAlivePeriod(3 * time.Minute)
-	return
-}
-
-func newListener(address, network string) (*tcpKeepAliveListener, error) {
-	if network != "tcp" && network != "tcp4" && network != "tcp6" {
-		return nil, ErrInvalidListenerNetwork
-	}
-	l, err := net.Listen(network, address)
-	if err != nil {
-		return nil, err
-	}
-	return &tcpKeepAliveListener{l.(*net.TCPListener)}, nil
 }
 
 func applyMiddleware(h HandlerFunc, middleware ...MiddlewareFunc) HandlerFunc {
