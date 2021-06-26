@@ -185,10 +185,10 @@ type (
 		Context
 
 		// RawPathParams returns raw path pathParams value.
-		RawPathParams() PathParams
+		RawPathParams() *PathParams
 
 		// SetRawPathParams replaces any existing param values with new values for this context lifetime (request).
-		SetRawPathParams(params PathParams)
+		SetRawPathParams(params *PathParams)
 
 		// SetPath sets the registered path for the handler.
 		SetPath(p string)
@@ -207,8 +207,8 @@ type (
 		response *Response
 		path     string
 
-		// pathParams holds path/uri parameters determined by Router. Lifecycle handled by Echo to reduce allocations.
-		pathParams PathParams
+		// pathParams holds path/uri parameters determined by Router. Lifecycle is handled by Echo to reduce allocations.
+		pathParams *PathParams
 		// currentParams hold path parameters set by non-Echo implementation (custom middlewares, handlers) during the lifetime of Request.
 		// Lifecycle is not handle by Echo and could have excess allocations per served Request
 		currentParams PathParams
@@ -308,11 +308,11 @@ func (c *context) SetPath(p string) {
 	c.path = p
 }
 
-func (c *context) RawPathParams() PathParams {
+func (c *context) RawPathParams() *PathParams {
 	return c.pathParams
 }
 
-func (c *context) SetRawPathParams(params PathParams) {
+func (c *context) SetRawPathParams(params *PathParams) {
 	c.pathParams = params
 }
 
@@ -329,8 +329,8 @@ func (c *context) PathParams() PathParams {
 		return c.currentParams
 	}
 
-	result := make(PathParams, len(c.pathParams))
-	copy(result, c.pathParams)
+	result := make(PathParams, len(*c.pathParams))
+	copy(result, *c.pathParams)
 	return result
 }
 
@@ -648,6 +648,6 @@ func (c *context) Reset(r *http.Request, w http.ResponseWriter) {
 	c.path = ""
 	c.logger = nil
 	// NOTE: Don't reset because it has to have length c.echo.contextPathParamAllocSize at all times
-	c.pathParams = c.pathParams[:0]
+	*c.pathParams = (*c.pathParams)[:0]
 	c.currentParams = nil
 }

@@ -17,7 +17,7 @@ type (
 		Routes() Routes
 
 		// Match searches Router for matching route and applies it to result fields.
-		Match(req *http.Request, result *RouteMatch)
+		Match(req *http.Request, params *PathParams) RouteMatch
 	}
 
 	// RouteBuilder is optional interface that Router implementation could implement. RouteBuilder allows (re)building Router
@@ -30,13 +30,6 @@ type (
 
 	// RouteMatch is result object for Router.Match. Its main purpose is to avoid allocating memory for PathParams inside router.
 	RouteMatch struct {
-		// PathParams is path parameters and their values in matched route. Router will fill it with matched values.
-		// NB: slice referenced by this slice MUST have capacity pre allocated by echo.NewContext. Cause we can not have router
-		// possibly allocating memory for each request.
-		PathParams PathParams
-
-		// below fields are set by only Router
-
 		// RoutePath contains original path with what matched route was registered with (including placeholders etc).
 		RoutePath string
 		// Handler handler chain/function that was matched by router. In case of no match could result to NotFoundHandler or MethodNotAllowedHandler.
@@ -483,9 +476,14 @@ func (n *node) checkMethodNotAllowed() HandlerFunc {
 // - Get context from `Echo#AcquireContext()`
 // - Reset it `Context#Reset()`
 // - Return it `Echo#ReleaseContext()`.
-func (r *DefaultRouter) Match(req *http.Request, result *RouteMatch) {
-	result.Handler = NotFoundHandler
-	result.PathParams = result.PathParams[0:cap(result.PathParams)] // expand to maximum capacity
+func (r *DefaultRouter) Match(req *http.Request, pathParams *PathParams) RouteMatch {
+	result := RouteMatch{
+		Handler:   NotFoundHandler,
+		RoutePath: "",
+	}
+	//paramValues := *pathParams // expand to maximum capacity
+	//paramValues = paramValues[0:cap(paramValues)]
+	*pathParams = (*pathParams)[0:cap(*pathParams)]
 
 	var (
 		currentNode           = r.tree // Current node as root
@@ -496,8 +494,7 @@ func (r *DefaultRouter) Match(req *http.Request, result *RouteMatch) {
 		path        = GetPath(req)
 		search      = path
 		searchIndex = 0
-		paramIndex  int                 // Param counter
-		paramValues = result.PathParams // Use the internal slice so the interface can keep the illusion of a dynamic slice
+		paramIndex  int // Param counter
 	)
 
 	// Backtracking is needed when a dead end (leaf node) is reached in the router tree.
@@ -529,8 +526,8 @@ func (r *DefaultRouter) Match(req *http.Request, result *RouteMatch) {
 			paramIndex--
 			// for param/any node.prefix value is always `:` so we can not deduce searchIndex from that and must use pValue
 			// for that index as it would also contain part of path we cut off before moving into node we are backtracking from
-			searchIndex -= len(paramValues[paramIndex].Value)
-			paramValues[paramIndex].Value = ""
+			searchIndex -= len((*pathParams)[paramIndex].Value)
+			(*pathParams)[paramIndex].Value = ""
 		}
 		search = path[searchIndex:]
 		return
@@ -564,8 +561,8 @@ func (r *DefaultRouter) Match(req *http.Request, result *RouteMatch) {
 			// No matching prefix, let's backtrack to the first possible alternative node of the decision path
 			nk, ok := backtrackToNextNodeKind(staticKind)
 			if !ok {
-				result.PathParams = result.PathParams[0:0]
-				return // No other possibilities on the decision path
+				*pathParams = (*pathParams)[0:0]
+				return result // No other possibilities on the decision path
 			} else if nk == paramKind {
 				goto Param
 				// NOTE: this case (backtracking from static node to previous any node) can not happen by current any matching logic. Any node is end of search currently
@@ -616,7 +613,7 @@ func (r *DefaultRouter) Match(req *http.Request, result *RouteMatch) {
 				}
 			}
 
-			paramValues[paramIndex].Value = search[:i]
+			(*pathParams)[paramIndex].Value = search[:i]
 			paramIndex++
 			search = search[i:]
 			searchIndex = searchIndex + i
@@ -628,7 +625,7 @@ func (r *DefaultRouter) Match(req *http.Request, result *RouteMatch) {
 		if child := currentNode.anyChild; child != nil {
 			// If any node is found, use remaining path for paramValues
 			currentNode = child
-			paramValues[len(currentNode.paramNames)-1].Value = search
+			(*pathParams)[len(currentNode.paramNames)-1].Value = search
 			// update indexes/search in case we need to backtrack when no handler match is found
 			paramIndex++
 			searchIndex += +len(search)
@@ -660,8 +657,8 @@ func (r *DefaultRouter) Match(req *http.Request, result *RouteMatch) {
 	}
 
 	if currentNode == nil && previousBestMatchNode == nil {
-		result.PathParams = result.PathParams[0:0]
-		return // nothing matched at all
+		*pathParams = (*pathParams)[0:0]
+		return result // nothing matched at all
 	}
 
 	if matchedHandler != nil {
@@ -674,22 +671,22 @@ func (r *DefaultRouter) Match(req *http.Request, result *RouteMatch) {
 		result.Handler = currentNode.checkMethodNotAllowed()
 	}
 
-	result.PathParams = result.PathParams[0:len(currentNode.paramNames)]
+	*pathParams = (*pathParams)[0:len(currentNode.paramNames)]
 	for i, name := range currentNode.paramNames {
-		result.PathParams[i].Name = name
+		(*pathParams)[i].Name = name
 	}
 
 	if r.unescapePathParamValues && currentNode.kind != staticKind {
 		// See issue #1531, #1258 - there are cases when path parameter need to be unescaped
-		for i, p := range result.PathParams {
+		for i, p := range *pathParams {
 			tmpVal, err := url.PathUnescape(p.Value)
 			if err != nil {
 			}
-			result.PathParams[i].Value = tmpVal
+			(*pathParams)[i].Value = tmpVal
 		}
 	}
 
-	return
+	return result
 }
 
 // Get returns path parameter value for given name or default value.

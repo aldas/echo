@@ -322,12 +322,13 @@ func New() (e *Echo) {
 
 // NewContext returns a Context instance.
 func (e *Echo) NewContext(r *http.Request, w http.ResponseWriter) Context {
+	p := make(PathParams, e.contextPathParamAllocSize)
 	return &context{
 		request:    r,
 		response:   NewResponse(w, e),
 		store:      make(Map),
 		echo:       e,
-		pathParams: make([]PathParam, e.contextPathParamAllocSize),
+		pathParams: &p,
 		handler:    NotFoundHandler,
 	}
 }
@@ -604,31 +605,34 @@ func (e *Echo) ReleaseContext(c Context) {
 // ServeHTTP implements `http.Handler` interface, which serves HTTP requests.
 func (e *Echo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Acquire context
-	// FIXME casting to interface vs pointer to struct is in +24% slower (3233 ns/op vs 2605 ns/op)
+	// FIXME casting to interface vs pointer to struct is in:
+	// FIXME: interface extending another interface = +24% slower (3233 ns/op vs 2605 ns/op)
+	// FIXME: interface (not extending any, just methods)= +14% slower
 	// TODO: some info about casting https://www.reddit.com/r/golang/comments/9xs0r2/why_is_type_assertion_so_fast/e9wpi94
 	// TODO: https://stackoverflow.com/a/31584377
 	// TODO: "it's even worse with interface-to-interface assertion, because you also need to ensure that the type implements the interface."
-	c := e.contextPool.Get().(EditableContext)
+	// FIXME: compared to master stats:
+	// FIXME: e.contextPool.Get().(*context)              2.08µs ± 1%    1.86µs ± 0%  -10.55%  (p=0.001 n=7+7)
+	// FIXME: e.contextPool.Get().(EditableContext)       2.08µs ± 1%    2.76µs ± 3%  +32.82%  (p=0.001 n=7+7)
+	c := e.contextPool.Get().(*context)
+	//c := e.contextPool.Get().(EditableContext)
 	c.Reset(r, w)
 	var h func(c Context) error
 
-	match := e.routeMatchPool.Get().(*RouteMatch)
-	match.PathParams = c.RawPathParams()
-	match.RoutePath = ""
-	match.Handler = NotFoundHandler
-
 	if e.premiddleware == nil {
-		e.findRouter(r.Host).Match(r, match)
+		params := c.RawPathParams()
+		match := e.findRouter(r.Host).Match(r, params)
 
-		c.SetRawPathParams(match.PathParams)
+		c.SetRawPathParams(params)
 		c.SetPath(match.RoutePath)
 		h = applyMiddleware(match.Handler, e.middleware...)
 	} else {
 		h = func(cc Context) error {
-			e.findRouter(r.Host).Match(r, match)
+			params := c.RawPathParams()
+			match := e.findRouter(r.Host).Match(r, params)
 			// NOTE: router will be executed after pre middlewares have been run. We assume here that context we receive after pre middlewares
 			// is the same we began with. If not - this is use-case we do not support and is probably abuse from developer.
-			c.SetRawPathParams(match.PathParams)
+			c.SetRawPathParams(params)
 			c.SetPath(match.RoutePath)
 			h1 := applyMiddleware(match.Handler, e.middleware...)
 			return h1(cc)
@@ -641,7 +645,6 @@ func (e *Echo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		e.HTTPErrorHandler(err, c)
 	}
 
-	e.routeMatchPool.Put(match)
 	e.contextPool.Put(c)
 }
 

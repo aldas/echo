@@ -5,11 +5,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
-	"testing"
-)
-
-import (
 	"strings"
+	"testing"
 )
 
 type testRoute struct {
@@ -678,12 +675,12 @@ func TestRouterStatic(t *testing.T) {
 	err := e.AddRoute(Route{Method: http.MethodGet, Path: path, Handler: handlerFunc})
 	assert.NoError(t, err)
 
-	match := &RouteMatch{PathParams: make(PathParams, 0, 2)}
-	e.router.Match(req, match)
+	pathParams := make(PathParams, 0, 2)
+	match := e.router.Match(req, &pathParams)
 
 	assert.Equal(t, path, match.RoutePath)
-	assert.Equal(t, 2, cap(match.PathParams))
-	assert.Len(t, match.PathParams, 0)
+	assert.Equal(t, 2, cap(pathParams))
+	assert.Len(t, pathParams, 0)
 }
 
 func TestRouterParam(t *testing.T) {
@@ -716,12 +713,11 @@ func TestRouterParam(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			c := e.NewContext(nil, nil).(*context)
 			req := httptest.NewRequest("GET", tc.whenURL, nil)
-			match := &RouteMatch{PathParams: c.pathParams}
-			e.router.Match(req, match)
+			match := e.router.Match(req, c.pathParams)
 
 			assert.Equal(t, tc.expectRoute, match.RoutePath)
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, match.PathParams.Get(param, "---none---"))
+				assert.Equal(t, expectedValue, c.pathParams.Get(param, "---none---"))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -774,8 +770,7 @@ func TestMethodNotAllowedAndNotFound(t *testing.T) {
 				method = tc.whenMethod
 			}
 			req := httptest.NewRequest(method, tc.whenURL, nil)
-			match := &RouteMatch{PathParams: c.pathParams}
-			e.router.Match(req, match)
+			match := e.router.Match(req, c.pathParams)
 
 			err := match.Handler(c)
 			if tc.expectError != nil {
@@ -785,7 +780,7 @@ func TestMethodNotAllowedAndNotFound(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, match.RoutePath)
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, match.PathParams.Get(param, "---none---"))
+				assert.Equal(t, expectedValue, c.pathParams.Get(param, "---none---"))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -798,11 +793,11 @@ func TestRouterTwoParam(t *testing.T) {
 
 	c := e.NewContext(nil, nil).(*context)
 	req := httptest.NewRequest(http.MethodGet, "/users/1/files/1", nil)
-	match := &RouteMatch{PathParams: c.pathParams}
-	e.router.Match(req, match)
+	match := e.router.Match(req, c.pathParams)
 
-	assert.Equal(t, "1", match.PathParams.Get("uid", ""))
-	assert.Equal(t, "1", match.PathParams.Get("fid", ""))
+	assert.Equal(t, "/users/:uid/files/:fid", match.RoutePath)
+	assert.Equal(t, "1", c.pathParams.Get("uid", ""))
+	assert.Equal(t, "1", c.pathParams.Get("fid", ""))
 }
 
 // Issue #378
@@ -815,8 +810,7 @@ func TestRouterParamWithSlash(t *testing.T) {
 	c := e.NewContext(nil, nil).(*context)
 	// `2/3` should mapped to path `/a/:b/c/d/:e` and into `:e`
 	req := httptest.NewRequest(http.MethodGet, "/a/1/c/d/2/3", nil)
-	match := &RouteMatch{PathParams: c.pathParams}
-	e.router.Match(req, match)
+	match := e.router.Match(req, c.pathParams)
 
 	err := match.Handler(c)
 	assert.Equal(t, "/a/:b/c/d/:e", match.RoutePath)
@@ -906,12 +900,11 @@ func TestRouteMultiLevelBacktracking(t *testing.T) {
 
 			c := e.NewContext(nil, nil).(*context)
 			req := httptest.NewRequest(http.MethodGet, tc.whenURL, nil)
-			match := &RouteMatch{PathParams: c.pathParams}
-			e.router.Match(req, match)
+			match := e.router.Match(req, c.pathParams)
 
 			assert.Equal(t, tc.expectRoute, match.RoutePath)
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, match.PathParams.Get(param, "---none---"))
+				assert.Equal(t, expectedValue, c.pathParams.Get(param, "---none---"))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1007,12 +1000,11 @@ func TestRouteMultiLevelBacktracking2(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			c := e.NewContext(nil, nil).(*context)
 			req := httptest.NewRequest(http.MethodGet, tc.whenURL, nil)
-			match := &RouteMatch{PathParams: c.pathParams}
-			e.router.Match(req, match)
+			match := e.router.Match(req, c.pathParams)
 
 			assert.Equal(t, tc.expectRoute, match.RoutePath)
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, match.PathParams.Get(param, "---none---"))
+				assert.Equal(t, expectedValue, c.pathParams.Get(param, "---none---"))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1074,12 +1066,11 @@ func TestRouterBacktrackingFromMultipleParamKinds(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, tc.whenURL, nil)
-			match := &RouteMatch{PathParams: c.pathParams}
-			e.router.Match(req, match)
+			match := e.router.Match(req, c.pathParams)
 
 			assert.Equal(t, tc.expectRoute, match.RoutePath)
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, match.PathParams.Get(param, "---none---"))
+				assert.Equal(t, expectedValue, c.pathParams.Get(param, "---none---"))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1116,13 +1107,12 @@ func TestRouterParamStaticConflict(t *testing.T) {
 			c := e.NewContext(nil, nil).(*context)
 
 			req := httptest.NewRequest(http.MethodGet, tc.whenURL, nil)
-			match := &RouteMatch{PathParams: c.pathParams}
-			e.router.Match(req, match)
+			match := e.router.Match(req, c.pathParams)
 
 			assert.NoError(t, match.Handler(c))
 			assert.Equal(t, tc.expectRoute, match.RoutePath)
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, match.PathParams.Get(param, ""))
+				assert.Equal(t, expectedValue, c.pathParams.Get(param, ""))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1163,13 +1153,12 @@ func TestRouterMatchAny(t *testing.T) {
 			c := e.NewContext(nil, nil).(*context)
 
 			req := httptest.NewRequest(http.MethodGet, tc.whenURL, nil)
-			match := &RouteMatch{PathParams: c.pathParams}
-			e.router.Match(req, match)
+			match := e.router.Match(req, c.pathParams)
 
 			assert.NoError(t, match.Handler(c))
 			assert.Equal(t, tc.expectRoute, match.RoutePath)
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, match.PathParams.Get(param, ""))
+				assert.Equal(t, expectedValue, c.pathParams.Get(param, ""))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1189,24 +1178,22 @@ func TestRouterAnyMatchesLastAddedAnyRoute(t *testing.T) {
 
 	c := e.NewContext(nil, nil).(*context)
 	req := httptest.NewRequest(http.MethodGet, "/users/xxx/action/sea", nil)
-	match := &RouteMatch{PathParams: c.pathParams}
-	e.router.Match(req, match)
+	match := e.router.Match(req, c.pathParams)
 
 	assert.NoError(t, match.Handler(c))
 	assert.Equal(t, "/users/*/action*", match.RoutePath)
-	assert.Equal(t, "xxx/action/sea", match.PathParams.Get("*", ""))
+	assert.Equal(t, "xxx/action/sea", c.pathParams.Get("*", ""))
 
 	// if we add another route then it is the last added and so it is matched
 	assert.NoError(t, e.AddRoute(Route{Method: http.MethodGet, Path: "/users/*/action/search", Handler: handlerFunc}))
 
 	c2 := e.NewContext(nil, nil).(*context)
 	req2 := httptest.NewRequest(http.MethodGet, "/users/xxx/action/sea", nil)
-	match2 := &RouteMatch{PathParams: c.pathParams}
-	e.router.Match(req2, match2)
+	match2 := e.router.Match(req2, c2.pathParams)
 
 	assert.NoError(t, match2.Handler(c2))
 	assert.Equal(t, "/users/*/action/search", match2.RoutePath)
-	assert.Equal(t, "xxx/action/sea", match2.PathParams.Get("*", ""))
+	assert.Equal(t, "xxx/action/sea", c2.pathParams.Get("*", ""))
 }
 
 // Issue #1739
@@ -1253,13 +1240,12 @@ func TestRouterMatchAnyPrefixIssue(t *testing.T) {
 			c := e.NewContext(nil, nil).(*context)
 
 			req := httptest.NewRequest(http.MethodGet, tc.whenURL, nil)
-			match := &RouteMatch{PathParams: c.pathParams}
-			e.router.Match(req, match)
+			match := e.router.Match(req, c.pathParams)
 
 			assert.NoError(t, match.Handler(c))
 			assert.Equal(t, tc.expectRoute, match.RoutePath)
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, match.PathParams.Get(param, "---none---"))
+				assert.Equal(t, expectedValue, c.pathParams.Get(param, "---none---"))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1336,8 +1322,7 @@ func TestRouterMatchAnySlash(t *testing.T) {
 			c := e.NewContext(nil, nil).(*context)
 
 			req := httptest.NewRequest(http.MethodGet, tc.whenURL, nil)
-			match := &RouteMatch{PathParams: c.pathParams}
-			e.router.Match(req, match)
+			match := e.router.Match(req, c.pathParams)
 
 			err := match.Handler(c)
 			if tc.expectError != nil {
@@ -1347,7 +1332,7 @@ func TestRouterMatchAnySlash(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, match.RoutePath)
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, match.PathParams.Get(param, ""))
+				assert.Equal(t, expectedValue, c.pathParams.Get(param, ""))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1412,8 +1397,7 @@ func TestRouterMatchAnyMultiLevel(t *testing.T) {
 			c := e.NewContext(nil, nil).(*context)
 
 			req := httptest.NewRequest(http.MethodGet, tc.whenURL, nil)
-			match := &RouteMatch{PathParams: c.pathParams}
-			e.router.Match(req, match)
+			match := e.router.Match(req, c.pathParams)
 
 			err := match.Handler(c)
 			if tc.expectError != nil {
@@ -1423,7 +1407,7 @@ func TestRouterMatchAnyMultiLevel(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, match.RoutePath)
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, match.PathParams.Get(param, ""))
+				assert.Equal(t, expectedValue, c.pathParams.Get(param, ""))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1480,8 +1464,7 @@ func TestRouterMatchAnyMultiLevelWithPost(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(method, tc.whenURL, nil)
-			match := &RouteMatch{PathParams: c.pathParams}
-			e.router.Match(req, match)
+			match := e.router.Match(req, c.pathParams)
 
 			err := match.Handler(c)
 			if tc.expectError != nil {
@@ -1491,7 +1474,7 @@ func TestRouterMatchAnyMultiLevelWithPost(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, match.RoutePath)
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, match.PathParams.Get(param, ""))
+				assert.Equal(t, expectedValue, c.pathParams.Get(param, ""))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1504,13 +1487,12 @@ func TestRouterMicroParam(t *testing.T) {
 
 	c := e.NewContext(nil, nil).(*context)
 	req := httptest.NewRequest(http.MethodGet, "/1/2/3", nil)
-	match := &RouteMatch{PathParams: c.pathParams}
-	e.router.Match(req, match)
+	match := e.router.Match(req, c.pathParams)
 
 	assert.NoError(t, match.Handler(c))
-	assert.Equal(t, "1", match.PathParams.Get("a", "---none---"))
-	assert.Equal(t, "2", match.PathParams.Get("b", "---none---"))
-	assert.Equal(t, "3", match.PathParams.Get("c", "---none---"))
+	assert.Equal(t, "1", c.pathParams.Get("a", "---none---"))
+	assert.Equal(t, "2", c.pathParams.Get("b", "---none---"))
+	assert.Equal(t, "3", c.pathParams.Get("c", "---none---"))
 }
 
 func TestRouterMixParamMatchAny(t *testing.T) {
@@ -1521,13 +1503,12 @@ func TestRouterMixParamMatchAny(t *testing.T) {
 
 	c := e.NewContext(nil, nil).(*context)
 	req := httptest.NewRequest(http.MethodGet, "/users/joe/comments", nil)
-	match := &RouteMatch{PathParams: c.pathParams}
-	e.router.Match(req, match)
+	match := e.router.Match(req, c.pathParams)
 
 	assert.NoError(t, match.Handler(c))
 	assert.Equal(t, "/users/:id/*", match.RoutePath)
-	assert.Equal(t, "joe", match.PathParams.Get("id", "---none---"))
-	assert.Equal(t, "comments", match.PathParams.Get("*", "---none---"))
+	assert.Equal(t, "joe", c.pathParams.Get("id", "---none---"))
+	assert.Equal(t, "comments", c.pathParams.Get("*", "---none---"))
 }
 
 func TestRouterMultiRoute(t *testing.T) {
@@ -1566,8 +1547,7 @@ func TestRouterMultiRoute(t *testing.T) {
 			c := e.NewContext(nil, nil).(*context)
 
 			req := httptest.NewRequest(http.MethodGet, tc.whenURL, nil)
-			match := &RouteMatch{PathParams: c.pathParams}
-			e.router.Match(req, match)
+			match := e.router.Match(req, c.pathParams)
 
 			err := match.Handler(c)
 			if tc.expectError != nil {
@@ -1577,7 +1557,7 @@ func TestRouterMultiRoute(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, match.RoutePath)
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, match.PathParams.Get(param, ""))
+				assert.Equal(t, expectedValue, c.pathParams.Get(param, ""))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1681,8 +1661,7 @@ func TestRouterPriority(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(method, tc.whenURL, nil)
-			match := &RouteMatch{PathParams: c.pathParams}
-			e.router.Match(req, match)
+			match := e.router.Match(req, c.pathParams)
 
 			err := match.Handler(c)
 			if tc.expectError != nil {
@@ -1692,7 +1671,7 @@ func TestRouterPriority(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, match.RoutePath)
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, match.PathParams.Get(param, "---none---"))
+				assert.Equal(t, expectedValue, c.pathParams.Get(param, "---none---"))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1745,8 +1724,7 @@ func TestRouterPriorityNotFound(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(method, tc.whenURL, nil)
-			match := &RouteMatch{PathParams: c.pathParams}
-			e.router.Match(req, match)
+			match := e.router.Match(req, c.pathParams)
 
 			err := match.Handler(c)
 			if tc.expectError != nil {
@@ -1756,7 +1734,7 @@ func TestRouterPriorityNotFound(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, match.RoutePath)
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, match.PathParams.Get(param, "---none---"))
+				assert.Equal(t, expectedValue, c.pathParams.Get(param, "---none---"))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1806,8 +1784,7 @@ func TestRouterParamNames(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(method, tc.whenURL, nil)
-			match := &RouteMatch{PathParams: c.pathParams}
-			e.router.Match(req, match)
+			match := e.router.Match(req, c.pathParams)
 
 			err := match.Handler(c)
 			if tc.expectError != nil {
@@ -1817,7 +1794,7 @@ func TestRouterParamNames(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, match.RoutePath)
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, match.PathParams.Get(param, "---none---"))
+				assert.Equal(t, expectedValue, c.pathParams.Get(param, "---none---"))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1885,8 +1862,7 @@ func TestRouterStaticDynamicConflict(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(method, tc.whenURL, nil)
-			match := &RouteMatch{PathParams: c.pathParams}
-			e.router.Match(req, match)
+			match := e.router.Match(req, c.pathParams)
 
 			err := match.Handler(c)
 			if tc.expectError != nil {
@@ -1896,7 +1872,7 @@ func TestRouterStaticDynamicConflict(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, match.RoutePath)
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, match.PathParams.Get(param, ""))
+				assert.Equal(t, expectedValue, c.pathParams.Get(param, ""))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1965,8 +1941,7 @@ func TestRouterParamBacktraceNotFound(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(method, tc.whenURL, nil)
-			match := &RouteMatch{PathParams: c.pathParams}
-			e.router.Match(req, match)
+			match := e.router.Match(req, c.pathParams)
 
 			err := match.Handler(c)
 			if tc.expectError != nil {
@@ -1976,7 +1951,7 @@ func TestRouterParamBacktraceNotFound(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, match.RoutePath)
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, match.PathParams.Get(param, "---none---"))
+				assert.Equal(t, expectedValue, c.pathParams.Get(param, "---none---"))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -2002,13 +1977,12 @@ func testRouterAPI(t *testing.T, api []testRoute) {
 		t.Run(route.Path, func(t *testing.T) {
 
 			req := httptest.NewRequest(route.Method, route.Path, nil)
-			match := &RouteMatch{PathParams: c.pathParams}
-			e.router.Match(req, match)
+			e.router.Match(req, c.pathParams)
 
 			tokens := strings.Split(route.Path[1:], "/")
 			for _, token := range tokens {
 				if token[0] == ':' {
-					assert.Equal(t, match.PathParams.Get(token[1:], "---none---"), token)
+					assert.Equal(t, c.pathParams.Get(token[1:], "---none---"), token)
 				}
 			}
 		})
@@ -2151,8 +2125,7 @@ func TestRouterParam1466(t *testing.T) {
 			c := e.NewContext(nil, nil).(*context)
 
 			req := httptest.NewRequest(http.MethodGet, tc.whenURL, nil)
-			match := &RouteMatch{PathParams: c.pathParams}
-			e.router.Match(req, match)
+			match := e.router.Match(req, c.pathParams)
 
 			err := match.Handler(c)
 			if tc.expectError != nil {
@@ -2162,7 +2135,7 @@ func TestRouterParam1466(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, match.RoutePath)
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, match.PathParams.Get(param, ""))
+				assert.Equal(t, expectedValue, c.pathParams.Get(param, ""))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -2189,8 +2162,7 @@ func TestRouterFindNotPanicOrLoopsWhenContextSetParamValuesIsCalledWithLessValue
 	//If this API is called before the next two one panic the other loops ( of course without my fix ;) )
 	c := e.NewContext(nil, nil).(*context)
 	req := httptest.NewRequest(http.MethodGet, "/v1/admin", nil)
-	match := &RouteMatch{PathParams: c.pathParams}
-	e.router.Match(req, match)
+	match := e.router.Match(req, c.pathParams)
 
 	assert.NoError(t, match.Handler(c))
 	assert.Equal(t, "v1", c.PathParam("version"))
@@ -2198,8 +2170,7 @@ func TestRouterFindNotPanicOrLoopsWhenContextSetParamValuesIsCalledWithLessValue
 	//panic
 	c = e.NewContext(nil, nil).(*context)
 	req = httptest.NewRequest(http.MethodGet, "/v1/view/same-data", nil)
-	match = &RouteMatch{PathParams: c.pathParams}
-	e.router.Match(req, match)
+	match = e.router.Match(req, c.pathParams)
 
 	assert.NoError(t, match.Handler(c))
 	assert.Equal(t, "same-data", c.PathParam("*"))
@@ -2208,8 +2179,7 @@ func TestRouterFindNotPanicOrLoopsWhenContextSetParamValuesIsCalledWithLessValue
 	//looping
 	c = e.NewContext(nil, nil).(*context)
 	req = httptest.NewRequest(http.MethodGet, "/v1/images/view", nil)
-	match = &RouteMatch{PathParams: c.pathParams}
-	e.router.Match(req, match)
+	match = e.router.Match(req, c.pathParams)
 
 	assert.NoError(t, match.Handler(c))
 	assert.Equal(t, "view", c.PathParam("id"))
@@ -2256,8 +2226,7 @@ func TestRouterPanicWhenParamNoRootOnlyChildsFailsFind(t *testing.T) {
 			c := e.NewContext(nil, nil).(*context)
 
 			req := httptest.NewRequest(http.MethodGet, tc.whenURL, nil)
-			match := &RouteMatch{PathParams: c.pathParams}
-			e.router.Match(req, match)
+			match := e.router.Match(req, c.pathParams)
 
 			err := match.Handler(c)
 			if tc.expectError != nil {
@@ -2267,7 +2236,7 @@ func TestRouterPanicWhenParamNoRootOnlyChildsFailsFind(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, match.RoutePath)
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, match.PathParams.Get(param, "---none---"))
+				assert.Equal(t, expectedValue, c.pathParams.Get(param, "---none---"))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -2498,15 +2467,14 @@ func benchmarkRouterRoutes(b *testing.B, routes []testRoute, routesToFind []test
 	for i := 0; i < b.N; i++ {
 		for _, route := range routesToFind {
 			c := e.contextPool.Get().(*context)
-			match := e.routeMatchPool.Get().(*RouteMatch)
 
 			req.Method = route.Method
 			req.URL.Path = route.Path
 
-			match.PathParams = c.pathParams
-			r.Match(req, match)
+			match := r.Match(req, c.pathParams)
+			c.path = match.RoutePath
+			c.handler = match.Handler
 
-			e.routeMatchPool.Put(match)
 			e.contextPool.Put(c)
 		}
 	}

@@ -369,7 +369,7 @@ func TestContext(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 
 	// Reset
-	c.pathParams = PathParams{
+	c.pathParams = &PathParams{
 		{Name: "foo", Value: "bar"},
 	}
 	c.Set("foe", "ban")
@@ -467,13 +467,13 @@ func TestContextPathParam(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	c := e.NewContext(req, nil).(*context)
 
-	params := PathParams{
+	params := &PathParams{
 		{Name: "uid", Value: "101"},
 		{Name: "fid", Value: "501"},
 	}
 	// ParamNames
 	c.pathParams = params
-	assert.EqualValues(t, params, c.PathParams())
+	assert.EqualValues(t, *params, c.PathParams())
 
 	// Param
 	assert.Equal(t, "501", c.PathParam("fid"))
@@ -495,13 +495,13 @@ func TestContextGetAndSetParam(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/:foo", nil)
 	c := e.NewContext(req, nil)
 
-	params := PathParams{{Name: "foo", Value: "101"}}
+	params := &PathParams{{Name: "foo", Value: "101"}}
 	// ParamNames
 	c.(*context).pathParams = params
 
 	// round-trip param values with modification
 	paramVals := c.PathParams()
-	assert.Equal(t, params, c.PathParams())
+	assert.Equal(t, *params, c.PathParams())
 
 	paramVals[0] = PathParam{Name: "xxx", Value: "yyy"} // PathParams() returns copy and modifying it does nothing to context
 	assert.Equal(t, PathParams{{Name: "foo", Value: "101"}}, c.PathParams())
@@ -518,8 +518,8 @@ func TestContextGetAndSetParam(t *testing.T) {
 		c.(EditableContext).Reset(nil, nil)
 	})
 	assert.Equal(t, PathParams{}, c.PathParams())
-	assert.Len(t, c.(*context).pathParams, 0)
-	assert.Equal(t, cap(c.(*context).pathParams), 1)
+	assert.Len(t, *c.(*context).pathParams, 0)
+	assert.Equal(t, cap(*c.(*context).pathParams), 1)
 }
 
 // Issue #1655
@@ -528,13 +528,13 @@ func TestContext_SetParamNamesShouldNotModifyPathParams(t *testing.T) {
 	c := e.NewContext(nil, nil).(*context)
 
 	assert.Equal(t, 0, e.contextPathParamAllocSize)
-	expectedTwoParams := PathParams{
+	expectedTwoParams := &PathParams{
 		{Name: "1", Value: "one"},
 		{Name: "2", Value: "two"},
 	}
 	c.SetRawPathParams(expectedTwoParams)
 	assert.Equal(t, 0, e.contextPathParamAllocSize)
-	assert.Equal(t, expectedTwoParams, c.PathParams())
+	assert.Equal(t, *expectedTwoParams, c.PathParams())
 
 	expectedThreeParams := PathParams{
 		{Name: "1", Value: "one"},
