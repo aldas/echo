@@ -615,7 +615,7 @@ func (e *Echo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// FIXME: e.contextPool.Get().(*context)              2.08µs ± 1%    1.86µs ± 0%  -10.55%  (p=0.001 n=7+7)
 	// FIXME: e.contextPool.Get().(EditableContext)       2.08µs ± 1%    2.76µs ± 3%  +32.82%  (p=0.001 n=7+7)
 	c := e.contextPool.Get().(*context)
-	//c := e.contextPool.Get().(EditableContext)
+	//c := e.contextPool.Get().(EditableContext) // would allow custom context for users (but cast is significantly slower)
 	c.Reset(r, w)
 	var h func(c Context) error
 
