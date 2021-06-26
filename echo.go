@@ -78,7 +78,6 @@ type (
 
 		notFoundHandler  HandlerFunc
 		contextPool      sync.Pool
-		routeMatchPool   sync.Pool
 		Server           *http.Server
 		TLSServer        *http.Server
 		Listener         net.Listener
@@ -314,9 +313,6 @@ func New() (e *Echo) {
 	}
 	e.router = NewRouter(e)
 	e.routers = make(map[string]Router)
-	e.routeMatchPool.New = func() interface{} {
-		return &RouteMatch{}
-	}
 	return
 }
 
