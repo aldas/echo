@@ -1,10 +1,28 @@
 package middleware
 
 import (
+	"fmt"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+type testLogger struct {
+	output io.Writer
+}
+
+func (l *testLogger) Output() io.Writer {
+	return l.output
+}
+
+func (l *testLogger) Printf(format string, args ...interface{}) {
+	_, _ = l.output.Write([]byte(fmt.Sprintf(format, args...)))
+}
+
+func (l *testLogger) Error(err error) {
+	_, _ = l.output.Write([]byte(err.Error()))
+}
 
 func Test_matchScheme(t *testing.T) {
 	tests := []struct {

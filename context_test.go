@@ -18,7 +18,6 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/labstack/gommon/log"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -852,22 +851,6 @@ func TestContext_Bind(t *testing.T) {
 	assert.Equal(t, &user{1, "Jon Snow"}, u)
 }
 
-func TestContext_Logger(t *testing.T) {
-	e := New()
-	c := e.NewContext(nil, nil)
-
-	log1 := c.Logger()
-	assert.NotNil(t, log1)
-
-	log2 := log.New("echo2")
-	c.SetLogger(log2)
-	assert.Equal(t, log2, c.Logger())
-
-	// Resetting the context returns the initial logger
-	c.(EditableContext).Reset(nil, nil)
-	assert.Equal(t, log1, c.Logger())
-}
-
 func TestContext_RealIP(t *testing.T) {
 	tests := []struct {
 		c Context
@@ -877,6 +860,14 @@ func TestContext_RealIP(t *testing.T) {
 			&context{
 				request: &http.Request{
 					Header: http.Header{HeaderXForwardedFor: []string{"127.0.0.1, 127.0.1.1, "}},
+				},
+			},
+			"127.0.0.1",
+		},
+		{
+			&context{
+				request: &http.Request{
+					Header: http.Header{HeaderXForwardedFor: []string{"127.0.0.1,127.0.1.1"}},
 				},
 			},
 			"127.0.0.1",

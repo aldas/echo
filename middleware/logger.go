@@ -3,6 +3,7 @@ package middleware
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -55,7 +56,7 @@ type (
 		CustomTimeFormat string `yaml:"custom_time_format"`
 
 		// Output is a writer where logs in JSON format are written.
-		// Optional. Default value os.Stdout.
+		// Optional. Default destination `echo.Logger.Infof()`
 		Output io.Writer
 
 		template *fasttemplate.Template
@@ -106,23 +107,23 @@ func LoggerWithConfig(config LoggerConfig) echo.MiddlewareFunc {
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) (err error) {
+		return func(c echo.Context) error {
 			if config.Skipper(c) {
 				return next(c)
 			}
 
 			req := c.Request()
 			res := c.Response()
+
 			start := time.Now()
-			if err = next(c); err != nil {
-				c.Error(err)
-			}
+			err := next(c)
 			stop := time.Now()
+
 			buf := config.pool.Get().(*bytes.Buffer)
 			buf.Reset()
 			defer config.pool.Put(buf)
 
-			if _, err = config.template.ExecuteFunc(buf, func(w io.Writer, tag string) (int, error) {
+			_, tmplErr := config.template.ExecuteFunc(buf, func(w io.Writer, tag string) (int, error) {
 				switch tag {
 				case "time_unix":
 					return buf.WriteString(strconv.FormatInt(time.Now().Unix(), 10))
@@ -201,23 +202,27 @@ func LoggerWithConfig(config LoggerConfig) echo.MiddlewareFunc {
 					case strings.HasPrefix(tag, "form:"):
 						return buf.Write([]byte(c.FormValue(tag[5:])))
 					case strings.HasPrefix(tag, "cookie:"):
-						cookie, err := c.Cookie(tag[7:])
-						if err == nil {
+						cookie, cookieErr := c.Cookie(tag[7:])
+						if cookieErr == nil {
 							return buf.Write([]byte(cookie.Value))
 						}
 					}
 				}
 				return 0, nil
-			}); err != nil {
-				return
+			})
+			if tmplErr != nil {
+				if err != nil {
+					return fmt.Errorf("error in middleware chain and also failed to create log from template: %v: %w", tmplErr, err)
+				}
+				return fmt.Errorf("failed to create log from template: %w", tmplErr)
 			}
 
-			if config.Output == nil {
-				_, err = c.Logger().Output().Write(buf.Bytes())
-				return
+			if config.Output != nil {
+				_, err = config.Output.Write(buf.Bytes())
+			} else {
+				c.Echo().Logger.Printf(buf.String())
 			}
-			_, err = config.Output.Write(buf.Bytes())
-			return
+			return err
 		}
 	}
 }

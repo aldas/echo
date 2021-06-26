@@ -163,17 +163,12 @@ type (
 		// Redirect redirects the request to a provided URL with status code.
 		Redirect(code int, url string) error
 
-		// Error invokes the registered HTTP error handler. Generally used by middleware.
+		// Error invokes the registered HTTP error handler.
+		// NB: Avoid using this method. It is better to return errors so middlewares up in chain could act on returned error.
 		Error(err error)
 
 		// Handler returns the matched handler by router.
 		Handler() HandlerFunc
-
-		// Logger returns the `Logger` instance.
-		Logger() Logger
-
-		// Set the logger
-		SetLogger(l Logger)
 
 		// Echo returns the `Echo` instance.
 		Echo() *Echo
@@ -217,7 +212,6 @@ type (
 		handler HandlerFunc
 		store   Map
 		echo    *Echo
-		logger  Logger
 		lock    sync.RWMutex
 	}
 )
@@ -287,9 +281,9 @@ func (c *context) RealIP() string {
 	}
 	// Fall back to legacy behavior
 	if ip := c.request.Header.Get(HeaderXForwardedFor); ip != "" {
-		i := strings.IndexAny(ip, ", ")
+		i := strings.IndexAny(ip, ",")
 		if i > 0 {
-			return ip[:i]
+			return strings.TrimSpace(ip[:i])
 		}
 		return ip
 	}
@@ -627,18 +621,6 @@ func (c *context) SetHandler(h HandlerFunc) {
 	c.handler = h
 }
 
-func (c *context) Logger() Logger {
-	res := c.logger
-	if res != nil {
-		return res
-	}
-	return c.echo.Logger
-}
-
-func (c *context) SetLogger(l Logger) {
-	c.logger = l
-}
-
 func (c *context) Reset(r *http.Request, w http.ResponseWriter) {
 	c.request = r
 	c.response.reset(w)
@@ -646,7 +628,6 @@ func (c *context) Reset(r *http.Request, w http.ResponseWriter) {
 	c.handler = NotFoundHandler
 	c.store = nil
 	c.path = ""
-	c.logger = nil
 	// NOTE: Don't reset because it has to have length c.echo.contextPathParamAllocSize at all times
 	*c.pathParams = (*c.pathParams)[:0]
 	c.currentParams = nil
