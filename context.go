@@ -185,7 +185,7 @@ type (
 		Context
 
 		// RawPathParams returns raw path pathParams value.
-		RawPathParams() *PathParams
+		RawPathParams() PathParams
 
 		// SetRawPathParams replaces any existing param values with new values for this context lifetime (request).
 		SetRawPathParams(params PathParams)
@@ -308,8 +308,8 @@ func (c *context) SetPath(p string) {
 	c.path = p
 }
 
-func (c *context) RawPathParams() *PathParams {
-	return &c.pathParams
+func (c *context) RawPathParams() PathParams {
+	return c.pathParams
 }
 
 func (c *context) SetRawPathParams(params PathParams) {

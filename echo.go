@@ -613,7 +613,7 @@ func (e *Echo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var h func(c Context) error
 
 	match := e.routeMatchPool.Get().(*RouteMatch)
-	match.PathParams = *c.RawPathParams()
+	match.PathParams = c.RawPathParams()
 	match.RoutePath = ""
 	match.Handler = NotFoundHandler
 
