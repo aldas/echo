@@ -305,7 +305,8 @@ func New() (e *Echo) {
 	e.HTTPErrorHandler = e.DefaultHTTPErrorHandler
 	e.Binder = &DefaultBinder{}
 	e.contextPool.New = func() interface{} {
-
+		return e.NewContext(nil, nil)
+	}
 	e.router = NewRouter(e)
 	e.routers = make(map[string]Router)
 	return
