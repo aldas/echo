@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/gommon/random"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,7 +17,23 @@ func TestCSRF(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	csrf := CSRFWithConfig(CSRFConfig{
+	csrf := CSRF()
+	h := csrf(func(c echo.Context) error {
+		return c.String(http.StatusOK, "test")
+	})
+
+	// Generate CSRF token
+	h(c)
+	assert.Contains(t, rec.Header().Get(echo.HeaderSetCookie), "_csrf")
+
+}
+
+func TestMustCSRFWithConfig(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	csrf := MustCSRFWithConfig(CSRFConfig{
 		TokenLength: 16,
 	})
 	h := csrf(func(c echo.Context) error {
@@ -43,7 +58,7 @@ func TestCSRF(t *testing.T) {
 	assert.Error(t, h(c))
 
 	// Valid CSRF token
-	token := random.String(16)
+	token := randomString(16)
 	req.Header.Set(echo.HeaderCookie, "_csrf="+token)
 	req.Header.Set(echo.HeaderXCSRFToken, token)
 	if assert.NoError(t, h(c)) {
@@ -89,7 +104,7 @@ func TestCSRFSetSameSiteMode(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	csrf := CSRFWithConfig(CSRFConfig{
+	csrf := MustCSRFWithConfig(CSRFConfig{
 		CookieSameSite: http.SameSiteStrictMode,
 	})
 
@@ -108,7 +123,7 @@ func TestCSRFWithoutSameSiteMode(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	csrf := CSRFWithConfig(CSRFConfig{})
+	csrf := MustCSRFWithConfig(CSRFConfig{})
 
 	h := csrf(func(c echo.Context) error {
 		return c.String(http.StatusOK, "test")
@@ -125,7 +140,7 @@ func TestCSRFWithSameSiteDefaultMode(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	csrf := CSRFWithConfig(CSRFConfig{
+	csrf := MustCSRFWithConfig(CSRFConfig{
 		CookieSameSite: http.SameSiteDefaultMode,
 	})
 
@@ -145,9 +160,10 @@ func TestCSRFWithSameSiteModeNone(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	csrf := CSRFWithConfig(CSRFConfig{
+	csrf, err := CSRFWithConfig(CSRFConfig{
 		CookieSameSite: http.SameSiteNoneMode,
 	})
+	assert.NoError(t, err)
 
 	h := csrf(func(c echo.Context) error {
 		return c.String(http.StatusOK, "test")

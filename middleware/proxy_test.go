@@ -55,7 +55,7 @@ func TestProxy(t *testing.T) {
 
 	// Random
 	e := echo.New()
-	e.Use(Proxy(rb))
+	e.Use(MustProxyWithConfig(ProxyConfig{Balancer: rb}))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
@@ -77,7 +77,7 @@ func TestProxy(t *testing.T) {
 	// Round-robin
 	rrb := NewRoundRobinBalancer(targets)
 	e = echo.New()
-	e.Use(Proxy(rrb))
+	e.Use(MustProxyWithConfig(ProxyConfig{Balancer: rrb}))
 
 	rec = httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
@@ -91,7 +91,7 @@ func TestProxy(t *testing.T) {
 
 	// ModifyResponse
 	e = echo.New()
-	e.Use(ProxyWithConfig(ProxyConfig{
+	e.Use(MustProxyWithConfig(ProxyConfig{
 		Balancer: rrb,
 		ModifyResponse: func(res *http.Response) error {
 			res.Body = ioutil.NopCloser(bytes.NewBuffer([]byte("modified")))
@@ -113,13 +113,18 @@ func TestProxy(t *testing.T) {
 			return nil
 		}
 	}
-	rrb1 := NewRoundRobinBalancer(targets)
 
 	e = echo.New()
 	e.Use(contextObserver)
-	e.Use(Proxy(rrb1))
+	e.Use(MustProxyWithConfig(ProxyConfig{Balancer: NewRoundRobinBalancer(targets)}))
 	rec = httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
+}
+
+func TestMustProxyWithConfig_emptyBalancerPanics(t *testing.T) {
+	assert.Panics(t, func() {
+		MustProxyWithConfig(ProxyConfig{Balancer: nil})
+	})
 }
 
 func TestProxyRealIPHeader(t *testing.T) {
@@ -129,7 +134,7 @@ func TestProxyRealIPHeader(t *testing.T) {
 	url, _ := url.Parse(upstream.URL)
 	rrb := NewRoundRobinBalancer([]*ProxyTarget{{Name: "upstream", URL: url}})
 	e := echo.New()
-	e.Use(Proxy(rrb))
+	e.Use(MustProxyWithConfig(ProxyConfig{Balancer: rrb}))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 
@@ -223,7 +228,7 @@ func TestProxyRewrite(t *testing.T) {
 
 			// Rewrite
 			e := echo.New()
-			e.Use(ProxyWithConfig(ProxyConfig{
+			e.Use(MustProxyWithConfig(ProxyConfig{
 				Balancer: rrb,
 				Rewrite: map[string]string{
 					"/old":              "/new",
@@ -261,7 +266,7 @@ func TestProxyRewriteRegex(t *testing.T) {
 
 	// Rewrite
 	e := echo.New()
-	e.Use(ProxyWithConfig(ProxyConfig{
+	e.Use(MustProxyWithConfig(ProxyConfig{
 		Balancer: rrb,
 		Rewrite: map[string]string{
 			"^/a/*":     "/v1/$1",
@@ -334,7 +339,7 @@ func TestProxyError(t *testing.T) {
 
 	// Random
 	e := echo.New()
-	e.Use(Proxy(rb))
+	e.Use(MustProxyWithConfig(ProxyConfig{Balancer: rb}))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 
@@ -362,7 +367,7 @@ func TestClientCancelConnectionResultsHTTPCode499(t *testing.T) {
 	rb := NewRandomBalancer(nil)
 	assert.True(t, rb.AddTarget(target))
 	e := echo.New()
-	e.Use(Proxy(rb))
+	e.Use(MustProxyWithConfig(ProxyConfig{Balancer: rb}))
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	ctx, cancel := context.WithCancel(req.Context())

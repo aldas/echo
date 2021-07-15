@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -20,83 +21,79 @@ import (
 
 // TODO: Handle TLS proxy
 
-type (
-	// ProxyConfig defines the config for Proxy middleware.
-	ProxyConfig struct {
-		// Skipper defines a function to skip middleware.
-		Skipper Skipper
+// ProxyConfig defines the config for Proxy middleware.
+type ProxyConfig struct {
+	// Skipper defines a function to skip middleware.
+	Skipper Skipper
 
-		// Balancer defines a load balancing technique.
-		// Required.
-		Balancer ProxyBalancer
+	// Balancer defines a load balancing technique.
+	// Required.
+	Balancer ProxyBalancer
 
-		// Rewrite defines URL path rewrite rules. The values captured in asterisk can be
-		// retrieved by index e.g. $1, $2 and so on.
-		// Examples:
-		// "/old":              "/new",
-		// "/api/*":            "/$1",
-		// "/js/*":             "/public/javascripts/$1",
-		// "/users/*/orders/*": "/user/$1/order/$2",
-		Rewrite map[string]string
+	// Rewrite defines URL path rewrite rules. The values captured in asterisk can be
+	// retrieved by index e.g. $1, $2 and so on.
+	// Examples:
+	// "/old":              "/new",
+	// "/api/*":            "/$1",
+	// "/js/*":             "/public/javascripts/$1",
+	// "/users/*/orders/*": "/user/$1/order/$2",
+	Rewrite map[string]string
 
-		// RegexRewrite defines rewrite rules using regexp.Rexexp with captures
-		// Every capture group in the values can be retrieved by index e.g. $1, $2 and so on.
-		// Example:
-		// "^/old/[0.9]+/":     "/new",
-		// "^/api/.+?/(.*)":    "/v2/$1",
-		RegexRewrite map[*regexp.Regexp]string
+	// RegexRewrite defines rewrite rules using regexp.Rexexp with captures
+	// Every capture group in the values can be retrieved by index e.g. $1, $2 and so on.
+	// Example:
+	// "^/old/[0.9]+/":     "/new",
+	// "^/api/.+?/(.*)":    "/v2/$1",
+	RegexRewrite map[*regexp.Regexp]string
 
-		// Context key to store selected ProxyTarget into context.
-		// Optional. Default value "target".
-		ContextKey string
+	// Context key to store selected ProxyTarget into context.
+	// Optional. Default value "target".
+	ContextKey string
 
-		// To customize the transport to remote.
-		// Examples: If custom TLS certificates are required.
-		Transport http.RoundTripper
+	// To customize the transport to remote.
+	// Examples: If custom TLS certificates are required.
+	Transport http.RoundTripper
 
-		// ModifyResponse defines function to modify response from ProxyTarget.
-		ModifyResponse func(*http.Response) error
-	}
+	// ModifyResponse defines function to modify response from ProxyTarget.
+	ModifyResponse func(*http.Response) error
+}
 
-	// ProxyTarget defines the upstream target.
-	ProxyTarget struct {
-		Name string
-		URL  *url.URL
-		Meta echo.Map
-	}
+// ProxyTarget defines the upstream target.
+type ProxyTarget struct {
+	Name string
+	URL  *url.URL
+	Meta echo.Map
+}
 
-	// ProxyBalancer defines an interface to implement a load balancing technique.
-	ProxyBalancer interface {
-		AddTarget(*ProxyTarget) bool
-		RemoveTarget(string) bool
-		Next(echo.Context) *ProxyTarget
-	}
+// ProxyBalancer defines an interface to implement a load balancing technique.
+type ProxyBalancer interface {
+	AddTarget(*ProxyTarget) bool
+	RemoveTarget(string) bool
+	Next(echo.Context) *ProxyTarget
+}
 
-	commonBalancer struct {
-		targets []*ProxyTarget
-		mutex   sync.RWMutex
-	}
+type commonBalancer struct {
+	targets []*ProxyTarget
+	mutex   sync.RWMutex
+}
 
-	// RandomBalancer implements a random load balancing technique.
-	randomBalancer struct {
-		*commonBalancer
-		random *rand.Rand
-	}
+// RandomBalancer implements a random load balancing technique.
+type randomBalancer struct {
+	*commonBalancer
+	random *rand.Rand
+}
 
-	// RoundRobinBalancer implements a round-robin load balancing technique.
-	roundRobinBalancer struct {
-		*commonBalancer
-		i uint32
-	}
-)
+// RoundRobinBalancer implements a round-robin load balancing technique.
+type roundRobinBalancer struct {
+	*commonBalancer
+	i uint32
+}
 
-var (
-	// DefaultProxyConfig is the default Proxy middleware config.
-	DefaultProxyConfig = ProxyConfig{
-		Skipper:    DefaultSkipper,
-		ContextKey: "target",
-	}
-)
+// DefaultProxyConfig is the default Proxy middleware config.
+var DefaultProxyConfig = ProxyConfig{
+	Skipper:    DefaultSkipper,
+	ContextKey: "target",
+}
 
 func proxyRaw(t *ProxyTarget, c echo.Context) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -194,24 +191,27 @@ func (b *roundRobinBalancer) Next(c echo.Context) *ProxyTarget {
 	return t
 }
 
-// Proxy returns a Proxy middleware.
+// MustProxyWithConfig returns a Proxy middleware or panics if configuration is invalid.
 //
 // Proxy middleware forwards the request to upstream server using a configured load balancing technique.
-func Proxy(balancer ProxyBalancer) echo.MiddlewareFunc {
-	c := DefaultProxyConfig
-	c.Balancer = balancer
-	return ProxyWithConfig(c)
+func MustProxyWithConfig(config ProxyConfig) echo.MiddlewareFunc {
+	mw, err := ProxyWithConfig(config)
+	if err != nil {
+		panic(err)
+	}
+	return mw
 }
 
 // ProxyWithConfig returns a Proxy middleware with config.
-// See: `Proxy()`
-func ProxyWithConfig(config ProxyConfig) echo.MiddlewareFunc {
-	// Defaults
+func ProxyWithConfig(config ProxyConfig) (echo.MiddlewareFunc, error) {
 	if config.Skipper == nil {
 		config.Skipper = DefaultProxyConfig.Skipper
 	}
+	if config.ContextKey == "" {
+		config.ContextKey = DefaultProxyConfig.ContextKey
+	}
 	if config.Balancer == nil {
-		panic("echo: proxy middleware requires balancer")
+		return nil, errors.New("echo proxy middleware requires balancer")
 	}
 
 	if config.Rewrite != nil {
@@ -265,7 +265,7 @@ func ProxyWithConfig(config ProxyConfig) echo.MiddlewareFunc {
 
 			return
 		}
-	}
+	}, nil
 }
 
 // StatusCodeContextCanceled is a custom HTTP status code for situations

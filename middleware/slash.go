@@ -6,36 +6,41 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-type (
-	// TrailingSlashConfig defines the config for TrailingSlash middleware.
-	TrailingSlashConfig struct {
-		// Skipper defines a function to skip middleware.
-		Skipper Skipper
+// TrailingSlashConfig defines the config for TrailingSlash middleware.
+type TrailingSlashConfig struct {
+	// Skipper defines a function to skip middleware.
+	Skipper Skipper
 
-		// Status code to be used when redirecting the request.
-		// Optional, but when provided the request is redirected using this code.
-		RedirectCode int `yaml:"redirect_code"`
-	}
-)
+	// Status code to be used when redirecting the request.
+	// Optional, but when provided the request is redirected using this code.
+	RedirectCode int `yaml:"redirect_code"`
+}
 
-var (
-	// DefaultTrailingSlashConfig is the default TrailingSlash middleware config.
-	DefaultTrailingSlashConfig = TrailingSlashConfig{
-		Skipper: DefaultSkipper,
-	}
-)
+// DefaultTrailingSlashConfig is the default TrailingSlash middleware config.
+var DefaultTrailingSlashConfig = TrailingSlashConfig{
+	Skipper: DefaultSkipper,
+}
 
 // AddTrailingSlash returns a root level (before router) middleware which adds a
 // trailing slash to the request `URL#Path`.
 //
 // Usage `Echo#Pre(AddTrailingSlash())`
 func AddTrailingSlash() echo.MiddlewareFunc {
-	return AddTrailingSlashWithConfig(DefaultTrailingSlashConfig)
+	return MustAddTrailingSlashWithConfig(DefaultTrailingSlashConfig)
+}
+
+// MustAddTrailingSlashWithConfig returns a AddTrailingSlash middleware with config or panics on invalid configuration.
+func MustAddTrailingSlashWithConfig(config TrailingSlashConfig) echo.MiddlewareFunc {
+	mw, err := AddTrailingSlashWithConfig(config)
+	if err != nil {
+		panic(err)
+	}
+	return mw
 }
 
 // AddTrailingSlashWithConfig returns a AddTrailingSlash middleware with config.
 // See `AddTrailingSlash()`.
-func AddTrailingSlashWithConfig(config TrailingSlashConfig) echo.MiddlewareFunc {
+func AddTrailingSlashWithConfig(config TrailingSlashConfig) (echo.MiddlewareFunc, error) {
 	// Defaults
 	if config.Skipper == nil {
 		config.Skipper = DefaultTrailingSlashConfig.Skipper
@@ -69,7 +74,7 @@ func AddTrailingSlashWithConfig(config TrailingSlashConfig) echo.MiddlewareFunc 
 			}
 			return next(c)
 		}
-	}
+	}, nil
 }
 
 // RemoveTrailingSlash returns a root level (before router) middleware which removes
@@ -77,12 +82,21 @@ func AddTrailingSlashWithConfig(config TrailingSlashConfig) echo.MiddlewareFunc 
 //
 // Usage `Echo#Pre(RemoveTrailingSlash())`
 func RemoveTrailingSlash() echo.MiddlewareFunc {
-	return RemoveTrailingSlashWithConfig(TrailingSlashConfig{})
+	return MustRemoveTrailingSlashWithConfig(TrailingSlashConfig{})
+}
+
+// MustRemoveTrailingSlashWithConfig returns a RemoveTrailingSlash middleware with config or panics on invalid configuration.
+func MustRemoveTrailingSlashWithConfig(config TrailingSlashConfig) echo.MiddlewareFunc {
+	mw, err := RemoveTrailingSlashWithConfig(config)
+	if err != nil {
+		panic(err)
+	}
+	return mw
 }
 
 // RemoveTrailingSlashWithConfig returns a RemoveTrailingSlash middleware with config.
 // See `RemoveTrailingSlash()`.
-func RemoveTrailingSlashWithConfig(config TrailingSlashConfig) echo.MiddlewareFunc {
+func RemoveTrailingSlashWithConfig(config TrailingSlashConfig) (echo.MiddlewareFunc, error) {
 	// Defaults
 	if config.Skipper == nil {
 		config.Skipper = DefaultTrailingSlashConfig.Skipper
@@ -117,7 +131,7 @@ func RemoveTrailingSlashWithConfig(config TrailingSlashConfig) echo.MiddlewareFu
 			}
 			return next(c)
 		}
-	}
+	}, nil
 }
 
 func sanitizeURI(uri string) string {

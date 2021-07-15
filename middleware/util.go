@@ -1,7 +1,26 @@
 package middleware
 
 import (
+	"math/rand"
 	"strings"
+	"sync"
+	"time"
+)
+
+const (
+	_ = int64(1 << (10 * iota)) // ignore first value by assigning to blank identifier
+	// KB is 1 KiloByte = 1024 bytes
+	KB
+	// MB is 1 Megabyte = 1_048_576 bytes
+	MB
+	// GB is 1 Gigabyte = 1_073_741_824 bytes
+	GB
+	// TB is 1 Terabyte = 1_099_511_627_776 bytes
+	TB
+	// PB is 1 Petabyte = 1_125_899_906_842_624 bytes
+	PB
+	// EB is 1 Exabyte = 1_152_921_504_606_847_000 bytes
+	EB
 )
 
 func matchScheme(domain, pattern string) bool {
@@ -51,4 +70,24 @@ func matchSubdomain(domain, pattern string) bool {
 		}
 	}
 	return false
+}
+
+var rndSeed sync.Once
+
+func createRandomStringGenerator(length uint8) func() string {
+	rndSeed.Do(func() {
+		rand.Seed(time.Now().UnixNano())
+	})
+	return func() string {
+		return randomString(length)
+	}
+}
+
+func randomString(length uint8) string {
+	charset := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = charset[rand.Int63()%int64(len(charset))]
+	}
+	return string(b)
 }

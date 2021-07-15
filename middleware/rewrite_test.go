@@ -15,7 +15,7 @@ import (
 func TestRewriteAfterRouting(t *testing.T) {
 	e := echo.New()
 	// middlewares added with `Use()` are executed after routing is done and do not affect which route handler is matched
-	e.Use(RewriteWithConfig(RewriteConfig{
+	e.Use(MustRewriteWithConfig(RewriteConfig{
 		Rules: map[string]string{
 			"/old":              "/new",
 			"/api/*":            "/$1",
@@ -24,10 +24,10 @@ func TestRewriteAfterRouting(t *testing.T) {
 		},
 	}))
 	e.GET("/public/*", func(c echo.Context) error {
-		return c.String(http.StatusOK, c.Param("*"))
+		return c.String(http.StatusOK, c.PathParam("*"))
 	})
 	e.GET("/*", func(c echo.Context) error {
-		return c.String(http.StatusOK, c.Param("*"))
+		return c.String(http.StatusOK, c.PathParam("*"))
 	})
 
 	var testCases = []struct {
@@ -90,20 +90,74 @@ func TestRewriteAfterRouting(t *testing.T) {
 	}
 }
 
+func TestMustRewriteWithConfig_emptyRulesPanics(t *testing.T) {
+	assert.Panics(t, func() {
+		MustRewriteWithConfig(RewriteConfig{})
+	})
+}
+
+func TestMustRewriteWithConfig_skipper(t *testing.T) {
+	var testCases = []struct {
+		name         string
+		givenSkipper func(c echo.Context) bool
+		whenURL      string
+		expectURL    string
+		expectStatus int
+	}{
+		{
+			name:         "not skipped",
+			whenURL:      "/old",
+			expectURL:    "/new",
+			expectStatus: http.StatusOK,
+		},
+		{
+			name: "skipped",
+			givenSkipper: func(c echo.Context) bool {
+				return true
+			},
+			whenURL:      "/old",
+			expectURL:    "/old",
+			expectStatus: http.StatusNotFound,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := echo.New()
+
+			e.Pre(MustRewriteWithConfig(
+				RewriteConfig{
+					Skipper: tc.givenSkipper,
+					Rules:   map[string]string{"/old": "/new"}},
+			))
+
+			e.GET("/new", func(c echo.Context) error {
+				return c.NoContent(http.StatusOK)
+			})
+
+			req := httptest.NewRequest(http.MethodGet, tc.whenURL, nil)
+			rec := httptest.NewRecorder()
+
+			e.ServeHTTP(rec, req)
+
+			assert.Equal(t, tc.expectURL, req.URL.EscapedPath())
+			assert.Equal(t, tc.expectStatus, rec.Code)
+		})
+	}
+}
+
 // Issue #1086
 func TestEchoRewritePreMiddleware(t *testing.T) {
 	e := echo.New()
-	r := e.Router()
 
 	// Rewrite old url to new one
 	// middlewares added with `Pre()` are executed before routing is done and therefore change which handler matches
-	e.Pre(Rewrite(map[string]string{
-		"/old": "/new",
-	},
-	))
+	e.Pre(MustRewriteWithConfig(RewriteConfig{
+		Rules: map[string]string{"/old": "/new"}}),
+	)
 
 	// Route
-	r.Add(http.MethodGet, "/new", func(c echo.Context) error {
+	e.Add(http.MethodGet, "/new", func(c echo.Context) error {
 		return c.NoContent(http.StatusOK)
 	})
 
@@ -117,20 +171,19 @@ func TestEchoRewritePreMiddleware(t *testing.T) {
 // Issue #1143
 func TestRewriteWithConfigPreMiddleware_Issue1143(t *testing.T) {
 	e := echo.New()
-	r := e.Router()
 
 	// middlewares added with `Pre()` are executed before routing is done and therefore change which handler matches
-	e.Pre(RewriteWithConfig(RewriteConfig{
+	e.Pre(MustRewriteWithConfig(RewriteConfig{
 		Rules: map[string]string{
 			"/api/*/mgmt/proj/*/agt": "/api/$1/hosts/$2",
 			"/api/*/mgmt/proj":       "/api/$1/eng",
 		},
 	}))
 
-	r.Add(http.MethodGet, "/api/:version/hosts/:name", func(c echo.Context) error {
+	e.Add(http.MethodGet, "/api/:version/hosts/:name", func(c echo.Context) error {
 		return c.String(http.StatusOK, "hosts")
 	})
-	r.Add(http.MethodGet, "/api/:version/eng", func(c echo.Context) error {
+	e.Add(http.MethodGet, "/api/:version/eng", func(c echo.Context) error {
 		return c.String(http.StatusOK, "eng")
 	})
 
@@ -151,7 +204,7 @@ func TestRewriteWithConfigPreMiddleware_Issue1143(t *testing.T) {
 func TestEchoRewriteWithCaret(t *testing.T) {
 	e := echo.New()
 
-	e.Pre(RewriteWithConfig(RewriteConfig{
+	e.Pre(MustRewriteWithConfig(RewriteConfig{
 		Rules: map[string]string{
 			"^/abc/*": "/v1/abc/$1",
 		},
@@ -178,7 +231,7 @@ func TestEchoRewriteWithCaret(t *testing.T) {
 func TestEchoRewriteWithRegexRules(t *testing.T) {
 	e := echo.New()
 
-	e.Pre(RewriteWithConfig(RewriteConfig{
+	e.Pre(MustRewriteWithConfig(RewriteConfig{
 		Rules: map[string]string{
 			"^/a/*":     "/v1/$1",
 			"^/b/*/c/*": "/v2/$2/$1",
@@ -222,7 +275,7 @@ func TestEchoRewriteReplacementEscaping(t *testing.T) {
 
 	// NOTE: these are incorrect regexps as they do not factor in that URI we are replacing could contain ? (query) and # (fragment) parts
 	// so in reality they append query and fragment part as `$1` matches everything after that prefix
-	e.Pre(RewriteWithConfig(RewriteConfig{
+	e.Pre(MustRewriteWithConfig(RewriteConfig{
 		Rules: map[string]string{
 			"^/a/*": "/$1?query=param",
 			"^/b/*": "/$1;part#one",

@@ -465,9 +465,12 @@ func TestBindParam(t *testing.T) {
 	req := httptest.NewRequest(GET, "/", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	c.SetPath("/users/:id/:name")
-	c.SetParamNames("id", "name")
-	c.SetParamValues("1", "Jon Snow")
+	cc := c.(EditableContext)
+	cc.SetPath("/users/:id/:name")
+	cc.SetPathParams(PathParams{
+		{Name: "id", Value: "1"},
+		{Name: "name", Value: "Jon Snow"},
+	})
 
 	u := new(user)
 	err := c.Bind(u)
@@ -478,9 +481,11 @@ func TestBindParam(t *testing.T) {
 
 	// Second test for the absence of a param
 	c2 := e.NewContext(req, rec)
-	c2.SetPath("/users/:id")
-	c2.SetParamNames("id")
-	c2.SetParamValues("1")
+	cc2 := c2.(EditableContext)
+	cc2.SetPath("/users/:id")
+	cc2.SetPathParams(PathParams{
+		{Name: "id", Value: "1"},
+	})
 
 	u = new(user)
 	err = c2.Bind(u)
@@ -498,9 +503,11 @@ func TestBindParam(t *testing.T) {
 	rec2 := httptest.NewRecorder()
 
 	c3 := e2.NewContext(req2, rec2)
-	c3.SetPath("/users/:id")
-	c3.SetParamNames("id")
-	c3.SetParamValues("1")
+	cc3 := c3.(EditableContext)
+	cc3.SetPath("/users/:id")
+	cc3.SetPathParams(PathParams{
+		{Name: "id", Value: "1"},
+	})
 
 	u = new(user)
 	err = c3.Bind(u)
@@ -840,8 +847,10 @@ func TestDefaultBinder_BindToStructFromMixedSources(t *testing.T) {
 			c := e.NewContext(req, rec)
 
 			if !tc.whenNoPathParams {
-				c.SetParamNames("node")
-				c.SetParamValues("node_from_path")
+				cc := c.(EditableContext)
+				cc.SetPathParams(PathParams{
+					{Name: "node", Value: "node_from_path"},
+				})
 			}
 
 			var bindTarget interface{}
@@ -1021,8 +1030,10 @@ func TestDefaultBinder_BindBody(t *testing.T) {
 			c := e.NewContext(req, rec)
 
 			if !tc.whenNoPathParams {
-				c.SetParamNames("node")
-				c.SetParamValues("real_node")
+				cc := c.(EditableContext)
+				cc.SetPathParams(PathParams{
+					{Name: "node", Value: "real_node"},
+				})
 			}
 
 			var bindTarget interface{}

@@ -61,7 +61,7 @@ func TestLoggerIPAddress(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 	buf := new(bytes.Buffer)
-	e.Logger.SetOutput(buf)
+	e.Logger = &testLogger{output: buf}
 	ip := "127.0.0.1"
 	h := Logger()(func(c echo.Context) error {
 		return c.String(http.StatusOK, "test")
@@ -88,7 +88,7 @@ func TestLoggerTemplate(t *testing.T) {
 	buf := new(bytes.Buffer)
 
 	e := echo.New()
-	e.Use(LoggerWithConfig(LoggerConfig{
+	e.Use(MustLoggerWithConfig(LoggerConfig{
 		Format: `{"time":"${time_rfc3339_nano}","id":"${id}","remote_ip":"${remote_ip}","host":"${host}","user_agent":"${user_agent}",` +
 			`"method":"${method}","uri":"${uri}","status":${status}, "latency":${latency},` +
 			`"latency_human":"${latency_human}","bytes_in":${bytes_in}, "path":"${path}", "referer":"${referer}",` +
@@ -145,7 +145,7 @@ func TestLoggerCustomTimestamp(t *testing.T) {
 	buf := new(bytes.Buffer)
 	customTimeFormat := "2006-01-02 15:04:05.00000"
 	e := echo.New()
-	e.Use(LoggerWithConfig(LoggerConfig{
+	e.Use(MustLoggerWithConfig(LoggerConfig{
 		Format: `{"time":"${time_custom}","id":"${id}","remote_ip":"${remote_ip}","host":"${host}","user_agent":"${user_agent}",` +
 			`"method":"${method}","uri":"${uri}","status":${status}, "latency":${latency},` +
 			`"latency_human":"${latency_human}","bytes_in":${bytes_in}, "path":"${path}", "referer":"${referer}",` +

@@ -2,24 +2,23 @@ package echo
 
 import (
 	"bufio"
+	"errors"
 	"net"
 	"net/http"
 )
 
-type (
-	// Response wraps an http.ResponseWriter and implements its interface to be used
-	// by an HTTP handler to construct an HTTP response.
-	// See: https://golang.org/pkg/net/http/#ResponseWriter
-	Response struct {
-		echo        *Echo
-		beforeFuncs []func()
-		afterFuncs  []func()
-		Writer      http.ResponseWriter
-		Status      int
-		Size        int64
-		Committed   bool
-	}
-)
+// Response wraps an http.ResponseWriter and implements its interface to be used
+// by an HTTP handler to construct an HTTP response.
+// See: https://golang.org/pkg/net/http/#ResponseWriter
+type Response struct {
+	echo        *Echo
+	beforeFuncs []func()
+	afterFuncs  []func()
+	Writer      http.ResponseWriter
+	Status      int
+	Size        int64
+	Committed   bool
+}
 
 // NewResponse creates a new instance of Response.
 func NewResponse(w http.ResponseWriter, e *Echo) (r *Response) {
@@ -53,7 +52,7 @@ func (r *Response) After(fn func()) {
 // used to send error codes.
 func (r *Response) WriteHeader(code int) {
 	if r.Committed {
-		r.echo.Logger.Warn("response already committed")
+		r.echo.Logger.Error(errors.New("response already committed"))
 		return
 	}
 	r.Status = code
