@@ -88,7 +88,7 @@ type methodHandler struct {
 	put      HandlerFunc
 	trace    HandlerFunc
 	report   HandlerFunc
-	// FIXME map for any other user given method to support arbitrary methods
+	anyOther map[string]HandlerFunc
 }
 
 const (
@@ -111,7 +111,8 @@ func (m *methodHandler) isHandler() bool {
 		m.patch != nil ||
 		m.propfind != nil ||
 		m.trace != nil ||
-		m.report != nil
+		m.report != nil ||
+		len(m.anyOther) != 0
 }
 
 // DefaultRouterOptFunc is option function for DefaultRouter
@@ -423,6 +424,11 @@ func (n *node) addHandler(method string, h HandlerFunc) {
 		n.methodHandler.trace = h
 	case REPORT:
 		n.methodHandler.report = h
+	default:
+		if n.methodHandler.anyOther == nil {
+			n.methodHandler.anyOther = make(map[string]HandlerFunc)
+		}
+		n.methodHandler.anyOther[method] = h
 	}
 
 	if h != nil {
@@ -457,7 +463,7 @@ func (n *node) findHandler(method string) HandlerFunc {
 	case REPORT:
 		return n.methodHandler.report
 	default:
-		return nil
+		return n.methodHandler.anyOther[method]
 	}
 }
 

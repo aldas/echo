@@ -2,10 +2,10 @@ package middleware
 
 import (
 	"fmt"
-	"io"
-	"testing"
-
 	"github.com/stretchr/testify/assert"
+	"io"
+	"math/rand"
+	"testing"
 )
 
 type testLogger struct {
@@ -112,4 +112,29 @@ func Test_matchSubdomain(t *testing.T) {
 	}
 }
 
-// FIXME: add randomString tests. nothing to take from https://github.com/labstack/gommon/blob/master/random/random_test.go
+func TestRandomString(t *testing.T) {
+	var testCases = []struct {
+		name       string
+		whenLength uint8
+		expect     string
+	}{
+		{
+			name:       "ok, 16",
+			whenLength: 16,
+			expect:     "nXElVZnQAIiZaFSY",
+		},
+		{
+			name:       "ok, 32",
+			whenLength: 32,
+			expect:     "nXElVZnQAIiZaFSYHOHjhudriJBcwFVG",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			rand.Seed(42) // fixed seed
+			uid := randomString(tc.whenLength)
+			assert.Equal(t, tc.expect, uid)
+		})
+	}
+}

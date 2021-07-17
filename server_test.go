@@ -116,9 +116,14 @@ func TestStartConfig_Start(t *testing.T) {
 
 	// check if server was stopped
 	code, body, err = doGet(fmt.Sprintf("http://%v/ok", addr))
-	assert.True(t, strings.Contains(err.Error(), "connect: connection refused"))
 	assert.Equal(t, 0, code)
 	assert.Equal(t, "", body)
+
+	if err == nil {
+		t.Errorf("missing error")
+		return
+	}
+	assert.True(t, strings.Contains(err.Error(), "connect: connection refused"))
 }
 
 func TestStartConfig_GracefulShutdown(t *testing.T) {

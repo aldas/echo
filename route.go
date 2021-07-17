@@ -41,18 +41,8 @@ func (r Route) Reverse(params ...interface{}) string {
 	return uri.String()
 }
 
-// FIXME: is replaced with `x, err := e.Router().Routes().Reverse(echo.HandlerName(getUser), "1")`
-//// URI generates a URI from handler.
-//func (r Routes) URI(handler HandlerFunc, params ...interface{}) (string, error) {
-//	name := HandlerName(handler)
-//	return r.Reverse(name, params...)
-//}
-
 // HandlerName returns string name for given function.
 func HandlerName(h HandlerFunc) string {
-	// FIXME: check if function creates function (middlewarelike) would name be same but "contents" different??????
-	// FIXME: handler := createHandlerFunc("each-time-different-1")
-	// FIXME: handler2 := createHandlerFunc("each-time-different-2")
 	t := reflect.ValueOf(h).Type()
 	if t.Kind() == reflect.Func {
 		return runtime.FuncForPC(reflect.ValueOf(h).Pointer()).Name()

@@ -724,6 +724,44 @@ func TestRouterParam(t *testing.T) {
 	}
 }
 
+func TestRouter_addAndMatchAllSupportedMethods(t *testing.T) {
+	var testCases = []struct {
+		name       string
+		whenMethod string
+	}{
+		{name: "ok, CONNECT", whenMethod: http.MethodConnect},
+		{name: "ok, DELETE", whenMethod: http.MethodDelete},
+		{name: "ok, GET", whenMethod: http.MethodGet},
+		{name: "ok, HEAD", whenMethod: http.MethodHead},
+		{name: "ok, OPTIONS", whenMethod: http.MethodOptions},
+		{name: "ok, PATCH", whenMethod: http.MethodPatch},
+		{name: "ok, POST", whenMethod: http.MethodPost},
+		{name: "ok, PROPFIND", whenMethod: PROPFIND},
+		{name: "ok, PUT", whenMethod: http.MethodPut},
+		{name: "ok, TRACE", whenMethod: http.MethodTrace},
+		{name: "ok, REPORT", whenMethod: REPORT},
+		{name: "ok, NON_TRADITIONAL_METHOD", whenMethod: "NON_TRADITIONAL_METHOD"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := New()
+
+			assert.NoError(t, e.AddRoute(Route{Method: http.MethodGet, Path: "/*", Handler: handlerFunc}))
+			assert.NoError(t, e.AddRoute(Route{Method: tc.whenMethod, Path: "/my/*", Handler: handlerFunc}))
+
+			c := e.NewContext(nil, nil).(*context)
+			req := httptest.NewRequest(tc.whenMethod, "/my/some-url", nil)
+
+			match := e.router.Match(req, c.pathParams)
+			err := match.Handler(c)
+
+			assert.NoError(t, err)
+			assert.Equal(t, "/my/*", match.RoutePath)
+		})
+	}
+}
+
 func TestMethodNotAllowedAndNotFound(t *testing.T) {
 	e := New()
 
