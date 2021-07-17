@@ -33,7 +33,7 @@ type JWTConfig struct {
 
 	// TokenLookup is a string in the form of "<source>:<name>" or "<source>:<name>,<source>:<name>" that is used
 	// to extract token(s) from the request.
-	// Optional. Default value "header:Authorization:Bearer".
+	// Optional. Default value "header:Authorization:Bearer ".
 	// Possible values:
 	// - "header:<name>"
 	// - "query:<name>"

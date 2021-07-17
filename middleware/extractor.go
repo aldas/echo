@@ -87,9 +87,9 @@ func valuesFromQuery(param string) valuesExtractor {
 	return func(c echo.Context) ([]string, ExtractorType, error) {
 		result := c.QueryParams()[param]
 		if len(result) == 0 {
-			return nil, FormExtractor, ErrExtractionValueMissing
+			return nil, QueryExtractor, ErrExtractionValueMissing
 		}
-		return result, FormExtractor, nil
+		return result, QueryExtractor, nil
 
 	}
 }
@@ -97,11 +97,16 @@ func valuesFromQuery(param string) valuesExtractor {
 // valuesFromParam returns a function that extracts values from the url param string.
 func valuesFromParam(param string) valuesExtractor {
 	return func(c echo.Context) ([]string, ExtractorType, error) {
-		token := c.PathParam(param)
-		if token == "" {
+		result := make([]string, 0)
+		for _, p := range c.PathParams() {
+			if param == p.Name {
+				result = append(result, p.Value)
+			}
+		}
+		if len(result) == 0 {
 			return nil, ParamExtractor, ErrExtractionValueMissing
 		}
-		return []string{token}, ParamExtractor, nil
+		return result, ParamExtractor, nil
 	}
 }
 
@@ -118,6 +123,9 @@ func valuesFromCookie(name string) valuesExtractor {
 			if name == cookie.Name {
 				result = append(result, cookie.Value)
 			}
+		}
+		if len(result) == 0 {
+			return nil, CookieExtractor, ErrExtractionValueMissing
 		}
 		return result, CookieExtractor, nil
 	}
