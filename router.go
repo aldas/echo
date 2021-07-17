@@ -51,8 +51,8 @@ type DefaultRouter struct {
 	routes Routes
 	echo   *Echo
 
-	duplicateRouteOverwritesRoute bool
-	unescapePathParamValues       bool
+	allowOverwritingRoute   bool
+	unescapePathParamValues bool
 }
 
 type children []*node
@@ -125,11 +125,10 @@ func RouterWithUnescapedPathParamValues() DefaultRouterOptFunc {
 	}
 }
 
-// RouterWithDuplicateRouteOverwritesRoute instructs DefaultRouter not to return error and to overwrite Route when new
-// one is registered with same method+path
-func RouterWithDuplicateRouteOverwritesRoute() DefaultRouterOptFunc {
+// RouterWithDisallowOverwritingRoute instructs DefaultRouter to return error when new one is registered with the same method+path
+func RouterWithDisallowOverwritingRoute() DefaultRouterOptFunc {
 	return func(r *DefaultRouter) {
-		r.duplicateRouteOverwritesRoute = true
+		r.allowOverwritingRoute = true
 	}
 }
 
@@ -294,8 +293,13 @@ func (r *DefaultRouter) Add(route Route) error {
 	if route.Name == "" {
 		route.Name = method + ":" + route.Path
 	}
-	//if r.duplicateRouteOverwritesRoute
-	// FIXME: check if name is unique (unless overwriting same method+path)
+	if !r.allowOverwritingRoute {
+		for _, rr := range r.routes {
+			if route.Method == rr.Method && route.Path == rr.Path {
+				return newAddRouteError(route, errors.New("adding duplicate route (same method+path) is not allowed"))
+			}
+		}
+	}
 
 	if path == "" {
 		path = "/"
@@ -304,7 +308,7 @@ func (r *DefaultRouter) Add(route Route) error {
 		path = "/" + path
 	}
 	pnames := []string{} // Param names
-	ppath := path        // Original path
+	originalPath := path
 	for i, lcpIndex := 0, len(path); i < lcpIndex; i++ {
 		if path[i] == ':' {
 			j := i + 1
@@ -319,19 +323,19 @@ func (r *DefaultRouter) Add(route Route) error {
 
 			if i == lcpIndex {
 				// path node is last fragment of route path. ie. `/users/:id`
-				r.insert(method, path[:i], h, paramKind, ppath, pnames)
+				r.insert(method, path[:i], h, paramKind, originalPath, pnames)
 			} else {
 				r.insert(method, path[:i], nil, paramKind, "", nil)
 			}
 		} else if path[i] == '*' {
 			r.insert(method, path[:i], nil, staticKind, "", nil)
 			pnames = append(pnames, "*")
-			r.insert(method, path[:i+1], h, anyKind, ppath, pnames)
+			r.insert(method, path[:i+1], h, anyKind, originalPath, pnames)
 		}
 	}
 
 	// FIXME: check duplicate values in `paramNames` and return error (what about `*`)
-	r.insert(method, path, h, staticKind, ppath, pnames)
+	r.insert(method, path, h, staticKind, originalPath, pnames)
 
 	r.routes = append(r.routes, route)
 	return nil

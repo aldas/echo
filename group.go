@@ -16,15 +16,9 @@ type Group struct {
 }
 
 // Use implements `Echo#Use()` for sub-routes within the Group.
+// Group middlewares are not executed on request when there is no matching route found.
 func (g *Group) Use(middleware ...MiddlewareFunc) {
 	g.middleware = append(g.middleware, middleware...)
-	if len(g.middleware) == 0 {
-		return
-	}
-	// Allow all requests to reach the group as they might get dropped if router
-	// doesn't find a match, making none of the group middleware process.
-	g.Any("", NotFoundHandler)
-	g.Any("/*", NotFoundHandler)
 }
 
 // CONNECT implements `Echo#CONNECT()` for sub-routes within the Group.

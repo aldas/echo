@@ -59,7 +59,10 @@ type Echo struct {
 	contextPathParamAllocSize int
 	router                    Router
 	routers                   map[string]Router
-	contextPool               sync.Pool
+	// TODO: CreateRouterFunc func() Router
+	contextPool sync.Pool
+	// NewContextFunc allows using custom context implementations, instead of default *echo.context
+	NewContextFunc func() EditableContext
 
 	Debug            bool
 	HTTPErrorHandler HTTPErrorHandler
@@ -273,6 +276,9 @@ func New() *Echo {
 	e.router = NewRouter(e)
 	e.HTTPErrorHandler = DefaultHTTPErrorHandler(false)
 	e.contextPool.New = func() interface{} {
+		if e.NewContextFunc != nil {
+			return e.NewContextFunc()
+		}
 		return e.NewContext(nil, nil)
 	}
 	return e
@@ -578,8 +584,12 @@ func (e *Echo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// FIXME: compared to master stats:
 	// FIXME: e.contextPool.Get().(*context)              2.08µs ± 1%    1.86µs ± 0%  -10.55%  (p=0.001 n=7+7)
 	// FIXME: e.contextPool.Get().(EditableContext)       2.08µs ± 1%    2.76µs ± 3%  +32.82%  (p=0.001 n=7+7)
-	c := e.contextPool.Get().(*context)
-	//c := e.contextPool.Get().(EditableContext) // would allow custom context for users (but cast is "significantly" slower)
+	var c EditableContext
+	if e.NewContextFunc != nil {
+		c = e.contextPool.Get().(EditableContext) // would allow custom context for users (but cast is "significantly" slower)
+	} else {
+		c = e.contextPool.Get().(*context)
+	}
 	c.Reset(r, w)
 	var h func(c Context) error
 

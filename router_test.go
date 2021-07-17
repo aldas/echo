@@ -2646,6 +2646,9 @@ func TestDefaultRouter_Remove(t *testing.T) {
 	}
 }
 
+// TODO: test router.Add + error: "adding route without handler function"
+// TODO: test router.Add + error: "adding duplicate route (same method+path) is not allowed"
+
 func BenchmarkRouterStaticRoutes(b *testing.B) {
 	benchmarkRouterRoutes(b, staticRoutes, staticRoutes)
 }

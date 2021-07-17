@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"math/rand"
+	"math/rand" // FIXME: use crypto/rand instead
 	"strings"
 	"sync"
 	"time"
