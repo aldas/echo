@@ -2518,6 +2518,134 @@ func benchmarkRouterRoutes(b *testing.B, routes []testRoute, routesToFind []test
 	}
 }
 
+func TestDefaultRouter_Remove(t *testing.T) {
+	var testCases = []struct {
+		name       string
+		givenPaths []string
+		whenMethod string
+		whenPath   string
+		expectErr  string
+	}{
+		{
+			name:     "ok, static",
+			whenPath: "/users",
+		},
+		{
+			name:     "ok, static without slash",
+			whenPath: "users",
+		},
+		{
+			name:     "ok, multilevel static",
+			whenPath: "/users/newsee",
+		},
+		{
+			name:     "ok, static with path params",
+			whenPath: "/users/:id/files",
+		},
+		{
+			name:     "ok, path params",
+			whenPath: "/users/:id",
+		},
+		{
+			name:     "ok, any",
+			whenPath: "/users/new/*",
+		},
+		{
+			name:     "ok, any root",
+			whenPath: "/*",
+		},
+		{
+			name:     "ok, multilevel any",
+			whenPath: "/users/dew/*",
+		},
+		{
+			name:       "ok, single root",
+			givenPaths: []string{"/users"},
+			whenPath:   "/users",
+		},
+		{
+			name:       "nok, no routes, nothing to remove",
+			givenPaths: []string{},
+			whenPath:   "/users/",
+			expectErr:  "router has no routes to remove",
+		},
+		{
+			name:      "nok, route not found (matches partial node)",
+			whenPath:  "/users/",
+			expectErr: "could not find route to remove by given path",
+		},
+		{
+			name:      "nok, route not found (matches partial node)",
+			whenPath:  "",
+			expectErr: "could not find route to remove by given path",
+		},
+		{
+			name:      "nok, route not found",
+			whenPath:  "/this_is_not_existent",
+			expectErr: "could not find route to remove by given path",
+		},
+		{
+			name:       "nok, multilevel static but different method",
+			whenPath:   "/users/newsee",
+			whenMethod: http.MethodPost,
+			expectErr:  "could not find route to remove by given path and method",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := New()
+
+			paths := []string{
+				"/users",
+				"/users/new",
+				"/users/:id",
+				"/users/dew",
+				"/users/dew/*",
+				"/users/:id/files",
+				"/users/newsee",
+				"/users/new/new",
+				"/users/new/*",
+				"/*",
+			}
+			if tc.givenPaths != nil {
+				paths = tc.givenPaths
+			}
+			index := -1
+			for i, p := range paths {
+				assert.NoError(t, e.GET(p, handlerFunc))
+				if p == tc.whenPath {
+					index = i
+				}
+			}
+			var toCheckPaths []string
+			if index != -1 {
+				toCheckPaths = append(paths[:index], paths[index+1:]...)
+			}
+
+			method := tc.whenMethod
+			if method == "" {
+				method = http.MethodGet
+			}
+
+			err := e.Router().Remove(method, tc.whenPath)
+
+			if tc.expectErr != "" {
+				assert.EqualError(t, err, tc.expectErr)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			for _, p := range toCheckPaths {
+				req := httptest.NewRequest(http.MethodGet, p, nil)
+				params := make(PathParams, 0, 5)
+				match := e.Router().Match(req, &params)
+				assert.Equal(t, p, match.RoutePath, "after removing %v we matched wrong route. when matching: %v, got: %v", tc.whenPath, p, match.RoutePath)
+			}
+		})
+	}
+}
+
 func BenchmarkRouterStaticRoutes(b *testing.B) {
 	benchmarkRouterRoutes(b, staticRoutes, staticRoutes)
 }

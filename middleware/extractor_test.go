@@ -96,9 +96,8 @@ func TestCreateExtractors(t *testing.T) {
 			if tc.expectCreateError != "" {
 				assert.EqualError(t, err, tc.expectCreateError)
 				return
-			} else {
-				assert.NoError(t, err)
 			}
+			assert.NoError(t, err)
 
 			for _, e := range extractors {
 				values, eType, eErr := e(c)
@@ -107,9 +106,8 @@ func TestCreateExtractors(t *testing.T) {
 				if tc.expectError != "" {
 					assert.EqualError(t, eErr, tc.expectError)
 					return
-				} else {
-					assert.NoError(t, eErr)
 				}
+				assert.NoError(t, eErr)
 			}
 		})
 	}

@@ -138,6 +138,8 @@ func NewRouter(e *Echo, opts ...DefaultRouterOptFunc) *DefaultRouter {
 	r := &DefaultRouter{
 		tree: &node{
 			methodHandler: new(methodHandler),
+			isLeaf:        true,
+			isHandler:     false,
 		},
 		routes: make(Routes, 0),
 		echo:   e,
@@ -160,7 +162,105 @@ func (r *DefaultRouter) Build() (Router, error) {
 
 // Remove unregisters registered route
 func (r *DefaultRouter) Remove(method string, path string) error {
-	panic("not implemented") // FIXME: implement
+	currentNode := r.tree
+	if currentNode == nil || (currentNode.isLeaf && !currentNode.isHandler) {
+		return errors.New("router has no routes to remove")
+	}
+
+	if path == "" {
+		path = "/"
+	}
+	if path[0] != '/' {
+		path = "/" + path
+	}
+
+	var nodeToRemove *node
+	prefixLen := 0
+	for {
+		if currentNode.originalPath == path && currentNode.isHandler {
+			nodeToRemove = currentNode
+			break
+		}
+		if currentNode.kind == staticKind {
+			prefixLen = prefixLen + len(currentNode.prefix)
+		} else {
+			prefixLen = len(currentNode.originalPath)
+		}
+
+		if prefixLen >= len(path) {
+			break
+		}
+
+		next := path[prefixLen]
+		switch next {
+		case paramLabel:
+			currentNode = currentNode.paramChild
+		case anyLabel:
+			currentNode = currentNode.anyChild
+		default:
+			currentNode = currentNode.findStaticChild(next)
+		}
+
+		if currentNode == nil {
+			break
+		}
+	}
+
+	if nodeToRemove == nil {
+		return errors.New("could not find route to remove by given path")
+	}
+
+	if !nodeToRemove.isHandler {
+		return errors.New("could not find route to remove by given path")
+	}
+
+	if nodeToRemove.findHandler(method) == nil {
+		return errors.New("could not find route to remove by given path and method")
+	}
+	nodeToRemove.setHandler(method, nil)
+
+	var rIndex int
+	for i, rr := range r.routes {
+		if rr.Method == method && rr.Path == path {
+			rIndex = i
+			break
+		}
+	}
+	r.routes = append(r.routes[:rIndex], r.routes[rIndex+1:]...)
+
+	if !nodeToRemove.isHandler && nodeToRemove.isLeaf {
+		// TODO: if !nodeToRemove.isLeaf and has at least 2 children merge paths for remaining nodes?
+		current := nodeToRemove
+		for {
+			parent := current.parent
+			if parent == nil {
+				break
+			}
+			switch current.kind {
+			case staticKind:
+				var index int
+				for i, c := range parent.staticChildren {
+					if c == current {
+						index = i
+						break
+					}
+				}
+				parent.staticChildren = append(parent.staticChildren[:index], parent.staticChildren[index+1:]...)
+			case paramKind:
+				parent.paramChild = nil
+			case anyKind:
+				parent.anyChild = nil
+			}
+
+			parent.isLeaf = parent.anyChild == nil && parent.paramChild == nil && len(parent.staticChildren) == 0
+			if !parent.isLeaf || parent.isHandler {
+				break
+			}
+			current = parent
+		}
+	}
+
+	return nil
 }
 
 // AddRouteError is error returned by Router.Add containing information what actual route adding failed. Useful for
@@ -168,7 +268,6 @@ func (r *DefaultRouter) Remove(method string, path string) error {
 type AddRouteError struct {
 	Method string
 	Path   string
-	Name   string
 	Err    error
 }
 
@@ -180,7 +279,6 @@ func newAddRouteError(route Route, err error) *AddRouteError {
 	return &AddRouteError{
 		Method: route.Method,
 		Path:   route.Path,
-		Name:   route.Name,
 		Err:    err,
 	}
 }
@@ -262,7 +360,7 @@ func (r *DefaultRouter) insert(method, path string, h HandlerFunc, t kind, ppath
 			currentNode.prefix = search
 			if h != nil {
 				currentNode.kind = t
-				currentNode.addHandler(method, h)
+				currentNode.setHandler(method, h)
 				currentNode.originalPath = ppath
 				currentNode.paramNames = pnames
 			}
@@ -310,13 +408,13 @@ func (r *DefaultRouter) insert(method, path string, h HandlerFunc, t kind, ppath
 			if lcpLen == searchLen {
 				// At parent node
 				currentNode.kind = t
-				currentNode.addHandler(method, h)
+				currentNode.setHandler(method, h)
 				currentNode.originalPath = ppath
 				currentNode.paramNames = pnames
 			} else {
 				// Create child node
 				n = newNode(t, search[lcpLen:], currentNode, nil, new(methodHandler), ppath, pnames, nil, nil)
-				n.addHandler(method, h)
+				n.setHandler(method, h)
 				// Only Static children could reach here
 				currentNode.addStaticChild(n)
 			}
@@ -331,7 +429,7 @@ func (r *DefaultRouter) insert(method, path string, h HandlerFunc, t kind, ppath
 			}
 			// Create child node
 			n := newNode(t, search, currentNode, nil, new(methodHandler), ppath, pnames, nil, nil)
-			n.addHandler(method, h)
+			n.setHandler(method, h)
 			switch t {
 			case staticKind:
 				currentNode.addStaticChild(n)
@@ -344,7 +442,7 @@ func (r *DefaultRouter) insert(method, path string, h HandlerFunc, t kind, ppath
 		} else {
 			// Node already exists
 			if h != nil {
-				currentNode.addHandler(method, h)
+				currentNode.setHandler(method, h)
 				currentNode.originalPath = ppath
 				if len(currentNode.paramNames) == 0 { // Issue #729
 					currentNode.paramNames = pnames
@@ -400,7 +498,7 @@ func (n *node) findChildWithLabel(l byte) *node {
 	return nil
 }
 
-func (n *node) addHandler(method string, h HandlerFunc) {
+func (n *node) setHandler(method string, h HandlerFunc) {
 	switch method {
 	case http.MethodConnect:
 		n.methodHandler.connect = h
