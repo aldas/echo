@@ -2646,8 +2646,124 @@ func TestDefaultRouter_Remove(t *testing.T) {
 	}
 }
 
-// TODO: test router.Add + error: "adding route without handler function"
-// TODO: test router.Add + error: "adding duplicate route (same method+path) is not allowed"
+func TestDefaultRouter_AddWithoutHandler(t *testing.T) {
+	e := New()
+	router := NewRouter(e)
+
+	err := router.Add(Route{Method: http.MethodGet, Path: "/info", Handler: nil})
+	assert.EqualError(t, err, "GET /info: adding route without handler function")
+}
+
+func TestDefaultRouter_AddDuplicateRouteNotAllowed(t *testing.T) {
+	e := New()
+	router := NewRouter(e)
+	e.router = router
+
+	err := router.Add(Route{
+		Method: http.MethodGet,
+		Path:   "/info",
+		Handler: func(c Context) error {
+			return c.String(http.StatusTeapot, "OLD")
+		},
+		Name: "old",
+	})
+	assert.NoError(t, err)
+
+	err = router.Add(Route{Method: http.MethodGet, Path: "/info", Handler: handlerFunc, Name: "new"})
+	assert.EqualError(t, err, "GET /info: adding duplicate route (same method+path) is not allowed")
+	assert.Len(t, router.Routes(), 1)
+
+	status, body := request(http.MethodGet, "/info", e)
+	assert.Equal(t, http.StatusTeapot, status)
+	assert.Equal(t, "OLD", body)
+}
+
+func TestDefaultRouter_AddDuplicateRouteAllowed(t *testing.T) {
+	e := New()
+	router := NewRouter(e, RouterWithDisallowOverwritingRoute())
+	e.router = router
+
+	err := router.Add(Route{Method: http.MethodGet, Path: "/info", Handler: handlerFunc, Name: "old"})
+	assert.NoError(t, err)
+
+	err = router.Add(Route{
+		Method: http.MethodGet,
+		Path:   "/info",
+		Handler: func(c Context) error {
+			return c.String(http.StatusTeapot, "NEW")
+		},
+		Name: "new",
+	})
+	assert.NoError(t, err)
+
+	routes := router.Routes()
+	assert.Len(t, routes, 1)
+	assert.Equal(t, "new", routes[0].Name)
+
+	status, body := request(http.MethodGet, "/info", e)
+	assert.Equal(t, http.StatusTeapot, status)
+	assert.Equal(t, "NEW", body)
+}
+
+type mySimpleRouter struct {
+	route Route
+}
+
+func (m *mySimpleRouter) Add(route Route) error {
+	h := route.Handler
+	route.Handler = func(c Context) error {
+		c.Set("router", "mySimpleRouter")
+		return h(c)
+	}
+	m.route = route
+	return nil
+}
+
+func (m *mySimpleRouter) Remove(method string, path string) error {
+	return nil
+}
+
+func (m *mySimpleRouter) Routes() Routes {
+	return Routes{m.route}
+}
+
+func (m *mySimpleRouter) Match(req *http.Request, params *PathParams) RouteMatch {
+	return RouteMatch{
+		RoutePath: m.route.Path,
+		Handler:   m.route.Handler,
+	}
+}
+
+func TestCustomRouter_defaultAndVHostRouting(t *testing.T) {
+	e := New()
+	e.ResetRouterCreator(func(e *Echo) Router {
+		return &mySimpleRouter{}
+	})
+
+	e.GET("/info", func(c Context) error {
+		return c.String(http.StatusTeapot, "default from "+c.Get("router").(string))
+	})
+
+	g := e.Host("my.vhost.test")
+	g.GET("/info", func(c Context) error {
+		return c.String(http.StatusTeapot, "my.vhost.test default from "+c.Get("router").(string))
+	})
+
+	// see if default router was our mySimpleRouter
+	req := httptest.NewRequest(http.MethodGet, "/info", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusTeapot, rec.Code)
+	assert.Equal(t, "default from mySimpleRouter", rec.Body.String())
+
+	// see if vhost router was our mySimpleRouter
+	req = httptest.NewRequest(http.MethodGet, "/info", nil)
+	req.Host = "my.vhost.test"
+	rec = httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusTeapot, rec.Code)
+	assert.Equal(t, "my.vhost.test default from mySimpleRouter", rec.Body.String())
+}
 
 func BenchmarkRouterStaticRoutes(b *testing.B) {
 	benchmarkRouterRoutes(b, staticRoutes, staticRoutes)

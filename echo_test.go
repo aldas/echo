@@ -800,6 +800,39 @@ func TestDefaultHTTPErrorHandler(t *testing.T) {
 	}
 }
 
+type myCustomContext struct {
+	context
+}
+
+func (c *myCustomContext) QueryParam(name string) string {
+	return "prefix_" + name
+}
+
+func TestEcho_customContext(t *testing.T) {
+	e := New()
+	e.NewContextFunc = func(pathParamAllocSize int) EditableContext {
+		p := make(PathParams, pathParamAllocSize)
+		return &myCustomContext{
+			context{
+				request:    nil,
+				response:   NewResponse(nil, e),
+				store:      make(Map),
+				echo:       e,
+				pathParams: &p,
+				handler:    NotFoundHandler,
+			},
+		}
+	}
+
+	assert.NoError(t, e.GET("/info/:id/:file", func(c Context) error {
+		return c.String(http.StatusTeapot, c.QueryParam("param"))
+	}))
+
+	status, body := request(http.MethodGet, "/info/1/a.csv", e)
+	assert.Equal(t, http.StatusTeapot, status)
+	assert.Equal(t, "prefix_param", body)
+}
+
 func benchmarkEchoRoutes(b *testing.B, routes []testRoute) {
 	e := New()
 	req := httptest.NewRequest("GET", "/", nil)

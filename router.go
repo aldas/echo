@@ -24,7 +24,7 @@ type Router interface {
 // depending on registered routes and their characteristics (i.e. if no param/any routes are registered, Build could return
 // instance that has code paths only for static routes and therefore being more efficient).
 type RouteBuilder interface {
-	Build() (Router, error) // FIXME: implement somewhere or delete
+	Build() (Router, error) // FIXME: implement somewhere or delete. probably delete. there is no good place to call it before ServerHTTP calls
 }
 
 // RouteMatch is result object for Router.Match. Its main purpose is to avoid allocating memory for PathParams inside router.
@@ -337,7 +337,17 @@ func (r *DefaultRouter) Add(route Route) error {
 	// FIXME: check duplicate values in `paramNames` and return error (what about `*`)
 	r.insert(method, path, h, staticKind, originalPath, pnames)
 
-	r.routes = append(r.routes, route)
+	existing := false
+	for i, rr := range r.routes {
+		if route.Method == rr.Method && route.Path == rr.Path {
+			existing = true
+			r.routes[i] = route
+			break
+		}
+	}
+	if !existing {
+		r.routes = append(r.routes, route)
+	}
 	return nil
 }
 

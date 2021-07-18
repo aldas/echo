@@ -22,9 +22,14 @@ type StaticConfig struct {
 	// Skipper defines a function to skip middleware.
 	Skipper Skipper
 
-	// Root directory from where the static content is served.
+	// Root directory from where the static content is served (relative to given Filesystem).
+	// `Root: "."` means root folder from Filesystem.
 	// Required.
 	Root string
+
+	// Filesystem provides access to the static content.
+	// Optional. Defaults to echo.Filesystem (serves files from `.` folder where executable is started)
+	Filesystem fs.FS
 
 	// Index file for serving a directory.
 	// Optional. Default value "index.html".
@@ -44,10 +49,6 @@ type StaticConfig struct {
 	// the filesystem path is not doubled
 	// Optional. Default value false.
 	IgnoreBase bool
-
-	// Filesystem provides access to the static content.
-	// Optional. Defaults to echo.Filesystem
-	Filesystem fs.FS
 
 	// DirectoryListTemplate is template to list directory contents
 	// Optional. Default to `directoryListHTMLTemplate` constant below.

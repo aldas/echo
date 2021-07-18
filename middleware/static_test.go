@@ -11,6 +11,38 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestStatic_useCaseForApiAndSPAs(t *testing.T) {
+	e := echo.New()
+
+	// serve single page application (SPA) files from server root
+	e.Use(MustStaticWithConfig(StaticConfig{
+		Root: ".",
+		// by default Echo filesystem is fixed to `./` but this does not allow `../` (moving up in folder structure past filesystem root)
+		Filesystem: os.DirFS("../_fixture"),
+	}))
+
+	// all requests to `/api/*` will end up in echo handlers (assuming there is not `api` folder and files)
+	api := e.Group("/api")
+	users := api.Group("/users")
+	err := users.GET("/info", func(c echo.Context) error {
+		return c.String(http.StatusOK, "users info")
+	})
+	assert.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/users/info", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "users info", rec.Body.String())
+
+	req = httptest.NewRequest(http.MethodGet, "/index.html", nil)
+	rec = httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), "<title>Echo</title>")
+
+}
+
 func TestStatic(t *testing.T) {
 	var testCases = []struct {
 		name                 string

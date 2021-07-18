@@ -349,5 +349,3 @@ func TestGroup_MatchWithErrors(t *testing.T) {
 		assert.Equal(t, `OK`, body)
 	}
 }
-
-// TODO: group + .Use(middleware.Static()) mw // e and group level variants. See https://github.com/labstack/echo/issues/838 for usecases

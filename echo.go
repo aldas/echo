@@ -49,6 +49,7 @@ import (
 )
 
 // Echo is the top-level framework instance.
+// Note: replacing/nilling public fields is not coroutine/thread-safe and can cause data-races/panics.
 type Echo struct {
 	common
 	// premiddleware are middlewares that are run for every request before routing is done
@@ -56,14 +57,15 @@ type Echo struct {
 	// middleware are middlewares that are run after router found a matching route (not found and method not found are also matches)
 	middleware []MiddlewareFunc
 
-	contextPathParamAllocSize int
-	router                    Router
-	routers                   map[string]Router
-	// TODO: CreateRouterFunc func() Router
-	contextPool sync.Pool
-	// NewContextFunc allows using custom context implementations, instead of default *echo.context
-	NewContextFunc func() EditableContext
+	router        Router
+	routers       map[string]Router
+	routerCreator func(e *Echo) Router
 
+	contextPool               sync.Pool
+	contextPathParamAllocSize int
+
+	// NewContextFunc allows using custom context implementations, instead of default *echo.context
+	NewContextFunc   func(pathParamAllocSize int) EditableContext
 	Debug            bool
 	HTTPErrorHandler HTTPErrorHandler
 	Binder           Binder
@@ -271,13 +273,16 @@ func New() *Echo {
 		JSONSerializer: &DefaultJSONSerializer{},
 
 		routers: make(map[string]Router),
+		routerCreator: func(ec *Echo) Router {
+			return NewRouter(ec)
+		},
 	}
 
 	e.router = NewRouter(e)
 	e.HTTPErrorHandler = DefaultHTTPErrorHandler(false)
 	e.contextPool.New = func() interface{} {
 		if e.NewContextFunc != nil {
-			return e.NewContextFunc()
+			return e.NewContextFunc(e.contextPathParamAllocSize)
 		}
 		return e.NewContext(nil, nil)
 	}
@@ -305,6 +310,14 @@ func (e *Echo) Router() Router {
 // Routers returns the map of host => router.
 func (e *Echo) Routers() map[string]Router {
 	return e.routers
+}
+
+// ResetRouterCreator resets callback for creating new router instances.
+// Note: current (default) router is immediately replaced with router created with creator func and vhost routers are cleared.
+func (e *Echo) ResetRouterCreator(creator func(e *Echo) Router) {
+	e.routerCreator = creator
+	e.router = creator(e)
+	e.routers = make(map[string]Router)
 }
 
 // DefaultHTTPErrorHandler creates new default HTTP error handler implementation. It sends a JSON response
@@ -547,7 +560,7 @@ func (e *Echo) Add(method, path string, handler HandlerFunc, middleware ...Middl
 
 // Host creates a new router group for the provided host and optional host-level middleware.
 func (e *Echo) Host(name string, m ...MiddlewareFunc) (g *Group) {
-	e.routers[name] = NewRouter(e)
+	e.routers[name] = e.routerCreator(e)
 	g = &Group{host: name, echo: e}
 	g.Use(m...)
 	return
@@ -574,7 +587,6 @@ func (e *Echo) ReleaseContext(c Context) {
 
 // ServeHTTP implements `http.Handler` interface, which serves HTTP requests.
 func (e *Echo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Acquire context
 	// FIXME casting to interface vs pointer to struct is in:
 	// FIXME: interface extending another interface = +24% slower (3233 ns/op vs 2605 ns/op)
 	// FIXME: interface (not extending any, just methods)= +14% slower
