@@ -3,7 +3,7 @@ package middleware
 import (
 	"bytes"
 	"fmt"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"mime/multipart"
 	"net/http"
@@ -13,29 +13,14 @@ import (
 	"testing"
 )
 
-type pathParam struct {
-	name  string
-	value string
-}
-
-func setPathParams(c echo.Context, params []pathParam) {
-	names := make([]string, 0, len(params))
-	values := make([]string, 0, len(params))
-	for _, pp := range params {
-		names = append(names, pp.name)
-		values = append(values, pp.value)
-	}
-	c.SetParamNames(names...)
-	c.SetParamValues(values...)
-}
-
 func TestCreateExtractors(t *testing.T) {
 	var testCases = []struct {
 		name              string
 		givenRequest      func() *http.Request
-		givenPathParams   []pathParam
+		givenPathParams   echo.PathParams
 		whenLoopups       string
 		expectValues      []string
+		expectSource      ExtractorSource
 		expectCreateError string
 		expectError       string
 	}{
@@ -48,6 +33,7 @@ func TestCreateExtractors(t *testing.T) {
 			},
 			whenLoopups:  "header:Authorization:Bearer ",
 			expectValues: []string{"token"},
+			expectSource: ExtractorSourceHeader,
 		},
 		{
 			name: "ok, form",
@@ -61,6 +47,7 @@ func TestCreateExtractors(t *testing.T) {
 			},
 			whenLoopups:  "form:name",
 			expectValues: []string{"Jon Snow"},
+			expectSource: ExtractorSourceForm,
 		},
 		{
 			name: "ok, cookie",
@@ -71,14 +58,16 @@ func TestCreateExtractors(t *testing.T) {
 			},
 			whenLoopups:  "cookie:_csrf",
 			expectValues: []string{"token"},
+			expectSource: ExtractorSourceCookie,
 		},
 		{
 			name: "ok, param",
-			givenPathParams: []pathParam{
-				{name: "id", value: "123"},
+			givenPathParams: echo.PathParams{
+				{Name: "id", Value: "123"},
 			},
 			whenLoopups:  "param:id",
 			expectValues: []string{"123"},
+			expectSource: ExtractorSourcePathParam,
 		},
 		{
 			name: "ok, query",
@@ -88,6 +77,7 @@ func TestCreateExtractors(t *testing.T) {
 			},
 			whenLoopups:  "query:id",
 			expectValues: []string{"999"},
+			expectSource: ExtractorSourceQuery,
 		},
 		{
 			name:              "nok, invalid lookup",
@@ -105,12 +95,12 @@ func TestCreateExtractors(t *testing.T) {
 				req = tc.givenRequest()
 			}
 			rec := httptest.NewRecorder()
-			c := e.NewContext(req, rec)
+			c := e.NewContext(req, rec).(echo.ServableContext)
 			if tc.givenPathParams != nil {
-				setPathParams(c, tc.givenPathParams)
+				c.SetRawPathParams(&tc.givenPathParams)
 			}
 
-			extractors, err := createExtractors(tc.whenLoopups, "")
+			extractors, err := createExtractors(tc.whenLoopups)
 			if tc.expectCreateError != "" {
 				assert.EqualError(t, err, tc.expectCreateError)
 				return
@@ -118,8 +108,9 @@ func TestCreateExtractors(t *testing.T) {
 			assert.NoError(t, err)
 
 			for _, e := range extractors {
-				values, eErr := e(c)
+				values, source, eErr := e(c)
 				assert.Equal(t, tc.expectValues, values)
+				assert.Equal(t, tc.expectSource, source)
 				if tc.expectError != "" {
 					assert.EqualError(t, eErr, tc.expectError)
 					return
@@ -244,8 +235,9 @@ func TestValuesFromHeader(t *testing.T) {
 
 			extractor := valuesFromHeader(tc.whenName, tc.whenValuePrefix)
 
-			values, err := extractor(c)
+			values, source, err := extractor(c)
 			assert.Equal(t, tc.expectValues, values)
+			assert.Equal(t, ExtractorSourceHeader, source)
 			if tc.expectError != "" {
 				assert.EqualError(t, err, tc.expectError)
 			} else {
@@ -305,8 +297,9 @@ func TestValuesFromQuery(t *testing.T) {
 
 			extractor := valuesFromQuery(tc.whenName)
 
-			values, err := extractor(c)
+			values, source, err := extractor(c)
 			assert.Equal(t, tc.expectValues, values)
+			assert.Equal(t, ExtractorSourceQuery, source)
 			if tc.expectError != "" {
 				assert.EqualError(t, err, tc.expectError)
 			} else {
@@ -317,19 +310,19 @@ func TestValuesFromQuery(t *testing.T) {
 }
 
 func TestValuesFromParam(t *testing.T) {
-	examplePathParams := []pathParam{
-		{name: "id", value: "123"},
-		{name: "gid", value: "456"},
-		{name: "gid", value: "789"},
+	examplePathParams := echo.PathParams{
+		{Name: "id", Value: "123"},
+		{Name: "gid", Value: "456"},
+		{Name: "gid", Value: "789"},
 	}
-	examplePathParams20 := make([]pathParam, 0)
+	examplePathParams20 := make(echo.PathParams, 0)
 	for i := 1; i < 25; i++ {
-		examplePathParams20 = append(examplePathParams20, pathParam{name: "id", value: fmt.Sprintf("%v", i)})
+		examplePathParams20 = append(examplePathParams20, echo.PathParam{Name: "id", Value: fmt.Sprintf("%v", i)})
 	}
 
 	var testCases = []struct {
 		name            string
-		givenPathParams []pathParam
+		givenPathParams echo.PathParams
 		whenName        string
 		expectValues    []string
 		expectError     string
@@ -377,15 +370,16 @@ func TestValuesFromParam(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			rec := httptest.NewRecorder()
-			c := e.NewContext(req, rec)
+			c := e.NewContext(req, rec).(echo.ServableContext)
 			if tc.givenPathParams != nil {
-				setPathParams(c, tc.givenPathParams)
+				c.SetRawPathParams(&tc.givenPathParams)
 			}
 
 			extractor := valuesFromParam(tc.whenName)
 
-			values, err := extractor(c)
+			values, source, err := extractor(c)
 			assert.Equal(t, tc.expectValues, values)
+			assert.Equal(t, ExtractorSourcePathParam, source)
 			if tc.expectError != "" {
 				assert.EqualError(t, err, tc.expectError)
 			} else {
@@ -464,8 +458,9 @@ func TestValuesFromCookie(t *testing.T) {
 
 			extractor := valuesFromCookie(tc.whenName)
 
-			values, err := extractor(c)
+			values, source, err := extractor(c)
 			assert.Equal(t, tc.expectValues, values)
+			assert.Equal(t, ExtractorSourceCookie, source)
 			if tc.expectError != "" {
 				assert.EqualError(t, err, tc.expectError)
 			} else {
@@ -594,8 +589,9 @@ func TestValuesFromForm(t *testing.T) {
 
 			extractor := valuesFromForm(tc.whenName)
 
-			values, err := extractor(c)
+			values, source, err := extractor(c)
 			assert.Equal(t, tc.expectValues, values)
+			assert.Equal(t, ExtractorSourceForm, source)
 			if tc.expectError != "" {
 				assert.EqualError(t, err, tc.expectError)
 			} else {
