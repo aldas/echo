@@ -250,8 +250,8 @@ func BenchmarkLoggerWithConfig_withoutMapFields(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		rec := httptest.NewRecorder()
-		c := e.NewContext(req, rec)
-		mw(c)
+		cc := e.NewContext(req, rec)
+		mw(cc)
 		buf.Reset()
 	}
 }
