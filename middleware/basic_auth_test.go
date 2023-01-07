@@ -13,7 +13,7 @@ import (
 )
 
 func TestBasicAuth(t *testing.T) {
-	validatorFunc := func(c echo.Context, u, p string) (bool, error) {
+	validatorFunc := func(c *echo.Context, u, p string) (bool, error) {
 		if u == "joe" && p == "secret" {
 			return true, nil
 		}
@@ -89,7 +89,7 @@ func TestBasicAuth(t *testing.T) {
 		},
 		{
 			name: "ok, skipped",
-			givenConfig: BasicAuthConfig{Validator: validatorFunc, Skipper: func(c echo.Context) bool {
+			givenConfig: BasicAuthConfig{Validator: validatorFunc, Skipper: func(c *echo.Context) bool {
 				return true
 			}},
 			whenAuth: []string{strings.ToUpper(basic) + " " + base64.StdEncoding.EncodeToString([]byte("invalid"))},
@@ -108,7 +108,7 @@ func TestBasicAuth(t *testing.T) {
 			mw, err := config.ToMiddleware()
 			assert.NoError(t, err)
 
-			h := mw(func(c echo.Context) error {
+			h := mw(func(c *echo.Context) error {
 				return c.String(http.StatusTeapot, "test")
 			})
 
@@ -139,7 +139,7 @@ func TestBasicAuth_panic(t *testing.T) {
 		assert.NotNil(t, mw)
 	})
 
-	mw := BasicAuth(func(c echo.Context, user string, password string) (bool, error) {
+	mw := BasicAuth(func(c *echo.Context, user string, password string) (bool, error) {
 		return true, nil
 	})
 	assert.NotNil(t, mw)
@@ -151,7 +151,7 @@ func TestBasicAuthWithConfig_panic(t *testing.T) {
 		assert.NotNil(t, mw)
 	})
 
-	mw := BasicAuthWithConfig(BasicAuthConfig{Validator: func(c echo.Context, user string, password string) (bool, error) {
+	mw := BasicAuthWithConfig(BasicAuthConfig{Validator: func(c *echo.Context, user string, password string) (bool, error) {
 		return true, nil
 	}})
 	assert.NotNil(t, mw)

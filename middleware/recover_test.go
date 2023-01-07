@@ -17,7 +17,7 @@ func TestRecover(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	h := Recover()(func(c echo.Context) error {
+	h := Recover()(func(c *echo.Context) error {
 		panic("test")
 	})
 	err := h(c)
@@ -34,11 +34,11 @@ func TestRecover_skipper(t *testing.T) {
 	c := e.NewContext(req, rec)
 
 	config := RecoverConfig{
-		Skipper: func(c echo.Context) bool {
+		Skipper: func(c *echo.Context) bool {
 			return true
 		},
 	}
-	h := RecoverWithConfig(config)(func(c echo.Context) error {
+	h := RecoverWithConfig(config)(func(c *echo.Context) error {
 		panic("testPANIC")
 	})
 
@@ -56,7 +56,7 @@ func TestRecoverErrAbortHandler(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	h := Recover()(func(c echo.Context) error {
+	h := Recover()(func(c *echo.Context) error {
 		panic(http.ErrAbortHandler)
 	})
 	defer func() {
@@ -115,7 +115,7 @@ func TestRecoverWithConfig(t *testing.T) {
 			c := e.NewContext(req, rec)
 
 			config := tc.whenConfig
-			h := RecoverWithConfig(config)(func(c echo.Context) error {
+			h := RecoverWithConfig(config)(func(c *echo.Context) error {
 				if tc.givenNoPanic {
 					return nil
 				}

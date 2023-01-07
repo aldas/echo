@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func testKeyValidator(c echo.Context, key string, source ExtractorSource) (bool, error) {
+func testKeyValidator(c *echo.Context, key string, source ExtractorSource) (bool, error) {
 	switch key {
 	case "valid-key":
 		return true, nil
@@ -24,7 +24,7 @@ func testKeyValidator(c echo.Context, key string, source ExtractorSource) (bool,
 
 func TestKeyAuth(t *testing.T) {
 	handlerCalled := false
-	handler := func(c echo.Context) error {
+	handler := func(c *echo.Context) error {
 		handlerCalled = true
 		return c.String(http.StatusOK, "test")
 	}
@@ -64,7 +64,7 @@ func TestKeyAuthWithConfig(t *testing.T) {
 				req.Header.Set(echo.HeaderAuthorization, "Bearer error-key")
 			},
 			whenConfig: func(conf *KeyAuthConfig) {
-				conf.Skipper = func(context echo.Context) bool {
+				conf.Skipper = func(c *echo.Context) bool {
 					return true
 				}
 			},
@@ -185,7 +185,7 @@ func TestKeyAuthWithConfig(t *testing.T) {
 			name: "nok, custom errorHandler, error from extractor",
 			whenConfig: func(conf *KeyAuthConfig) {
 				conf.KeyLookup = "header:token"
-				conf.ErrorHandler = func(c echo.Context, err error) error {
+				conf.ErrorHandler = func(c *echo.Context, err error) error {
 					httpError := echo.NewHTTPError(http.StatusTeapot, "custom")
 					httpError.Internal = err
 					return httpError
@@ -200,7 +200,7 @@ func TestKeyAuthWithConfig(t *testing.T) {
 				req.Header.Set(echo.HeaderAuthorization, "Bearer error-key")
 			},
 			whenConfig: func(conf *KeyAuthConfig) {
-				conf.ErrorHandler = func(c echo.Context, err error) error {
+				conf.ErrorHandler = func(c *echo.Context, err error) error {
 					httpError := echo.NewHTTPError(http.StatusTeapot, "custom")
 					httpError.Internal = err
 					return httpError
@@ -227,7 +227,7 @@ func TestKeyAuthWithConfig(t *testing.T) {
 			},
 			whenConfig: func(conf *KeyAuthConfig) {
 				conf.KeyLookup = "query:key"
-				conf.Validator = func(c echo.Context, key string, source ExtractorSource) (bool, error) {
+				conf.Validator = func(c *echo.Context, key string, source ExtractorSource) (bool, error) {
 					if source == ExtractorSourceQuery {
 						return true, nil
 					}
@@ -242,7 +242,7 @@ func TestKeyAuthWithConfig(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			handlerCalled := false
-			handler := func(c echo.Context) error {
+			handler := func(c *echo.Context) error {
 				handlerCalled = true
 				return c.String(http.StatusOK, "test")
 			}
@@ -286,7 +286,7 @@ func TestKeyAuthWithConfig_errors(t *testing.T) {
 		{
 			name: "ok, no error",
 			whenConfig: KeyAuthConfig{
-				Validator: func(c echo.Context, key string, source ExtractorSource) (bool, error) {
+				Validator: func(c *echo.Context, key string, source ExtractorSource) (bool, error) {
 					return false, nil
 				},
 			},
@@ -302,7 +302,7 @@ func TestKeyAuthWithConfig_errors(t *testing.T) {
 			name: "ok, extractor source can not be split",
 			whenConfig: KeyAuthConfig{
 				KeyLookup: "nope",
-				Validator: func(c echo.Context, key string, source ExtractorSource) (bool, error) {
+				Validator: func(c *echo.Context, key string, source ExtractorSource) (bool, error) {
 					return false, nil
 				},
 			},
@@ -312,7 +312,7 @@ func TestKeyAuthWithConfig_errors(t *testing.T) {
 			name: "ok, no extractors",
 			whenConfig: KeyAuthConfig{
 				KeyLookup: "nope:nope",
-				Validator: func(c echo.Context, key string, source ExtractorSource) (bool, error) {
+				Validator: func(c *echo.Context, key string, source ExtractorSource) (bool, error) {
 					return false, nil
 				},
 			},
@@ -343,14 +343,14 @@ func TestMustKeyAuthWithConfig_panic(t *testing.T) {
 func TestKeyAuth_errorHandlerSwallowsError(t *testing.T) {
 	handlerCalled := false
 	var authValue string
-	handler := func(c echo.Context) error {
+	handler := func(c *echo.Context) error {
 		handlerCalled = true
 		authValue = c.Get("auth").(string)
 		return c.String(http.StatusOK, "test")
 	}
 	middlewareChain := KeyAuthWithConfig(KeyAuthConfig{
 		Validator: testKeyValidator,
-		ErrorHandler: func(c echo.Context, err error) error {
+		ErrorHandler: func(c *echo.Context, err error) error {
 			// could check error to decide if we can swallow the error
 			c.Set("auth", "public")
 			return nil

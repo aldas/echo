@@ -23,10 +23,10 @@ func TestRewriteAfterRouting(t *testing.T) {
 			"/users/*/orders/*": "/user/$1/order/$2",
 		},
 	}))
-	e.GET("/public/*", func(c echo.Context) error {
+	e.GET("/public/*", func(c *echo.Context) error {
 		return c.String(http.StatusOK, c.PathParam("*"))
 	})
-	e.GET("/*", func(c echo.Context) error {
+	e.GET("/*", func(c *echo.Context) error {
 		return c.String(http.StatusOK, c.PathParam("*"))
 	})
 
@@ -99,7 +99,7 @@ func TestMustRewriteWithConfig_emptyRulesPanics(t *testing.T) {
 func TestMustRewriteWithConfig_skipper(t *testing.T) {
 	var testCases = []struct {
 		name         string
-		givenSkipper func(c echo.Context) bool
+		givenSkipper func(c *echo.Context) bool
 		whenURL      string
 		expectURL    string
 		expectStatus int
@@ -112,7 +112,7 @@ func TestMustRewriteWithConfig_skipper(t *testing.T) {
 		},
 		{
 			name: "skipped",
-			givenSkipper: func(c echo.Context) bool {
+			givenSkipper: func(c *echo.Context) bool {
 				return true
 			},
 			whenURL:      "/old",
@@ -131,7 +131,7 @@ func TestMustRewriteWithConfig_skipper(t *testing.T) {
 					Rules:   map[string]string{"/old": "/new"}},
 			))
 
-			e.GET("/new", func(c echo.Context) error {
+			e.GET("/new", func(c *echo.Context) error {
 				return c.NoContent(http.StatusOK)
 			})
 
@@ -157,7 +157,7 @@ func TestEchoRewritePreMiddleware(t *testing.T) {
 	)
 
 	// Route
-	e.Add(http.MethodGet, "/new", func(c echo.Context) error {
+	e.Add(http.MethodGet, "/new", func(c *echo.Context) error {
 		return c.NoContent(http.StatusOK)
 	})
 
@@ -180,10 +180,10 @@ func TestRewriteWithConfigPreMiddleware_Issue1143(t *testing.T) {
 		},
 	}))
 
-	e.Add(http.MethodGet, "/api/:version/hosts/:name", func(c echo.Context) error {
+	e.Add(http.MethodGet, "/api/:version/hosts/:name", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "hosts")
 	})
-	e.Add(http.MethodGet, "/api/:version/eng", func(c echo.Context) error {
+	e.Add(http.MethodGet, "/api/:version/eng", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "eng")
 	})
 

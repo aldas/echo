@@ -114,9 +114,9 @@ func (l *jsonLogger) Write(p []byte) (n int, err error) {
 		(p[0] == '{' && p[pLen-1] == '}') {
 		return l.write(p)
 	}
-	// we log with WARN level as we have no idea what that message level should be. From Echo perspective this method is
+	// we log with INFO level as we have no idea what that message level should be. From Echo perspective this method is
 	// called when we pass Echo logger to http.Server.ErrorLog and there are problems inside http.Server - which probably
-	// deserves at least WARN level.
+	// deserves at least INFO level.
 	return l.printf("INFO", string(p))
 }
 

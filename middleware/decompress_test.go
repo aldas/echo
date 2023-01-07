@@ -18,7 +18,7 @@ import (
 func TestDecompress(t *testing.T) {
 	e := echo.New()
 
-	h := Decompress()(func(c echo.Context) error {
+	h := Decompress()(func(c *echo.Context) error {
 		c.Response().Write([]byte("test")) // For Content-Type sniffing
 		return nil
 	})
@@ -47,7 +47,7 @@ func TestDecompress_skippedIfNoHeader(t *testing.T) {
 	c := e.NewContext(req, rec)
 
 	// Skip if no Content-Encoding header
-	h := Decompress()(func(c echo.Context) error {
+	h := Decompress()(func(c *echo.Context) error {
 		c.Response().Write([]byte("test")) // For Content-Type sniffing
 		return nil
 	})
@@ -67,7 +67,7 @@ func TestDecompressWithConfig_DefaultConfig_noDecode(t *testing.T) {
 	h, err := DecompressConfig{}.ToMiddleware()
 	assert.NoError(t, err)
 
-	err = h(func(c echo.Context) error {
+	err = h(func(c *echo.Context) error {
 		c.Response().Write([]byte("test")) // For Content-Type sniffing
 		return nil
 	})(c)
@@ -80,7 +80,7 @@ func TestDecompressWithConfig_DefaultConfig_noDecode(t *testing.T) {
 func TestDecompressWithConfig_DefaultConfig(t *testing.T) {
 	e := echo.New()
 
-	h := Decompress()(func(c echo.Context) error {
+	h := Decompress()(func(c *echo.Context) error {
 		c.Response().Write([]byte("test")) // For Content-Type sniffing
 		return nil
 	})
@@ -126,7 +126,7 @@ func TestDecompressNoContent(t *testing.T) {
 	req.Header.Set(echo.HeaderContentEncoding, GZIPEncoding)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	h := Decompress()(func(c echo.Context) error {
+	h := Decompress()(func(c *echo.Context) error {
 		return c.NoContent(http.StatusNoContent)
 	})
 
@@ -142,7 +142,7 @@ func TestDecompressNoContent(t *testing.T) {
 func TestDecompressErrorReturned(t *testing.T) {
 	e := echo.New()
 	e.Use(Decompress())
-	e.GET("/", func(c echo.Context) error {
+	e.GET("/", func(c *echo.Context) error {
 		return echo.ErrNotFound
 	})
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -158,7 +158,7 @@ func TestDecompressErrorReturned(t *testing.T) {
 func TestDecompressSkipper(t *testing.T) {
 	e := echo.New()
 	e.Use(DecompressWithConfig(DecompressConfig{
-		Skipper: func(c echo.Context) bool {
+		Skipper: func(c *echo.Context) bool {
 			return c.Request().URL.Path == "/skip"
 		},
 	}))
@@ -215,7 +215,7 @@ func BenchmarkDecompress(b *testing.B) {
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(gz)))
 	req.Header.Set(echo.HeaderContentEncoding, GZIPEncoding)
 
-	h := Decompress()(func(c echo.Context) error {
+	h := Decompress()(func(c *echo.Context) error {
 		c.Response().Write([]byte(body)) // For Content-Type sniffing
 		return nil
 	})

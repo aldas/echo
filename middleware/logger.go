@@ -61,7 +61,7 @@ type LoggerConfig struct {
 	// CustomTagFunc is function called for `${custom}` tag to output user implemented text by writing it to buf.
 	// Make sure that outputted text creates valid JSON string with other logged tags.
 	// Optional.
-	CustomTagFunc func(c echo.Context, buf *bytes.Buffer) (int, error)
+	CustomTagFunc func(c *echo.Context, buf *bytes.Buffer) (int, error)
 
 	// Output is a writer where logs in JSON format are written.
 	// Optional. Default destination `echo.Logger.Infof()`
@@ -109,7 +109,7 @@ func (config LoggerConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if config.Skipper(c) {
 				return next(c)
 			}

@@ -171,7 +171,7 @@ func (config StaticConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if config.Skipper(c) {
 				return next(c)
 			}
@@ -266,7 +266,7 @@ func openFile(fs fs.FS, name string) (fs.File, error) {
 	return fs.Open(pathWithSlashes)
 }
 
-func serveFile(c echo.Context, file fs.File, info os.FileInfo) error {
+func serveFile(c *echo.Context, file fs.File, info os.FileInfo) error {
 	ff, ok := file.(io.ReadSeeker)
 	if !ok {
 		return errors.New("file does not implement io.ReadSeeker")

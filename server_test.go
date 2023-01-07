@@ -75,7 +75,7 @@ func doGet(url string) (int, string, error) {
 
 func TestStartConfig_Start(t *testing.T) {
 	e := New()
-	e.GET("/ok", func(c Context) error {
+	e.GET("/ok", func(c *Context) error {
 		return c.String(http.StatusOK, "OK")
 	})
 
@@ -151,7 +151,7 @@ func TestStartConfig_GracefulShutdown(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			e := New()
 
-			e.GET("/ok", func(c Context) error {
+			e.GET("/ok", func(c *Context) error {
 				msg := "OK"
 				if tc.whenHandlerTakesLonger {
 					time.Sleep(150 * time.Millisecond)
@@ -364,7 +364,7 @@ func TestStartConfig_StartTLS_withTLSConfigFunc(t *testing.T) {
 func TestStartConfig_StartTLSAndStart(t *testing.T) {
 	// We name if Echo and listeners work correctly when Echo is simultaneously attached to HTTP and HTTPS server
 	e := New()
-	e.GET("/", func(c Context) error {
+	e.GET("/", func(c *Context) error {
 		return c.String(http.StatusOK, "OK")
 	})
 
@@ -549,7 +549,7 @@ func TestStartConfig_WithListenerNetwork(t *testing.T) {
 			}
 
 			e := New()
-			e.GET("/ok", func(c Context) error {
+			e.GET("/ok", func(c *Context) error {
 				return c.String(http.StatusOK, "OK")
 			})
 
@@ -604,7 +604,7 @@ func TestStartConfig_WithHideBanner(t *testing.T) {
 			buf := new(bytes.Buffer)
 			e.Logger = &testLogger{output: buf}
 
-			e.GET("/ok", func(c Context) error {
+			e.GET("/ok", func(c *Context) error {
 				return c.String(http.StatusOK, "OK")
 			})
 
@@ -666,7 +666,7 @@ func TestStartConfig_WithHidePort(t *testing.T) {
 			buf := new(bytes.Buffer)
 			e.Logger = &testLogger{output: buf}
 
-			e.GET("/ok", func(c Context) error {
+			e.GET("/ok", func(c *Context) error {
 				return c.String(http.StatusOK, "OK")
 			})
 
@@ -708,7 +708,7 @@ func TestStartConfig_WithHidePort(t *testing.T) {
 func TestStartConfig_WithBeforeServeFunc(t *testing.T) {
 	e := New()
 
-	e.GET("/ok", func(c Context) error {
+	e.GET("/ok", func(c *Context) error {
 		return c.String(http.StatusOK, "OK")
 	})
 
@@ -741,7 +741,7 @@ func TestWithDisableHTTP2(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			e := New()
 
-			e.GET("/ok", func(c Context) error {
+			e.GET("/ok", func(c *Context) error {
 				return c.String(http.StatusOK, "OK")
 			})
 

@@ -69,7 +69,7 @@ type ProxyTarget struct {
 type ProxyBalancer interface {
 	AddTarget(*ProxyTarget) bool
 	RemoveTarget(string) bool
-	Next(echo.Context) (*ProxyTarget, error)
+	Next(*echo.Context) (*ProxyTarget, error)
 }
 
 type commonBalancer struct {
@@ -95,7 +95,7 @@ var DefaultProxyConfig = ProxyConfig{
 	ContextKey: "target",
 }
 
-func proxyRaw(c echo.Context, t *ProxyTarget) http.Handler {
+func proxyRaw(c *echo.Context, t *ProxyTarget) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		in, _, err := c.Response().Hijack()
 		if err != nil {
@@ -174,7 +174,7 @@ func (b *commonBalancer) RemoveTarget(name string) bool {
 }
 
 // Next randomly returns an upstream target.
-func (b *randomBalancer) Next(c echo.Context) (*ProxyTarget, error) {
+func (b *randomBalancer) Next(c *echo.Context) (*ProxyTarget, error) {
 	if b.random == nil {
 		b.random = rand.New(rand.NewSource(int64(time.Now().Nanosecond())))
 	}
@@ -184,7 +184,7 @@ func (b *randomBalancer) Next(c echo.Context) (*ProxyTarget, error) {
 }
 
 // Next returns an upstream target using round-robin technique.
-func (b *roundRobinBalancer) Next(c echo.Context) (*ProxyTarget, error) {
+func (b *roundRobinBalancer) Next(c *echo.Context) (*ProxyTarget, error) {
 	b.i = b.i % uint32(len(b.targets))
 	t := b.targets[b.i]
 	atomic.AddUint32(&b.i, 1)
@@ -229,7 +229,7 @@ func (config ProxyConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) (err error) {
+		return func(c *echo.Context) (err error) {
 			if config.Skipper(c) {
 				return next(c)
 			}
@@ -283,7 +283,7 @@ func (config ProxyConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 // 499 too instead of the more problematic 5xx, which does not allow to detect this situation
 const StatusCodeContextCanceled = 499
 
-func proxyHTTP(c echo.Context, tgt *ProxyTarget, config ProxyConfig) http.Handler {
+func proxyHTTP(c *echo.Context, tgt *ProxyTarget, config ProxyConfig) http.Handler {
 	proxy := httputil.NewSingleHostReverseProxy(tgt.URL)
 	proxy.ErrorHandler = func(resp http.ResponseWriter, req *http.Request, err error) {
 		desc := tgt.URL.String()

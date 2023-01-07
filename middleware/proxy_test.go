@@ -107,7 +107,7 @@ func TestProxy(t *testing.T) {
 
 	// ProxyTarget is set in context
 	contextObserver := func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) (err error) {
+		return func(c *echo.Context) (err error) {
 			next(c)
 			assert.Contains(t, targets, c.Get("target"), "target is not set in context")
 			return nil
@@ -386,7 +386,7 @@ type testProvider struct {
 	err    error
 }
 
-func (p *testProvider) Next(c echo.Context) (*ProxyTarget, error) {
+func (p *testProvider) Next(c *echo.Context) (*ProxyTarget, error) {
 	return p.target, p.err
 }
 

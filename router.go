@@ -31,8 +31,9 @@ type Router interface {
 	Route(c RoutableContext) HandlerFunc
 }
 
-// RoutableContext is additional interface that structures implementing Context must implement. Methods inside this
-// interface are meant for request routing purposes and should not be used in middlewares.
+// RoutableContext is additional interface that Context must implement. Methods inside this
+// interface are meant for request routing purposes to prepare Context for execution of middlware chain and should not
+// be used in middlewares.
 type RoutableContext interface {
 	// Request returns `*http.Request`.
 	Request() *http.Request
@@ -789,13 +790,13 @@ var methodNotAllowedRouteInfo = &routeInfo{
 
 // notFoundHandler is handler for 404 cases
 // Handle returned ErrNotFound errors in Echo.HTTPErrorHandler
-var notFoundHandler = func(c Context) error {
+var notFoundHandler = func(c *Context) error {
 	return ErrNotFound
 }
 
 // methodNotAllowedHandler is handler for case when route for path+method match was not found (http code 405)
 // Handle returned ErrMethodNotAllowed errors in Echo.HTTPErrorHandler
-var methodNotAllowedHandler = func(c Context) error {
+var methodNotAllowedHandler = func(c *Context) error {
 	// See RFC 7231 section 7.4.1: An origin server MUST generate an Allow field in a 405 (Method Not Allowed)
 	// response and MAY do so in any other response. For disabled resources an empty Allow header may be returned
 	routerAllowMethods, ok := c.Get(ContextKeyHeaderAllow).(string)
@@ -808,7 +809,7 @@ var methodNotAllowedHandler = func(c Context) error {
 // optionsMethodHandler is default handler for OPTIONS method.
 // Use `middleware.CORS` if you need support for preflighted requests in CORS
 // See https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/OPTIONS
-var optionsMethodHandler = func(c Context) error {
+var optionsMethodHandler = func(c *Context) error {
 	// See RFC 7231 section 7.4.1: An origin server MUST generate an Allow field in a 405 (Method Not Allowed)
 	// response and MAY do so in any other response. For disabled resources an empty Allow header may be returned
 	routerAllowMethods, ok := c.Get(ContextKeyHeaderAllow).(string)

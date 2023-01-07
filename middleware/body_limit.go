@@ -20,7 +20,7 @@ type limitedReader struct {
 	BodyLimitConfig
 	reader  io.ReadCloser
 	read    int64
-	context echo.Context
+	context *echo.Context
 }
 
 // BodyLimit returns a BodyLimit middleware.
@@ -52,7 +52,7 @@ func (config BodyLimitConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if config.Skipper(c) {
 				return next(c)
 			}
@@ -87,7 +87,7 @@ func (r *limitedReader) Close() error {
 	return r.reader.Close()
 }
 
-func (r *limitedReader) Reset(context echo.Context, reader io.ReadCloser) {
+func (r *limitedReader) Reset(context *echo.Context, reader io.ReadCloser) {
 	r.reader = reader
 	r.context = context
 	r.read = 0

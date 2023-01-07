@@ -206,7 +206,7 @@ func TestCSRF_tokenExtractors(t *testing.T) {
 				assert.NoError(t, err)
 			}
 
-			h := csrf(func(c echo.Context) error {
+			h := csrf(func(c *echo.Context) error {
 				return c.String(http.StatusOK, "test")
 			})
 
@@ -226,7 +226,7 @@ func TestCSRF(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 	csrf := CSRF()
-	h := csrf(func(c echo.Context) error {
+	h := csrf(func(c *echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	})
 
@@ -244,7 +244,7 @@ func TestMustCSRFWithConfig(t *testing.T) {
 	csrf := CSRFWithConfig(CSRFConfig{
 		TokenLength: 16,
 	})
-	h := csrf(func(c echo.Context) error {
+	h := csrf(func(c *echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	})
 
@@ -284,7 +284,7 @@ func TestCSRFSetSameSiteMode(t *testing.T) {
 		CookieSameSite: http.SameSiteStrictMode,
 	})
 
-	h := csrf(func(c echo.Context) error {
+	h := csrf(func(c *echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	})
 
@@ -301,7 +301,7 @@ func TestCSRFWithoutSameSiteMode(t *testing.T) {
 
 	csrf := CSRFWithConfig(CSRFConfig{})
 
-	h := csrf(func(c echo.Context) error {
+	h := csrf(func(c *echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	})
 
@@ -320,7 +320,7 @@ func TestCSRFWithSameSiteDefaultMode(t *testing.T) {
 		CookieSameSite: http.SameSiteDefaultMode,
 	})
 
-	h := csrf(func(c echo.Context) error {
+	h := csrf(func(c *echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	})
 
@@ -340,7 +340,7 @@ func TestCSRFWithSameSiteModeNone(t *testing.T) {
 	}.ToMiddleware()
 	assert.NoError(t, err)
 
-	h := csrf(func(c echo.Context) error {
+	h := csrf(func(c *echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	})
 
@@ -376,12 +376,12 @@ func TestCSRFConfig_skipper(t *testing.T) {
 			c := e.NewContext(req, rec)
 
 			csrf := CSRFWithConfig(CSRFConfig{
-				Skipper: func(c echo.Context) bool {
+				Skipper: func(c *echo.Context) bool {
 					return tc.whenSkip
 				},
 			})
 
-			h := csrf(func(c echo.Context) error {
+			h := csrf(func(c *echo.Context) error {
 				return c.String(http.StatusOK, "test")
 			})
 
@@ -395,13 +395,13 @@ func TestCSRFConfig_skipper(t *testing.T) {
 
 func TestCSRFErrorHandling(t *testing.T) {
 	cfg := CSRFConfig{
-		ErrorHandler: func(c echo.Context, err error) error {
+		ErrorHandler: func(c *echo.Context, err error) error {
 			return echo.NewHTTPError(http.StatusTeapot, "error_handler_executed")
 		},
 	}
 
 	e := echo.New()
-	e.POST("/", func(c echo.Context) error {
+	e.POST("/", func(c *echo.Context) error {
 		return c.String(http.StatusNotImplemented, "should not end up here")
 	})
 

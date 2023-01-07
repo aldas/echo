@@ -500,8 +500,7 @@ func TestBindParam(t *testing.T) {
 	e := New()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	cc := c.(RoutableContext)
+	cc := e.NewContext(req, rec)
 	cc.SetRouteInfo(routeInfo{path: "/users/:id/:name"})
 	cc.SetRawPathParams(&PathParams{
 		{Name: "id", Value: "1"},
@@ -509,22 +508,21 @@ func TestBindParam(t *testing.T) {
 	})
 
 	u := new(user)
-	err := c.Bind(u)
+	err := cc.Bind(u)
 	if assert.NoError(t, err) {
 		assert.Equal(t, 1, u.ID)
 		assert.Equal(t, "Jon Snow", u.Name)
 	}
 
 	// Second test for the absence of a param
-	c2 := e.NewContext(req, rec)
-	cc2 := c2.(RoutableContext)
+	cc2 := e.NewContext(req, rec)
 	cc2.SetRouteInfo(routeInfo{path: "/users/:id"})
 	cc2.SetRawPathParams(&PathParams{
 		{Name: "id", Value: "1"},
 	})
 
 	u = new(user)
-	err = c2.Bind(u)
+	err = cc2.Bind(u)
 	if assert.NoError(t, err) {
 		assert.Equal(t, 1, u.ID)
 		assert.Equal(t, "", u.Name)
@@ -538,15 +536,14 @@ func TestBindParam(t *testing.T) {
 
 	rec2 := httptest.NewRecorder()
 
-	c3 := e2.NewContext(req2, rec2)
-	cc3 := c3.(RoutableContext)
+	cc3 := e2.NewContext(req2, rec2)
 	cc3.SetRouteInfo(routeInfo{path: "/users/:id"})
 	cc3.SetRawPathParams(&PathParams{
 		{Name: "id", Value: "1"},
 	})
 
 	u = new(user)
-	err = c3.Bind(u)
+	err = cc3.Bind(u)
 	if assert.NoError(t, err) {
 		assert.Equal(t, 1, u.ID)
 		assert.Equal(t, "Jon Snow", u.Name)
@@ -949,8 +946,7 @@ func TestDefaultBinder_BindToStructFromMixedSources(t *testing.T) {
 			c := e.NewContext(req, rec)
 
 			if !tc.whenNoPathParams {
-				cc := c.(RoutableContext)
-				cc.SetRawPathParams(&PathParams{
+				c.SetRawPathParams(&PathParams{
 					{Name: "node", Value: "node_from_path"},
 				})
 			}
@@ -1132,8 +1128,7 @@ func TestDefaultBinder_BindBody(t *testing.T) {
 			c := e.NewContext(req, rec)
 
 			if !tc.whenNoPathParams {
-				cc := c.(RoutableContext)
-				cc.SetRawPathParams(&PathParams{
+				c.SetRawPathParams(&PathParams{
 					{Name: "node", Value: "real_node"},
 				})
 			}

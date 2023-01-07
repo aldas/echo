@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-func createTestContext(URL string, body io.Reader, pathParams map[string]string) Context {
+func createTestContext(URL string, body io.Reader, pathParams map[string]string) *Context {
 	e := New()
 	req := httptest.NewRequest(http.MethodGet, URL, body)
 	if body != nil {
@@ -33,8 +33,7 @@ func createTestContext(URL string, body io.Reader, pathParams map[string]string)
 				Value: value,
 			})
 		}
-		cc := c.(RoutableContext)
-		cc.SetRawPathParams(&params)
+		c.SetRawPathParams(&params)
 	}
 
 	return c

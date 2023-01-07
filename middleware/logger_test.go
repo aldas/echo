@@ -23,7 +23,7 @@ func TestLogger(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	h := Logger()(func(c echo.Context) error {
+	h := Logger()(func(c *echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	})
 
@@ -33,7 +33,7 @@ func TestLogger(t *testing.T) {
 	// Status 3xx
 	rec = httptest.NewRecorder()
 	c = e.NewContext(req, rec)
-	h = Logger()(func(c echo.Context) error {
+	h = Logger()(func(c *echo.Context) error {
 		return c.String(http.StatusTemporaryRedirect, "test")
 	})
 	h(c)
@@ -41,7 +41,7 @@ func TestLogger(t *testing.T) {
 	// Status 4xx
 	rec = httptest.NewRecorder()
 	c = e.NewContext(req, rec)
-	h = Logger()(func(c echo.Context) error {
+	h = Logger()(func(c *echo.Context) error {
 		return c.String(http.StatusNotFound, "test")
 	})
 	h(c)
@@ -50,7 +50,7 @@ func TestLogger(t *testing.T) {
 	req = httptest.NewRequest(http.MethodGet, "/", nil)
 	rec = httptest.NewRecorder()
 	c = e.NewContext(req, rec)
-	h = Logger()(func(c echo.Context) error {
+	h = Logger()(func(c *echo.Context) error {
 		return errors.New("error")
 	})
 	h(c)
@@ -64,7 +64,7 @@ func TestLoggerIPAddress(t *testing.T) {
 	buf := new(bytes.Buffer)
 	e.Logger = &testLogger{output: buf}
 	ip := "127.0.0.1"
-	h := Logger()(func(c echo.Context) error {
+	h := Logger()(func(c *echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	})
 
@@ -98,7 +98,7 @@ func TestLoggerTemplate(t *testing.T) {
 		Output: buf,
 	}))
 
-	e.GET("/users/:id", func(c echo.Context) error {
+	e.GET("/users/:id", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "Header Logged")
 	})
 
@@ -157,7 +157,7 @@ func TestLoggerCustomTimestamp(t *testing.T) {
 		Output:           buf,
 	}))
 
-	e.GET("/", func(c echo.Context) error {
+	e.GET("/", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "custom time stamp test")
 	})
 
@@ -183,7 +183,7 @@ func TestLoggerTemplateWithTimeUnixMilli(t *testing.T) {
 		Output: buf,
 	}))
 
-	e.GET("/", func(c echo.Context) error {
+	e.GET("/", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "OK")
 	})
 
@@ -206,7 +206,7 @@ func TestLoggerTemplateWithTimeUnixMicro(t *testing.T) {
 		Output: buf,
 	}))
 
-	e.GET("/", func(c echo.Context) error {
+	e.GET("/", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "OK")
 	})
 
@@ -230,7 +230,7 @@ func BenchmarkLoggerWithConfig_withoutMapFields(b *testing.B) {
 			`"latency_human":"${latency_human}","bytes_in":${bytes_in}, "path":"${path}", "referer":"${referer}",` +
 			`"bytes_out":${bytes_out}, "protocol":"${protocol}"}` + "\n",
 		Output: buf,
-	})(func(c echo.Context) error {
+	})(func(c *echo.Context) error {
 		c.Request().Header.Set(echo.HeaderXRequestID, "123")
 		c.FormValue("to force parse form")
 		return c.String(http.StatusTeapot, "OK")
@@ -267,7 +267,7 @@ func BenchmarkLoggerWithConfig_withMapFields(b *testing.B) {
 			`"bytes_out":${bytes_out},"ch":"${header:X-Custom-Header}", "protocol":"${protocol}"` +
 			`"us":"${query:username}", "cf":"${form:csrf}", "Referer2":"${header:Referer}"}` + "\n",
 		Output: buf,
-	})(func(c echo.Context) error {
+	})(func(c *echo.Context) error {
 		c.Request().Header.Set(echo.HeaderXRequestID, "123")
 		c.FormValue("to force parse form")
 		return c.String(http.StatusTeapot, "OK")
@@ -298,13 +298,13 @@ func TestLoggerCustomTagFunc(t *testing.T) {
 	buf := new(bytes.Buffer)
 	e.Use(LoggerWithConfig(LoggerConfig{
 		Format: `{"method":"${method}",${custom}}` + "\n",
-		CustomTagFunc: func(c echo.Context, buf *bytes.Buffer) (int, error) {
+		CustomTagFunc: func(c *echo.Context, buf *bytes.Buffer) (int, error) {
 			return buf.WriteString(`"tag":"my-value"`)
 		},
 		Output: buf,
 	}))
 
-	e.GET("/", func(c echo.Context) error {
+	e.GET("/", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "custom time stamp test")
 	})
 

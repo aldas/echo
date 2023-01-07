@@ -43,17 +43,17 @@ Echo still tries to support last 4 Go versions but there are occasions we can no
 
 You can now add any arbitrary HTTP method type as a route [#2237](https://github.com/labstack/echo/pull/2237)
 ```go
-e.Add("COPY", "/*", func(c echo.Context) error 
+e.Add("COPY", "/*", func(c *echo.Context) error 
   return c.String(http.StatusOK, "OK COPY")
 })
 ```
 
 You can add custom 404 handler for specific paths [#2217](https://github.com/labstack/echo/pull/2217)
 ```go
-e.RouteNotFound("/*", func(c echo.Context) error { return c.NoContent(http.StatusNotFound) })
+e.RouteNotFound("/*", func(c *echo.Context) error { return c.NoContent(http.StatusNotFound) })
 
 g := e.Group("/images")
-g.RouteNotFound("/*", func(c echo.Context) error { return c.NoContent(http.StatusNotFound) })
+g.RouteNotFound("/*", func(c *echo.Context) error { return c.NoContent(http.StatusNotFound) })
 ```
 
 **Enhancements**

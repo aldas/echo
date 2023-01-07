@@ -17,7 +17,7 @@ func TestBodyLimitConfig_ToMiddleware(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(hw))
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	h := func(c echo.Context) error {
+	h := func(c *echo.Context) error {
 		body, err := io.ReadAll(c.Request().Body)
 		if err != nil {
 			return err
@@ -96,7 +96,7 @@ func TestBodyLimitReader(t *testing.T) {
 
 func TestBodyLimit_skipper(t *testing.T) {
 	e := echo.New()
-	h := func(c echo.Context) error {
+	h := func(c *echo.Context) error {
 		body, err := io.ReadAll(c.Request().Body)
 		if err != nil {
 			return err
@@ -104,7 +104,7 @@ func TestBodyLimit_skipper(t *testing.T) {
 		return c.String(http.StatusOK, string(body))
 	}
 	mw, err := BodyLimitConfig{
-		Skipper: func(c echo.Context) bool {
+		Skipper: func(c *echo.Context) bool {
 			return true
 		},
 		LimitBytes: 2,
@@ -128,7 +128,7 @@ func TestBodyLimitWithConfig(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(hw))
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	h := func(c echo.Context) error {
+	h := func(c *echo.Context) error {
 		body, err := io.ReadAll(c.Request().Body)
 		if err != nil {
 			return err
@@ -150,7 +150,7 @@ func TestBodyLimit(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(hw))
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	h := func(c echo.Context) error {
+	h := func(c *echo.Context) error {
 		body, err := io.ReadAll(c.Request().Body)
 		if err != nil {
 			return err

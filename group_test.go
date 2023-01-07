@@ -15,7 +15,7 @@ func TestGroup_withoutRouteWillNotExecuteMiddleware(t *testing.T) {
 
 	called := false
 	mw := func(next HandlerFunc) HandlerFunc {
-		return func(c Context) error {
+		return func(c *Context) error {
 			called = true
 			return c.NoContent(http.StatusTeapot)
 		}
@@ -35,7 +35,7 @@ func TestGroup_withRoutesWillNotExecuteMiddlewareFor404(t *testing.T) {
 
 	called := false
 	mw := func(next HandlerFunc) HandlerFunc {
-		return func(c Context) error {
+		return func(c *Context) error {
 			called = true
 			return c.NoContent(http.StatusTeapot)
 		}
@@ -57,7 +57,7 @@ func TestGroup_multiLevelGroup(t *testing.T) {
 
 	api := e.Group("/api")
 	users := api.Group("/users")
-	users.GET("/activate", func(c Context) error {
+	users.GET("/activate", func(c *Context) error {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
@@ -83,29 +83,29 @@ func TestGroupRouteMiddleware(t *testing.T) {
 	// Ensure middleware slices are not re-used
 	e := New()
 	g := e.Group("/group")
-	h := func(Context) error { return nil }
+	h := func(*Context) error { return nil }
 	m1 := func(next HandlerFunc) HandlerFunc {
-		return func(c Context) error {
+		return func(c *Context) error {
 			return next(c)
 		}
 	}
 	m2 := func(next HandlerFunc) HandlerFunc {
-		return func(c Context) error {
+		return func(c *Context) error {
 			return next(c)
 		}
 	}
 	m3 := func(next HandlerFunc) HandlerFunc {
-		return func(c Context) error {
+		return func(c *Context) error {
 			return next(c)
 		}
 	}
 	m4 := func(next HandlerFunc) HandlerFunc {
-		return func(c Context) error {
+		return func(c *Context) error {
 			return c.NoContent(404)
 		}
 	}
 	m5 := func(next HandlerFunc) HandlerFunc {
-		return func(c Context) error {
+		return func(c *Context) error {
 			return c.NoContent(405)
 		}
 	}
@@ -124,16 +124,16 @@ func TestGroupRouteMiddlewareWithMatchAny(t *testing.T) {
 	e := New()
 	g := e.Group("/group")
 	m1 := func(next HandlerFunc) HandlerFunc {
-		return func(c Context) error {
+		return func(c *Context) error {
 			return next(c)
 		}
 	}
 	m2 := func(next HandlerFunc) HandlerFunc {
-		return func(c Context) error {
+		return func(c *Context) error {
 			return c.String(http.StatusOK, c.RouteInfo().Path())
 		}
 	}
-	h := func(c Context) error {
+	h := func(c *Context) error {
 		return c.String(http.StatusOK, c.RouteInfo().Path())
 	}
 	g.Use(m1)
@@ -162,7 +162,7 @@ func TestGroup_CONNECT(t *testing.T) {
 	e := New()
 
 	users := e.Group("/users")
-	ri := users.CONNECT("/activate", func(c Context) error {
+	ri := users.CONNECT("/activate", func(c *Context) error {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
@@ -180,7 +180,7 @@ func TestGroup_DELETE(t *testing.T) {
 	e := New()
 
 	users := e.Group("/users")
-	ri := users.DELETE("/activate", func(c Context) error {
+	ri := users.DELETE("/activate", func(c *Context) error {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
@@ -198,7 +198,7 @@ func TestGroup_HEAD(t *testing.T) {
 	e := New()
 
 	users := e.Group("/users")
-	ri := users.HEAD("/activate", func(c Context) error {
+	ri := users.HEAD("/activate", func(c *Context) error {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
@@ -216,7 +216,7 @@ func TestGroup_OPTIONS(t *testing.T) {
 	e := New()
 
 	users := e.Group("/users")
-	ri := users.OPTIONS("/activate", func(c Context) error {
+	ri := users.OPTIONS("/activate", func(c *Context) error {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
@@ -234,7 +234,7 @@ func TestGroup_PATCH(t *testing.T) {
 	e := New()
 
 	users := e.Group("/users")
-	ri := users.PATCH("/activate", func(c Context) error {
+	ri := users.PATCH("/activate", func(c *Context) error {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
@@ -252,7 +252,7 @@ func TestGroup_POST(t *testing.T) {
 	e := New()
 
 	users := e.Group("/users")
-	ri := users.POST("/activate", func(c Context) error {
+	ri := users.POST("/activate", func(c *Context) error {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
@@ -270,7 +270,7 @@ func TestGroup_PUT(t *testing.T) {
 	e := New()
 
 	users := e.Group("/users")
-	ri := users.PUT("/activate", func(c Context) error {
+	ri := users.PUT("/activate", func(c *Context) error {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
@@ -288,7 +288,7 @@ func TestGroup_TRACE(t *testing.T) {
 	e := New()
 
 	users := e.Group("/users")
-	ri := users.TRACE("/activate", func(c Context) error {
+	ri := users.TRACE("/activate", func(c *Context) error {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
@@ -340,10 +340,10 @@ func TestGroup_RouteNotFound(t *testing.T) {
 			e := New()
 			g := e.Group("/group")
 
-			okHandler := func(c Context) error {
+			okHandler := func(c *Context) error {
 				return c.String(http.StatusOK, c.Request().Method+" "+c.Path())
 			}
-			notFoundHandler := func(c Context) error {
+			notFoundHandler := func(c *Context) error {
 				return c.String(http.StatusNotFound, c.Request().Method+" "+c.Path())
 			}
 
@@ -371,7 +371,7 @@ func TestGroup_Any(t *testing.T) {
 	e := New()
 
 	users := e.Group("/users")
-	ris := users.Any("/activate", func(c Context) error {
+	ris := users.Any("/activate", func(c *Context) error {
 		return c.String(http.StatusTeapot, "OK")
 	})
 	assert.Len(t, ris, 11)
@@ -387,7 +387,7 @@ func TestGroup_AnyWithErrors(t *testing.T) {
 	e := New()
 
 	users := e.Group("/users")
-	users.GET("/activate", func(c Context) error {
+	users.GET("/activate", func(c *Context) error {
 		return c.String(http.StatusOK, "OK")
 	})
 
@@ -402,7 +402,7 @@ func TestGroup_AnyWithErrors(t *testing.T) {
 			}
 		}()
 
-		users.Any("/activate", func(c Context) error {
+		users.Any("/activate", func(c *Context) error {
 			return c.String(http.StatusTeapot, "OK")
 		})
 		return nil
@@ -427,7 +427,7 @@ func TestGroup_Match(t *testing.T) {
 
 	myMethods := []string{http.MethodGet, http.MethodPost}
 	users := e.Group("/users")
-	ris := users.Match(myMethods, "/activate", func(c Context) error {
+	ris := users.Match(myMethods, "/activate", func(c *Context) error {
 		return c.String(http.StatusTeapot, "OK")
 	})
 	assert.Len(t, ris, 2)
@@ -443,7 +443,7 @@ func TestGroup_MatchWithErrors(t *testing.T) {
 	e := New()
 
 	users := e.Group("/users")
-	users.GET("/activate", func(c Context) error {
+	users.GET("/activate", func(c *Context) error {
 		return c.String(http.StatusOK, "OK")
 	})
 	myMethods := []string{http.MethodGet, http.MethodPost}
@@ -459,7 +459,7 @@ func TestGroup_MatchWithErrors(t *testing.T) {
 			}
 		}()
 
-		users.Match(myMethods, "/activate", func(c Context) error {
+		users.Match(myMethods, "/activate", func(c *Context) error {
 			return c.String(http.StatusTeapot, "OK")
 		})
 		return nil

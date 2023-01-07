@@ -7,19 +7,19 @@ import (
 	"testing"
 )
 
-var myNamedHandler = func(c Context) error {
+var myNamedHandler = func(c *Context) error {
 	return nil
 }
 
 type NameStruct struct {
 }
 
-func (n *NameStruct) getUsers(c Context) error {
+func (n *NameStruct) getUsers(c *Context) error {
 	return nil
 }
 
 func TestHandlerName(t *testing.T) {
-	myNameFuncVar := func(c Context) error {
+	myNameFuncVar := func(c *Context) error {
 		return nil
 	}
 
@@ -32,7 +32,7 @@ func TestHandlerName(t *testing.T) {
 	}{
 		{
 			name: "ok, func as anonymous func",
-			whenHandlerFunc: func(c Context) error {
+			whenHandlerFunc: func(c *Context) error {
 				return nil
 			},
 			expect: "github.com/labstack/echo/v5.TestHandlerName.func2",
@@ -64,15 +64,15 @@ func TestHandlerName(t *testing.T) {
 
 func TestHandlerName_differentFuncSameName(t *testing.T) {
 	handlerCreator := func(name string) HandlerFunc {
-		return func(c Context) error {
+		return func(c *Context) error {
 			return c.String(http.StatusTeapot, name)
 		}
 	}
 	h1 := handlerCreator("name1")
-	assert.Equal(t, "github.com/labstack/echo/v5.TestHandlerName_differentFuncSameName.func2", HandlerName(h1))
+	assert.Equal(t, "github.com/labstack/echo/v5.TestHandlerName_differentFuncSameName.func1.1", HandlerName(h1))
 
 	h2 := handlerCreator("name2")
-	assert.Equal(t, "github.com/labstack/echo/v5.TestHandlerName_differentFuncSameName.func3", HandlerName(h2))
+	assert.Equal(t, "github.com/labstack/echo/v5.TestHandlerName_differentFuncSameName.func1.1", HandlerName(h2))
 }
 
 func TestRoute_ToRouteInfo(t *testing.T) {
@@ -87,7 +87,7 @@ func TestRoute_ToRouteInfo(t *testing.T) {
 			given: Route{
 				Method: http.MethodGet,
 				Path:   "/test",
-				Handler: func(c Context) error {
+				Handler: func(c *Context) error {
 					return c.String(http.StatusTeapot, "OK")
 				},
 				Middlewares: nil,
@@ -105,7 +105,7 @@ func TestRoute_ToRouteInfo(t *testing.T) {
 			given: Route{
 				Method: http.MethodGet,
 				Path:   "users/:id/:file", // no slash prefix
-				Handler: func(c Context) error {
+				Handler: func(c *Context) error {
 					return c.String(http.StatusTeapot, "OK")
 				},
 				Middlewares: nil,
@@ -133,7 +133,7 @@ func TestRoute_ToRoute(t *testing.T) {
 	route := Route{
 		Method: http.MethodGet,
 		Path:   "/test",
-		Handler: func(c Context) error {
+		Handler: func(c *Context) error {
 			return c.String(http.StatusTeapot, "OK")
 		},
 		Middlewares: nil,
@@ -152,7 +152,7 @@ func TestRoute_ForGroup(t *testing.T) {
 	route := Route{
 		Method: http.MethodGet,
 		Path:   "/test",
-		Handler: func(c Context) error {
+		Handler: func(c *Context) error {
 			return c.String(http.StatusTeapot, "OK")
 		},
 		Middlewares: nil,
@@ -160,7 +160,7 @@ func TestRoute_ForGroup(t *testing.T) {
 	}
 
 	mw := func(next HandlerFunc) HandlerFunc {
-		return func(c Context) error {
+		return func(c *Context) error {
 			return next(c)
 		}
 	}

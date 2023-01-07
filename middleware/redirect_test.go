@@ -215,7 +215,7 @@ func TestNonWWWRedirectWithConfig(t *testing.T) {
 	var testCases = []struct {
 		name             string
 		givenCode        int
-		givenSkipFunc    func(c echo.Context) bool
+		givenSkipFunc    func(c *echo.Context) bool
 		whenHost         string
 		whenHeader       http.Header
 		expectLocation   string
@@ -229,7 +229,7 @@ func TestNonWWWRedirectWithConfig(t *testing.T) {
 		},
 		{
 			name: "redirect is skipped",
-			givenSkipFunc: func(c echo.Context) bool {
+			givenSkipFunc: func(c *echo.Context) bool {
 				return true // skip always
 			},
 			whenHost:         "www.labstack.com",
@@ -263,7 +263,7 @@ func TestNonWWWRedirectWithConfig(t *testing.T) {
 
 func redirectTest(fn middlewareGenerator, host string, header http.Header) *httptest.ResponseRecorder {
 	e := echo.New()
-	next := func(c echo.Context) (err error) {
+	next := func(c *echo.Context) (err error) {
 		return c.NoContent(http.StatusOK)
 	}
 	req := httptest.NewRequest(http.MethodGet, "/", nil)

@@ -13,7 +13,7 @@ import (
 //		LogURI:      true,
 //		LogError:    true,
 //		HandleError: true, // forwards error to the global error handler, so it can decide appropriate status code
-//		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+//		LogValuesFunc: func(c *echo.Context, v middleware.RequestLoggerValues) error {
 //			if v.Error == nil {
 //				fmt.Printf("REQUEST: uri: %v, status: %v\n", v.URI, v.Status)
 //			} else {
@@ -30,7 +30,7 @@ import (
 //		LogStatus:   true,
 //		LogError:    true,
 //		HandleError: true, // forwards error to the global error handler, so it can decide appropriate status code
-//		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+//		LogValuesFunc: func(c *echo.Context, v middleware.RequestLoggerValues) error {
 //			if v.Error == nil {
 //				logger.Info().
 //					Str("URI", v.URI).
@@ -54,7 +54,7 @@ import (
 //		LogStatus:   true,
 //		LogError:    true,
 //		HandleError: true, // forwards error to the global error handler, so it can decide appropriate status code
-//		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+//		LogValuesFunc: func(c *echo.Context, v middleware.RequestLoggerValues) error {
 //			if v.Error == nil {
 //				logger.Info("request",
 //					zap.String("URI", v.URI),
@@ -78,7 +78,7 @@ import (
 //		LogStatus:   true,
 //		LogError:    true,
 //		HandleError: true, // forwards error to the global error handler, so it can decide appropriate status code
-//		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+//		LogValuesFunc: func(c *echo.Context, v middleware.RequestLoggerValues) error {
 //			if v.Error == nil {
 //				log.WithFields(logrus.Fields{
 //					"URI":    v.URI,
@@ -101,10 +101,10 @@ type RequestLoggerConfig struct {
 	Skipper Skipper
 
 	// BeforeNextFunc defines a function that is called before next middleware or handler is called in chain.
-	BeforeNextFunc func(c echo.Context)
+	BeforeNextFunc func(c *echo.Context)
 	// LogValuesFunc defines a function that is called with values extracted by logger from request/response.
 	// Mandatory.
-	LogValuesFunc func(c echo.Context, v RequestLoggerValues) error
+	LogValuesFunc func(c *echo.Context, v RequestLoggerValues) error
 
 	// HandleError instructs logger to call global error handler when next middleware/handler returns an error.
 	// This is useful when you have custom error handler that can decide to use different status codes.
@@ -243,7 +243,7 @@ func (config RequestLoggerConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 	logFormValues := len(config.LogFormValues) > 0
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if config.Skipper(c) {
 				return next(c)
 			}

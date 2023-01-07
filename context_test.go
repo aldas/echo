@@ -23,10 +23,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type Template struct {
-	templates *template.Template
-}
-
 var testUser = user{1, "Jon Snow"}
 
 func BenchmarkAllocJSONP(b *testing.B) {
@@ -34,7 +30,7 @@ func BenchmarkAllocJSONP(b *testing.B) {
 	e.Logger = &noOpLogger{}
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(userJSON))
 	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec).(*DefaultContext)
+	c := e.NewContext(req, rec)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -49,7 +45,7 @@ func BenchmarkAllocJSON(b *testing.B) {
 	e.Logger = &noOpLogger{}
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(userJSON))
 	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec).(*DefaultContext)
+	c := e.NewContext(req, rec)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -64,7 +60,7 @@ func BenchmarkAllocXML(b *testing.B) {
 	e.Logger = &noOpLogger{}
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(userJSON))
 	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec).(*DefaultContext)
+	c := e.NewContext(req, rec)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -75,7 +71,7 @@ func BenchmarkAllocXML(b *testing.B) {
 }
 
 func BenchmarkRealIPForHeaderXForwardFor(b *testing.B) {
-	c := DefaultContext{request: &http.Request{
+	c := Context{request: &http.Request{
 		Header: http.Header{HeaderXForwardedFor: []string{"127.0.0.1, 127.0.1.1, "}},
 	}}
 	for i := 0; i < b.N; i++ {
@@ -83,7 +79,11 @@ func BenchmarkRealIPForHeaderXForwardFor(b *testing.B) {
 	}
 }
 
-func (t *Template) Render(w io.Writer, name string, data interface{}, c Context) error {
+type Template struct {
+	templates *template.Template
+}
+
+func (t *Template) Render(c *Context, w io.Writer, name string, data interface{}) error {
 	return t.templates.ExecuteTemplate(w, name, data)
 }
 
@@ -106,7 +106,7 @@ func TestContext(t *testing.T) {
 	e := New()
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(userJSON))
 	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec).(*DefaultContext)
+	c := e.NewContext(req, rec)
 
 	// Echo
 	assert.Equal(t, e, c.Echo())
@@ -137,7 +137,7 @@ func TestContext(t *testing.T) {
 
 	// JSON
 	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
+	c = e.NewContext(req, rec)
 	err = c.JSON(http.StatusOK, user{1, "Jon Snow"})
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusOK, rec.Code)
@@ -148,7 +148,7 @@ func TestContext(t *testing.T) {
 	// JSON with "?pretty"
 	req = httptest.NewRequest(http.MethodGet, "/?pretty", nil)
 	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
+	c = e.NewContext(req, rec)
 	err = c.JSON(http.StatusOK, user{1, "Jon Snow"})
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusOK, rec.Code)
@@ -159,7 +159,7 @@ func TestContext(t *testing.T) {
 
 	// JSONPretty
 	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
+	c = e.NewContext(req, rec)
 	err = c.JSONPretty(http.StatusOK, user{1, "Jon Snow"}, "  ")
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusOK, rec.Code)
@@ -169,13 +169,13 @@ func TestContext(t *testing.T) {
 
 	// JSON (error)
 	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
+	c = e.NewContext(req, rec)
 	err = c.JSON(http.StatusOK, make(chan bool))
 	assert.Error(t, err)
 
 	// JSONP
 	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
+	c = e.NewContext(req, rec)
 	callback := "callback"
 	err = c.JSONP(http.StatusOK, callback, user{1, "Jon Snow"})
 	if assert.NoError(t, err) {
@@ -186,7 +186,7 @@ func TestContext(t *testing.T) {
 
 	// XML
 	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
+	c = e.NewContext(req, rec)
 	err = c.XML(http.StatusOK, user{1, "Jon Snow"})
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusOK, rec.Code)
@@ -197,7 +197,7 @@ func TestContext(t *testing.T) {
 	// XML with "?pretty"
 	req = httptest.NewRequest(http.MethodGet, "/?pretty", nil)
 	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
+	c = e.NewContext(req, rec)
 	err = c.XML(http.StatusOK, user{1, "Jon Snow"})
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusOK, rec.Code)
@@ -208,19 +208,19 @@ func TestContext(t *testing.T) {
 
 	// XML (error)
 	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
+	c = e.NewContext(req, rec)
 	err = c.XML(http.StatusOK, make(chan bool))
 	assert.Error(t, err)
 
 	// XML response write error
-	c = e.NewContext(req, rec).(*DefaultContext)
+	c = e.NewContext(req, rec)
 	c.response.Writer = responseWriterErr{}
 	err = c.XML(0, 0)
 	assert.Error(t, err)
 
 	// XMLPretty
 	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
+	c = e.NewContext(req, rec)
 	err = c.XMLPretty(http.StatusOK, user{1, "Jon Snow"}, "  ")
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusOK, rec.Code)
@@ -240,7 +240,7 @@ func TestContext(t *testing.T) {
 
 			// New JSONBlob with empty indent
 			rec = httptest.NewRecorder()
-			c = e.NewContext(req, rec).(*DefaultContext)
+			c = e.NewContext(req, rec)
 			enc := json.NewEncoder(buf)
 			enc.SetIndent(emptyIndent, emptyIndent)
 			err = enc.Encode(u)
@@ -257,7 +257,7 @@ func TestContext(t *testing.T) {
 
 			// New XMLBlob with empty indent
 			rec = httptest.NewRecorder()
-			c = e.NewContext(req, rec).(*DefaultContext)
+			c = e.NewContext(req, rec)
 			enc := xml.NewEncoder(buf)
 			enc.Indent(emptyIndent, emptyIndent)
 			err = enc.Encode(u)
@@ -272,7 +272,7 @@ func TestContext(t *testing.T) {
 
 	// Legacy JSONBlob
 	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
+	c = e.NewContext(req, rec)
 	data, err := json.Marshal(user{1, "Jon Snow"})
 	assert.NoError(t, err)
 	err = c.JSONBlob(http.StatusOK, data)
@@ -284,7 +284,7 @@ func TestContext(t *testing.T) {
 
 	// Legacy JSONPBlob
 	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
+	c = e.NewContext(req, rec)
 	callback = "callback"
 	data, err = json.Marshal(user{1, "Jon Snow"})
 	assert.NoError(t, err)
@@ -297,7 +297,7 @@ func TestContext(t *testing.T) {
 
 	// Legacy XMLBlob
 	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
+	c = e.NewContext(req, rec)
 	data, err = xml.Marshal(user{1, "Jon Snow"})
 	assert.NoError(t, err)
 	err = c.XMLBlob(http.StatusOK, data)
@@ -309,7 +309,7 @@ func TestContext(t *testing.T) {
 
 	// String
 	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
+	c = e.NewContext(req, rec)
 	err = c.String(http.StatusOK, "Hello, World!")
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusOK, rec.Code)
@@ -319,7 +319,7 @@ func TestContext(t *testing.T) {
 
 	// HTML
 	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
+	c = e.NewContext(req, rec)
 	err = c.HTML(http.StatusOK, "Hello, <strong>World!</strong>")
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusOK, rec.Code)
@@ -329,7 +329,7 @@ func TestContext(t *testing.T) {
 
 	// Stream
 	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
+	c = e.NewContext(req, rec)
 	r := strings.NewReader("response from a stream")
 	err = c.Stream(http.StatusOK, "application/octet-stream", r)
 	if assert.NoError(t, err) {
@@ -340,7 +340,7 @@ func TestContext(t *testing.T) {
 
 	// Attachment
 	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
+	c = e.NewContext(req, rec)
 	err = c.Attachment("_fixture/images/walle.png", "walle.png")
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusOK, rec.Code)
@@ -350,7 +350,7 @@ func TestContext(t *testing.T) {
 
 	// Inline
 	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
+	c = e.NewContext(req, rec)
 	err = c.Inline("_fixture/images/walle.png", "walle.png")
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusOK, rec.Code)
@@ -360,7 +360,7 @@ func TestContext(t *testing.T) {
 
 	// NoContent
 	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
+	c = e.NewContext(req, rec)
 	c.NoContent(http.StatusOK)
 	assert.Equal(t, http.StatusOK, rec.Code)
 
@@ -394,7 +394,7 @@ func TestContext_JSON_CommitsCustomResponseCode(t *testing.T) {
 	e := New()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec).(*DefaultContext)
+	c := e.NewContext(req, rec)
 	err := c.JSON(http.StatusCreated, user{1, "Jon Snow"})
 
 	if assert.NoError(t, err) {
@@ -408,7 +408,7 @@ func TestContext_JSON_DoesntCommitResponseCodePrematurely(t *testing.T) {
 	e := New()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec).(*DefaultContext)
+	c := e.NewContext(req, rec)
 	err := c.JSON(http.StatusCreated, map[string]float64{"a": math.NaN()})
 
 	if assert.Error(t, err) {
@@ -424,7 +424,7 @@ func TestContextCookie(t *testing.T) {
 	req.Header.Add(HeaderCookie, theme)
 	req.Header.Add(HeaderCookie, user)
 	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec).(*DefaultContext)
+	c := e.NewContext(req, rec)
 
 	// Read single
 	cookie, err := c.Cookie("theme")
@@ -491,7 +491,7 @@ func TestContext_PathParams(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := e.NewContext(req, nil)
 
-			c.(RoutableContext).SetRawPathParams(tc.given)
+			c.SetRawPathParams(tc.given)
 
 			assert.EqualValues(t, tc.expect, c.PathParams())
 		})
@@ -540,7 +540,7 @@ func TestContext_PathParam(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := e.NewContext(req, nil)
 
-			c.(RoutableContext).SetRawPathParams(tc.given)
+			c.SetRawPathParams(tc.given)
 
 			assert.EqualValues(t, tc.expect, c.PathParam(tc.whenParamName))
 		})
@@ -592,7 +592,7 @@ func TestContext_PathParamDefault(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := e.NewContext(req, nil)
 
-			c.(RoutableContext).SetRawPathParams(tc.given)
+			c.SetRawPathParams(tc.given)
 
 			assert.EqualValues(t, tc.expect, c.PathParamDefault(tc.whenParamName, tc.whenDefaultValue))
 		})
@@ -606,7 +606,7 @@ func TestContextGetAndSetParam(t *testing.T) {
 		Method:      http.MethodGet,
 		Path:        "/:foo",
 		Name:        "",
-		Handler:     func(Context) error { return nil },
+		Handler:     func(*Context) error { return nil },
 		Middlewares: nil,
 	})
 	assert.NoError(t, err)
@@ -616,7 +616,7 @@ func TestContextGetAndSetParam(t *testing.T) {
 
 	params := &PathParams{{Name: "foo", Value: "101"}}
 	// ParamNames
-	c.(*DefaultContext).pathParams = params
+	c.pathParams = params
 
 	// round-trip param values with modification
 	paramVals := c.PathParams()
@@ -634,17 +634,17 @@ func TestContextGetAndSetParam(t *testing.T) {
 
 	// shouldn't explode during Reset() afterwards!
 	assert.NotPanics(t, func() {
-		c.(ServableContext).Reset(nil, nil)
+		c.Reset(nil, nil)
 	})
 	assert.Equal(t, PathParams{}, c.PathParams())
-	assert.Len(t, *c.(*DefaultContext).pathParams, 0)
-	assert.Equal(t, cap(*c.(*DefaultContext).pathParams), 1)
+	assert.Len(t, *c.pathParams, 0)
+	assert.Equal(t, cap(*c.pathParams), 1)
 }
 
 // Issue #1655
 func TestContext_SetParamNamesShouldNotModifyPathParams(t *testing.T) {
 	e := New()
-	c := e.NewContext(nil, nil).(*DefaultContext)
+	c := e.NewContext(nil, nil)
 
 	assert.Equal(t, 0, e.contextPathParamAllocSize)
 	expectedTwoParams := &PathParams{
@@ -873,7 +873,7 @@ func TestContextRedirect(t *testing.T) {
 }
 
 func TestContextStore(t *testing.T) {
-	var c Context = new(DefaultContext)
+	var c = new(Context)
 	c.Set("name", "Jon Snow")
 	assert.Equal(t, "Jon Snow", c.Get("name"))
 }
@@ -881,7 +881,7 @@ func TestContextStore(t *testing.T) {
 func BenchmarkContext_Store(b *testing.B) {
 	e := &Echo{}
 
-	c := &DefaultContext{
+	c := &Context{
 		echo: e,
 	}
 
@@ -921,7 +921,7 @@ func TestContext_QueryString(t *testing.T) {
 }
 
 func TestContext_Request(t *testing.T) {
-	var c Context = new(DefaultContext)
+	var c = new(Context)
 
 	assert.Nil(t, c.Request())
 
@@ -933,11 +933,11 @@ func TestContext_Request(t *testing.T) {
 
 func TestContext_Scheme(t *testing.T) {
 	tests := []struct {
-		c Context
+		c *Context
 		s string
 	}{
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					TLS: &tls.ConnectionState{},
 				},
@@ -945,7 +945,7 @@ func TestContext_Scheme(t *testing.T) {
 			"https",
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderXForwardedProto: []string{"https"}},
 				},
@@ -953,7 +953,7 @@ func TestContext_Scheme(t *testing.T) {
 			"https",
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderXForwardedProtocol: []string{"http"}},
 				},
@@ -961,7 +961,7 @@ func TestContext_Scheme(t *testing.T) {
 			"http",
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderXForwardedSsl: []string{"on"}},
 				},
@@ -969,7 +969,7 @@ func TestContext_Scheme(t *testing.T) {
 			"https",
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderXUrlScheme: []string{"https"}},
 				},
@@ -977,7 +977,7 @@ func TestContext_Scheme(t *testing.T) {
 			"https",
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{},
 			},
 			"http",
@@ -991,11 +991,11 @@ func TestContext_Scheme(t *testing.T) {
 
 func TestContext_IsWebSocket(t *testing.T) {
 	tests := []struct {
-		c  Context
+		c  *Context
 		ws assert.BoolAssertionFunc
 	}{
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderUpgrade: []string{"websocket"}},
 				},
@@ -1003,7 +1003,7 @@ func TestContext_IsWebSocket(t *testing.T) {
 			assert.True,
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderUpgrade: []string{"Websocket"}},
 				},
@@ -1011,13 +1011,13 @@ func TestContext_IsWebSocket(t *testing.T) {
 			assert.True,
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{},
 			},
 			assert.False,
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderUpgrade: []string{"other"}},
 				},
@@ -1047,11 +1047,11 @@ func TestContext_Bind(t *testing.T) {
 
 func TestContext_RealIP(t *testing.T) {
 	tests := []struct {
-		c Context
+		c *Context
 		s string
 	}{
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderXForwardedFor: []string{"127.0.0.1, 127.0.1.1, "}},
 				},
@@ -1059,7 +1059,7 @@ func TestContext_RealIP(t *testing.T) {
 			"127.0.0.1",
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderXForwardedFor: []string{"127.0.0.1,127.0.1.1"}},
 				},
@@ -1067,7 +1067,7 @@ func TestContext_RealIP(t *testing.T) {
 			"127.0.0.1",
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderXForwardedFor: []string{"127.0.0.1"}},
 				},
@@ -1075,7 +1075,7 @@ func TestContext_RealIP(t *testing.T) {
 			"127.0.0.1",
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderXForwardedFor: []string{"[2001:db8:85a3:8d3:1319:8a2e:370:7348], 2001:db8::1, "}},
 				},
@@ -1083,7 +1083,7 @@ func TestContext_RealIP(t *testing.T) {
 			"2001:db8:85a3:8d3:1319:8a2e:370:7348",
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderXForwardedFor: []string{"[2001:db8:85a3:8d3:1319:8a2e:370:7348],[2001:db8::1]"}},
 				},
@@ -1091,7 +1091,7 @@ func TestContext_RealIP(t *testing.T) {
 			"2001:db8:85a3:8d3:1319:8a2e:370:7348",
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderXForwardedFor: []string{"2001:db8:85a3:8d3:1319:8a2e:370:7348"}},
 				},
@@ -1099,7 +1099,7 @@ func TestContext_RealIP(t *testing.T) {
 			"2001:db8:85a3:8d3:1319:8a2e:370:7348",
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{
 						"X-Real-Ip": []string{"192.168.0.1"},
@@ -1109,7 +1109,7 @@ func TestContext_RealIP(t *testing.T) {
 			"192.168.0.1",
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{
 						"X-Real-Ip": []string{"[2001:db8::1]"},
@@ -1120,7 +1120,7 @@ func TestContext_RealIP(t *testing.T) {
 		},
 
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					RemoteAddr: "89.89.89.89:1654",
 				},
@@ -1174,8 +1174,8 @@ func TestContext_File(t *testing.T) {
 				e.Filesystem = tc.whenFS
 			}
 
-			handler := func(ec Context) error {
-				return ec.(*DefaultContext).File(tc.whenFile)
+			handler := func(ec *Context) error {
+				return ec.File(tc.whenFile)
 			}
 
 			req := httptest.NewRequest(http.MethodGet, "/match.png", nil)
@@ -1230,8 +1230,8 @@ func TestContext_FileFS(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			e := New()
 
-			handler := func(ec Context) error {
-				return ec.(*DefaultContext).FileFS(tc.whenFile, tc.whenFS)
+			handler := func(ec *Context) error {
+				return ec.FileFS(tc.whenFile, tc.whenFS)
 			}
 
 			req := httptest.NewRequest(http.MethodGet, "/match.png", nil)

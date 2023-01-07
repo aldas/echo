@@ -13,7 +13,7 @@ import (
 
 // Binder is the interface that wraps the Bind method.
 type Binder interface {
-	Bind(c Context, i interface{}) error
+	Bind(c *Context, i interface{}) error
 }
 
 // DefaultBinder is the default implementation of the Binder interface.
@@ -28,7 +28,7 @@ type BindUnmarshaler interface {
 }
 
 // BindPathParams binds path params to bindable object
-func BindPathParams(c Context, i interface{}) error {
+func BindPathParams(c *Context, i interface{}) error {
 	params := map[string][]string{}
 	for _, param := range c.PathParams() {
 		params[param.Name] = []string{param.Value}
@@ -40,7 +40,7 @@ func BindPathParams(c Context, i interface{}) error {
 }
 
 // BindQueryParams binds query params to bindable object
-func BindQueryParams(c Context, i interface{}) error {
+func BindQueryParams(c *Context, i interface{}) error {
 	if err := bindData(i, c.QueryParams(), "query"); err != nil {
 		return NewHTTPErrorWithInternal(http.StatusBadRequest, err, err.Error())
 	}
@@ -52,7 +52,7 @@ func BindQueryParams(c Context, i interface{}) error {
 // which parses form data from BOTH URL and BODY if content type is not MIMEMultipartForm
 // See non-MIMEMultipartForm: https://golang.org/pkg/net/http/#Request.ParseForm
 // See MIMEMultipartForm: https://golang.org/pkg/net/http/#Request.ParseMultipartForm
-func BindBody(c Context, i interface{}) (err error) {
+func BindBody(c *Context, i interface{}) (err error) {
 	req := c.Request()
 	if req.ContentLength == 0 {
 		return
@@ -93,7 +93,7 @@ func BindBody(c Context, i interface{}) (err error) {
 }
 
 // BindHeaders binds HTTP headers to a bindable object
-func BindHeaders(c Context, i interface{}) error {
+func BindHeaders(c *Context, i interface{}) error {
 	if err := bindData(i, c.Request().Header, "header"); err != nil {
 		return NewHTTPErrorWithInternal(http.StatusBadRequest, err, err.Error())
 	}
@@ -103,7 +103,7 @@ func BindHeaders(c Context, i interface{}) error {
 // Bind implements the `Binder#Bind` function.
 // Binding is done in following order: 1) path params; 2) query params; 3) request body. Each step COULD override previous
 // step bound values. For single source binding use their own methods BindBody, BindQueryParams, BindPathParams.
-func (b *DefaultBinder) Bind(c Context, i interface{}) (err error) {
+func (b *DefaultBinder) Bind(c *Context, i interface{}) (err error) {
 	if err := BindPathParams(c, i); err != nil {
 		return err
 	}
