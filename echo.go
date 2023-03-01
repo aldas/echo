@@ -51,6 +51,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 // Echo is the top-level framework instance.
@@ -71,7 +72,7 @@ type Echo struct {
 	contextPool sync.Pool
 	// contextPathParamAllocSize holds maximum parameter count for all added routes. This is necessary info at context
 	// creation moment so we can allocate path parameter values slice with correct size.
-	contextPathParamAllocSize int
+	contextPathParamAllocSize atomic.Uint32
 
 	Debug            bool
 	HTTPErrorHandler HTTPErrorHandler
@@ -265,7 +266,7 @@ func New() *Echo {
 // Note: both request and response can be left to nil as Echo.ServeHTTP will call c.Reset(req,resp) anyway
 // these arguments are useful when creating context for tests and cases like that.
 func (e *Echo) NewContext(r *http.Request, w http.ResponseWriter) *Context {
-	c := NewContext(e, e.contextPathParamAllocSize)
+	c := NewContext(e, e.contextPathParamAllocSize.Load())
 	c.SetRequest(r)
 	c.SetResponse(NewResponse(w, e))
 	return c
@@ -295,11 +296,16 @@ func (e *Echo) RouterFor(host string) (Router, bool) {
 }
 
 // ResetRouterCreator resets callback for creating new router instances.
-// Note: current (default) router is immediately replaced with router created with creator func and vhost routers are cleared.
+// Note: current (default) router is immediately replaced with router created with creator func and vhost routers are
+// recreated. All already registered routes are lost.
 func (e *Echo) ResetRouterCreator(creator func(e *Echo) Router) {
 	e.routerCreator = creator
 	e.router = creator(e)
+
 	e.routers = make(map[string]Router)
+	for host, _ := range e.routers {
+		e.routers[host] = creator(e)
+	}
 }
 
 // DefaultHTTPErrorHandler creates new default HTTP error handler implementation. It sends a JSON response
@@ -352,11 +358,16 @@ func DefaultHTTPErrorHandler(exposeError bool) HTTPErrorHandler {
 
 // Pre adds middleware to the chain which is run before router tries to find matching route.
 // Meaning middleware is executed even for 404 (not found) cases.
+//
+// * Pre middlewares MUST not replace echo.Context it received, when calling next middleware/handler
+// * This method is NOT go-routine safe
 func (e *Echo) Pre(middleware ...MiddlewareFunc) {
 	e.premiddleware = append(e.premiddleware, middleware...)
 }
 
 // Use adds middleware to the chain which is run after router has found matching route and before route/request handler method is executed.
+//
+// * This method is NOT go-routine safe
 func (e *Echo) Use(middleware ...MiddlewareFunc) {
 	e.middleware = append(e.middleware, middleware...)
 }
@@ -567,9 +578,9 @@ func (e *Echo) add(host string, route Routable) (RouteInfo, error) {
 		return nil, err
 	}
 
-	paramsCount := len(ri.Params())
-	if paramsCount > e.contextPathParamAllocSize {
-		e.contextPathParamAllocSize = paramsCount
+	paramsCount := uint32(len(ri.Params()))
+	if paramsCount > e.contextPathParamAllocSize.Load() {
+		e.contextPathParamAllocSize.Store(paramsCount)
 	}
 	return ri, nil
 }
@@ -594,6 +605,8 @@ func (e *Echo) Add(method, path string, handler HandlerFunc, middleware ...Middl
 }
 
 // Host creates a new router group for the provided host and optional host-level middleware.
+//
+// * This method is NOT go-routine safe
 func (e *Echo) Host(name string, m ...MiddlewareFunc) (g *Group) {
 	e.routers[name] = e.routerCreator(e)
 	g = &Group{host: name, echo: e}

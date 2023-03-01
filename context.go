@@ -249,7 +249,7 @@ type Context struct {
 // NewContext creates new instance of Context.
 // Argument pathParamAllocSize must be value that is stored in Echo.contextPathParamAllocSize field and is used
 // to preallocate PathParams slice.
-func NewContext(e *Echo, pathParamAllocSize int) *Context {
+func NewContext(e *Echo, pathParamAllocSize uint32) *Context {
 	p := make(PathParams, pathParamAllocSize)
 	return &Context{
 		pathParams: &p,

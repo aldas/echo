@@ -905,7 +905,7 @@ func TestRouterOptionsMethodHandler(t *testing.T) {
 
 func TestRouterHandleMethodOptions(t *testing.T) {
 	e := New()
-	e.contextPathParamAllocSize = 1
+	e.contextPathParamAllocSize.Store(1)
 	r := e.router
 
 	r.Add(Route{Method: http.MethodGet, Path: "/users", Handler: handlerFunc})
@@ -3059,7 +3059,7 @@ func TestDefaultRouter_UnescapePathParamValues(t *testing.T) {
 			e := New()
 			router := NewRouter(RouterConfig{UnescapePathParamValues: tc.givenUnescapePathParamValues})
 			e.router = router
-			e.contextPathParamAllocSize = 2
+			e.contextPathParamAllocSize.Store(2)
 
 			_, err := router.Add(Route{Method: http.MethodGet, Path: "/first/:raw", Handler: handlerFunc})
 			assert.NoError(t, err)
@@ -3159,7 +3159,7 @@ func TestDefaultRouter_UseEscapedPathForRouting(t *testing.T) {
 			e := New()
 			router := NewRouter(RouterConfig{UseEscapedPathForMatching: !tc.givenDoNotUseEscapedPathForRouting})
 			e.router = router
-			e.contextPathParamAllocSize = 1
+			e.contextPathParamAllocSize.Store(1)
 
 			ri, err := router.Add(Route{
 				Method: http.MethodGet,
@@ -3313,7 +3313,7 @@ func TestRouter_RouteWhenNotFoundRouteAnyKind(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			e := New()
-			e.contextPathParamAllocSize = 1
+			e.contextPathParamAllocSize.Store(1)
 			r := e.router
 
 			r.Add(Route{Method: http.MethodGet, Path: "/", Handler: handlerHelper("ID", 0), Name: "0"})
@@ -3382,7 +3382,7 @@ func TestRouter_RouteWhenNotFoundRouteParamKind(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			e := New()
-			e.contextPathParamAllocSize = 1
+			e.contextPathParamAllocSize.Store(1)
 			r := e.router
 
 			r.Add(Route{Method: http.MethodGet, Path: "/", Handler: handlerHelper("ID", 0), Name: "0"})
@@ -3438,7 +3438,7 @@ func TestRouter_RouteWhenNotFoundRouteStaticKind(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			e := New()
-			e.contextPathParamAllocSize = 1
+			e.contextPathParamAllocSize.Store(1)
 			r := e.router
 
 			r.Add(Route{Method: http.MethodPut, Path: "/", Handler: handlerHelper("ID", 0), Name: "0"})

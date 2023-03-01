@@ -646,13 +646,13 @@ func TestContext_SetParamNamesShouldNotModifyPathParams(t *testing.T) {
 	e := New()
 	c := e.NewContext(nil, nil)
 
-	assert.Equal(t, 0, e.contextPathParamAllocSize)
+	assert.Equal(t, uint32(0), e.contextPathParamAllocSize.Load())
 	expectedTwoParams := &PathParams{
 		{Name: "1", Value: "one"},
 		{Name: "2", Value: "two"},
 	}
 	c.SetRawPathParams(expectedTwoParams)
-	assert.Equal(t, 0, e.contextPathParamAllocSize)
+	assert.Equal(t, uint32(0), e.contextPathParamAllocSize.Load())
 	assert.Equal(t, *expectedTwoParams, c.PathParams())
 
 	expectedThreeParams := PathParams{
@@ -661,7 +661,7 @@ func TestContext_SetParamNamesShouldNotModifyPathParams(t *testing.T) {
 		{Name: "3", Value: "three"},
 	}
 	c.SetPathParams(expectedThreeParams)
-	assert.Equal(t, 0, e.contextPathParamAllocSize)
+	assert.Equal(t, uint32(0), e.contextPathParamAllocSize.Load())
 	assert.Equal(t, expectedThreeParams, c.PathParams())
 }
 
