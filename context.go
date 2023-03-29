@@ -235,15 +235,15 @@ type Context struct {
 	path  string
 
 	// pathParams holds path/uri parameters determined by Router. Lifecycle is handled by Echo to reduce allocations.
-	pathParams *PathParams
-	// currentParams hold path parameters set by non-Echo implementation (custom middlewares, handlers) during the lifetime of the Request.
-	// Lifecycle is not handle by Echo and could have excess allocations per served Request
-	currentParams PathParams
+	// Middlewares and handler should not mutate this slice size
+	pathParams         PathParams
+	pathParamAllocSize uint32
 
 	query url.Values
-	store Map
 	echo  *Echo
-	lock  sync.RWMutex
+
+	store   Map
+	storeMu sync.RWMutex
 }
 
 // NewContext creates new instance of Context.
@@ -252,9 +252,10 @@ type Context struct {
 func NewContext(e *Echo, pathParamAllocSize uint32) *Context {
 	p := make(PathParams, pathParamAllocSize)
 	return &Context{
-		pathParams: &p,
-		store:      make(Map),
-		echo:       e,
+		pathParams:         p,
+		pathParamAllocSize: pathParamAllocSize,
+		store:              make(Map),
+		echo:               e,
 	}
 }
 
@@ -269,9 +270,16 @@ func (c *Context) Reset(r *http.Request, w http.ResponseWriter) {
 
 	c.route = nil
 	c.path = ""
-	// NOTE: Don't reset because it has to have length of c.echo.contextPathParamAllocSize at all times
-	*c.pathParams = (*c.pathParams)[:0]
-	c.currentParams = nil
+
+	currentCap := cap(c.pathParams)
+	if uint32(currentCap) < c.pathParamAllocSize {
+		// something other than Router has changed pathParams capacity (to smaller). This could cause Router to panic when
+		// it tries to fill param values so for safety restore slice with correct capacity.
+		c.pathParams = make(PathParams, 0, c.pathParamAllocSize)
+	} else {
+		// NOTE: Don't reset to nil because it has to have capacity of c.echo.contextPathParamAllocSize at all times
+		c.pathParams = (c.pathParams)[:0]
+	}
 }
 
 func (c *Context) writeContentType(value string) {
@@ -382,26 +390,8 @@ func (c *Context) SetRouteInfo(ri RouteInfo) {
 	c.route = ri
 }
 
-// RawPathParams returns raw path pathParams value. Allocation of PathParams is handled by Context.
-func (c *Context) RawPathParams() *PathParams {
-	return c.pathParams
-}
-
-// SetRawPathParams replaces any existing param values with new values for this context lifetime (request).
-//
-// DO NOT USE!
-// Do not set any other value than what you got from RawPathParams as allocation of PathParams is handled by Context.
-// If you mess up size of pathParams size your application will panic/crash during routing
-func (c *Context) SetRawPathParams(params *PathParams) {
-	c.pathParams = params
-}
-
 // PathParam returns path parameter by name.
 func (c *Context) PathParam(name string) string {
-	if c.currentParams != nil {
-		return c.currentParams.Get(name, "")
-	}
-
 	return c.pathParams.Get(name, "")
 }
 
@@ -412,21 +402,20 @@ func (c *Context) PathParamDefault(name, defaultValue string) string {
 
 // PathParams returns path parameter values.
 func (c *Context) PathParams() PathParams {
-	if c.currentParams != nil {
-		return c.currentParams
-	}
-
-	result := make(PathParams, len(*c.pathParams))
-	copy(result, *c.pathParams)
-	return result
+	return c.pathParams
 }
 
 // SetPathParams sets path parameters for current request.
+//
+// This method is intended for Router to populate PathParams when routing is done. Middlewares and handlers should not
+// use this method.
 func (c *Context) SetPathParams(params PathParams) {
-	c.currentParams = params
+	c.pathParams = params
 }
 
 // QueryParam returns the query param for the provided name.
+//
+// NB: Not safe for concurrent use!
 func (c *Context) QueryParam(name string) string {
 	if c.query == nil {
 		c.query = c.request.URL.Query()
@@ -520,15 +509,15 @@ func (c *Context) Cookies() []*http.Cookie {
 
 // Get retrieves data from the context.
 func (c *Context) Get(key string) interface{} {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
+	c.storeMu.RLock()
+	defer c.storeMu.RUnlock()
 	return c.store[key]
 }
 
 // Set saves data in the context.
 func (c *Context) Set(key string, val interface{}) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	c.storeMu.Lock()
+	defer c.storeMu.Unlock()
 
 	if c.store == nil {
 		c.store = make(Map)

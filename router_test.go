@@ -679,8 +679,8 @@ func TestRouterStatic(t *testing.T) {
 	_ = e.router.Route(c)
 
 	assert.Equal(t, path, c.Path())
-	assert.Equal(t, 0, cap(*c.pathParams))
-	assert.Len(t, *c.pathParams, 0)
+	assert.Equal(t, 0, cap(c.pathParams))
+	assert.Len(t, c.pathParams, 0)
 }
 
 func TestRouterParam(t *testing.T) {

@@ -38,12 +38,12 @@ type RoutableContext interface {
 	// Request returns `*http.Request`.
 	Request() *http.Request
 
-	// RawPathParams returns raw path pathParams value. Allocation of PathParams is handled by Context.
-	RawPathParams() *PathParams
+	// PathParams returns path pathParams value. Allocation of PathParams is handled by Context.
+	PathParams() PathParams
 
-	// SetRawPathParams replaces any existing param values with new values for this context lifetime (request).
+	// SetPathParams replaces any existing param values with new values for this context lifetime (request).
 	// Do not set any other value than what you got from RawPathParams as allocation of PathParams is handled by Context.
-	SetRawPathParams(params *PathParams)
+	SetPathParams(params PathParams)
 
 	// SetPath sets the registered path for the handler.
 	SetPath(p string)
@@ -51,7 +51,7 @@ type RoutableContext interface {
 	// SetRouteInfo sets the route info of this request to the context.
 	SetRouteInfo(ri RouteInfo)
 
-	// Set saves data in the context. Allows router to store arbitrary (that only router has access to) data in context
+	// Set saves data in the context. Allows router to store arbitrary (router specific) data in context
 	// for later use in middlewares/handler.
 	Set(key string, val interface{})
 }
@@ -828,8 +828,8 @@ var optionsMethodHandler = func(c *Context) error {
 // - Reset it `Context#Reset()`
 // - Return it `Echo#ReleaseContext()`.
 func (r *DefaultRouter) Route(c RoutableContext) HandlerFunc {
-	pathParams := c.RawPathParams()
-	*pathParams = (*pathParams)[0:cap(*pathParams)]
+	pathParams := c.PathParams()
+	pathParams = (pathParams)[0:cap(pathParams)]
 
 	req := c.Request()
 	path := req.URL.Path
@@ -879,8 +879,8 @@ func (r *DefaultRouter) Route(c RoutableContext) HandlerFunc {
 			paramIndex--
 			// for param/any node.prefix value is always `:` so we can not deduce searchIndex from that and must use pValue
 			// for that index as it would also contain part of path we cut off before moving into node we are backtracking from
-			searchIndex -= len((*pathParams)[paramIndex].Value)
-			(*pathParams)[paramIndex].Value = ""
+			searchIndex -= len((pathParams)[paramIndex].Value)
+			(pathParams)[paramIndex].Value = ""
 		}
 		search = path[searchIndex:]
 		return
@@ -972,7 +972,7 @@ func (r *DefaultRouter) Route(c RoutableContext) HandlerFunc {
 				}
 			}
 
-			(*pathParams)[paramIndex].Value = search[:i]
+			(pathParams)[paramIndex].Value = search[:i]
 			paramIndex++
 			search = search[i:]
 			searchIndex = searchIndex + i
@@ -984,7 +984,7 @@ func (r *DefaultRouter) Route(c RoutableContext) HandlerFunc {
 		if child := currentNode.anyChild; child != nil {
 			// If any node is found, use remaining path for paramValues
 			currentNode = child
-			(*pathParams)[currentNode.paramsCount-1].Value = search
+			(pathParams)[currentNode.paramsCount-1].Value = search
 			// update indexes/search in case we need to backtrack when no handler match is found
 			paramIndex++
 			searchIndex += +len(search)
@@ -1019,9 +1019,9 @@ func (r *DefaultRouter) Route(c RoutableContext) HandlerFunc {
 	}
 
 	if currentNode == nil && previousBestMatchNode == nil {
-		*pathParams = (*pathParams)[0:0]
+		pathParams = (pathParams)[0:0]
 
-		c.SetRawPathParams(pathParams)
+		c.SetPathParams(pathParams)
 		c.SetPath("")
 		c.SetRouteInfo(notFoundRouteInfo)
 		return r.notFoundHandler // nothing matched at all with given path
@@ -1060,23 +1060,23 @@ func (r *DefaultRouter) Route(c RoutableContext) HandlerFunc {
 	c.SetPath(rPath)
 	c.SetRouteInfo(rInfo)
 
-	*pathParams = (*pathParams)[0:currentNode.paramsCount]
+	pathParams = (pathParams)[0:currentNode.paramsCount]
 	if matchedRouteMethod != nil {
 		for i, name := range matchedRouteMethod.params {
-			(*pathParams)[i].Name = name
+			(pathParams)[i].Name = name
 		}
 	}
 
 	if r.unescapePathParamValues && currentNode.kind != staticKind {
 		// See issue #1531, #1258 - there are cases when path parameter need to be unescaped
-		for i, p := range *pathParams {
+		for i, p := range pathParams {
 			tmpVal, err := url.PathUnescape(p.Value)
 			if err == nil { // handle problems by ignoring them.
-				(*pathParams)[i].Value = tmpVal
+				(pathParams)[i].Value = tmpVal
 			}
 		}
 	}
-	c.SetRawPathParams(pathParams)
+	c.SetPathParams(pathParams)
 
 	return rHandler
 }
