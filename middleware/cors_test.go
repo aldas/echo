@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package middleware
 
 import (
@@ -54,6 +57,59 @@ func TestCORS(t *testing.T) {
 				echo.HeaderContentType: echo.MIMEApplicationJSON,
 			},
 			expectHeaders: map[string]string{
+				echo.HeaderAccessControlAllowOrigin:      "localhost",
+				echo.HeaderAccessControlAllowMethods:     "GET,HEAD,PUT,PATCH,POST,DELETE",
+				echo.HeaderAccessControlAllowCredentials: "true",
+				echo.HeaderAccessControlMaxAge:           "3600",
+			},
+		},
+		{
+			name: "ok, preflight request when `Access-Control-Max-Age` is set",
+			givenMW: CORSWithConfig(CORSConfig{
+				AllowOrigins:     []string{"localhost"},
+				AllowCredentials: true,
+				MaxAge:           1,
+			}),
+			whenMethod: http.MethodOptions,
+			whenHeaders: map[string]string{
+				echo.HeaderOrigin:      "localhost",
+				echo.HeaderContentType: echo.MIMEApplicationJSON,
+			},
+			expectHeaders: map[string]string{
+				echo.HeaderAccessControlMaxAge: "1",
+			},
+		},
+		{
+			name: "ok, preflight request when `Access-Control-Max-Age` is set to 0 - not to cache response",
+			givenMW: CORSWithConfig(CORSConfig{
+				AllowOrigins:     []string{"localhost"},
+				AllowCredentials: true,
+				MaxAge:           -1, // forces `Access-Control-Max-Age: 0`
+			}),
+			whenMethod: http.MethodOptions,
+			whenHeaders: map[string]string{
+				echo.HeaderOrigin:      "localhost",
+				echo.HeaderContentType: echo.MIMEApplicationJSON,
+			},
+			expectHeaders: map[string]string{
+				echo.HeaderAccessControlMaxAge: "0",
+			},
+		},
+		{
+			name: "ok, CORS check are skipped",
+			givenMW: CORSWithConfig(CORSConfig{
+				AllowOrigins:     []string{"localhost"},
+				AllowCredentials: true,
+				Skipper: func(c echo.Context) bool {
+					return true
+				},
+			}),
+			whenMethod: http.MethodOptions,
+			whenHeaders: map[string]string{
+				echo.HeaderOrigin:      "localhost",
+				echo.HeaderContentType: echo.MIMEApplicationJSON,
+			},
+			notExpectHeaders: map[string]string{
 				echo.HeaderAccessControlAllowOrigin:      "localhost",
 				echo.HeaderAccessControlAllowMethods:     "GET,HEAD,PUT,PATCH,POST,DELETE",
 				echo.HeaderAccessControlAllowCredentials: "true",
@@ -195,6 +251,16 @@ func TestCORS(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCORSInvalidAllowOriginsPattern(t *testing.T) {
+	_, err := CORSConfig{
+		AllowOrigins: []string{
+			"\xff", // Invalid UTF-8 makes regexp.Compile to error
+			"*.example.com",
+		},
+	}.ToMiddleware()
+	assert.EqualError(t, err, "invalid AllowOrigins pattern for CORS middleware, err: error parsing regexp: invalid UTF-8: `\xff$`")
 }
 
 func Test_allowOriginScheme(t *testing.T) {

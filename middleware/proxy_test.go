@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package middleware
 
 import (
@@ -145,7 +148,7 @@ func TestProxyRealIPHeader(t *testing.T) {
 	tests := []*struct {
 		hasRealIPheader bool
 		hasIPExtractor  bool
-		extectedXRealIP string
+		expectedXRealIP string
 	}{
 		{false, false, remoteAddrIP},
 		{false, true, extractedRealIP},
@@ -167,7 +170,7 @@ func TestProxyRealIPHeader(t *testing.T) {
 			e.IPExtractor = nil
 		}
 		e.ServeHTTP(rec, req)
-		assert.Equal(t, tt.extectedXRealIP, req.Header.Get(echo.HeaderXRealIP), "hasRealIPheader: %t / hasIPExtractor: %t", tt.hasRealIPheader, tt.hasIPExtractor)
+		assert.Equal(t, tt.expectedXRealIP, req.Header.Get(echo.HeaderXRealIP), "hasRealIPheader: %t / hasIPExtractor: %t", tt.hasRealIPheader, tt.hasIPExtractor)
 	}
 }
 
@@ -765,4 +768,58 @@ func TestProxyErrorHandler(t *testing.T) {
 
 		})
 	}
+}
+
+type testContextKey string
+type customBalancer struct {
+	target *ProxyTarget
+}
+
+func (b *customBalancer) AddTarget(target *ProxyTarget) bool {
+	return false
+}
+func (b *customBalancer) RemoveTarget(name string) bool {
+	return false
+}
+
+func (b *customBalancer) Next(c echo.Context) (*ProxyTarget, error) {
+	ctx := context.WithValue(c.Request().Context(), testContextKey("FROM_BALANCER"), "CUSTOM_BALANCER")
+	c.SetRequest(c.Request().WithContext(ctx))
+	return b.target, nil
+}
+
+func TestModifyResponseUseContext(t *testing.T) {
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("OK"))
+		}),
+	)
+	defer server.Close()
+	targetURL, _ := url.Parse(server.URL)
+	e := echo.New()
+	e.Use(ProxyWithConfig(
+		ProxyConfig{
+			Balancer: &customBalancer{
+				target: &ProxyTarget{
+					Name: "tst",
+					URL:  targetURL,
+				},
+			},
+			RetryCount: 1,
+			ModifyResponse: func(res *http.Response) error {
+				val := res.Request.Context().Value(testContextKey("FROM_BALANCER"))
+				if valStr, ok := val.(string); ok {
+					res.Header.Set("FROM_BALANCER", valStr)
+				}
+				return nil
+			},
+		},
+	))
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "OK", rec.Body.String())
+	assert.Equal(t, "CUSTOM_BALANCER", rec.Header().Get("FROM_BALANCER"))
 }

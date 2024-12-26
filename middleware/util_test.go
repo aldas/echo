@@ -1,23 +1,21 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package middleware
 
 import (
+	"context"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"io"
+	"log/slog"
 	"testing"
 )
 
-type testLogger struct {
-	output io.Writer
+type discardHandler struct {
+	slog.JSONHandler
 }
 
-func (l *testLogger) Write(p []byte) (n int, err error) {
-	return l.output.Write(p)
-}
-
-func (l *testLogger) Error(err error) {
-	_, _ = l.output.Write([]byte(err.Error()))
-}
+func (d *discardHandler) Enabled(context.Context, slog.Level) bool { return false }
 
 func Test_matchScheme(t *testing.T) {
 	tests := []struct {

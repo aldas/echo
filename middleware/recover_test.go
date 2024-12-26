@@ -1,7 +1,11 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package middleware
 
 import (
 	"bytes"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,7 +17,7 @@ import (
 func TestRecover(t *testing.T) {
 	e := echo.New()
 	buf := new(bytes.Buffer)
-	e.Logger = &testLogger{output: buf}
+	e.Logger = slog.New(&discardHandler{})
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package middleware
 
 import (
@@ -95,6 +98,12 @@ func randomString(length uint8) string {
 	b := make([]byte, length)
 	r := make([]byte, length+(length/4)) // perf: avoid read from rand.Reader many times
 	var i uint8 = 0
+
+	// security note:
+	// we can't just simply do b[i]=randomStringCharset[rb%len(randomStringCharset)],
+	// len(len(randomStringCharset)) is 52, and rb is [0, 255], 256 = 52 * 4 + 48.
+	// make the first 48 characters more possibly to be generated then others.
+	// So we have to skip bytes when rb > randomStringMaxByt
 
 	for {
 		_, err := io.ReadFull(reader, r)

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package echo
 
 import (
@@ -18,8 +21,8 @@ func mustParseCIDR(s string) *net.IPNet {
 func TestIPChecker_TrustOption(t *testing.T) {
 	var testCases = []struct {
 		name         string
-		givenOptions []TrustOption
 		whenIP       string
+		givenOptions []TrustOption
 		expect       bool
 	}{
 		{
@@ -462,10 +465,10 @@ func TestExtractIPFromRealIPHeader(t *testing.T) {
 	_, ipv6ForRemoteAddrExternalRange, _ := net.ParseCIDR("2001:db8::/64")
 
 	var testCases = []struct {
-		name              string
-		givenTrustOptions []TrustOption
 		whenRequest       http.Request
+		name              string
 		expectIP          string
+		givenTrustOptions []TrustOption
 	}{
 		{
 			name: "request has no headers, extracts IP from request remote addr",
@@ -573,10 +576,10 @@ func TestExtractIPFromXFFHeader(t *testing.T) {
 	_, ipv6ForRemoteAddrExternalRange, _ := net.ParseCIDR("2001:db8::/64")
 
 	var testCases = []struct {
-		name              string
-		givenTrustOptions []TrustOption
 		whenRequest       http.Request
+		name              string
 		expectIP          string
+		givenTrustOptions []TrustOption
 	}{
 		{
 			name: "request has no headers, extracts IP from request remote addr",

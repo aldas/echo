@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package echo
 
 import (
@@ -117,13 +120,11 @@ type PathParam struct {
 // request matching and URL path parameter parsing.
 // Note: DefaultRouter is not coroutine-safe. Do not Add/Remove routes after HTTP server has been started with Echo.
 type DefaultRouter struct {
-	tree   *node
-	routes Routes
-
-	notFoundHandler         HandlerFunc
-	methodNotAllowedHandler HandlerFunc
-	optionsMethodHandler    HandlerFunc
-
+	tree                     *node
+	notFoundHandler          HandlerFunc
+	methodNotAllowedHandler  HandlerFunc
+	optionsMethodHandler     HandlerFunc
+	routes                   Routes
 	allowOverwritingRoute    bool
 	unescapePathParamValues  bool
 	useEscapedPathForRouting bool
@@ -131,23 +132,12 @@ type DefaultRouter struct {
 
 // RouterConfig is configuration options for (default) router
 type RouterConfig struct {
-	// AllowOverwritingRoute instructs Router NOT to return error when new route is registered with the same method+path
-	// and replaces matching route with the new one.
-	AllowOverwritingRoute bool
-	// UnescapePathParamValues instructs Router to unescape path parameter value when request if matched to the routes
-	UnescapePathParamValues bool
-	// UseEscapedPathForMatching instructs Router to use escaped request URL path (req.URL.Path) for matching the request.
+	NotFoundHandler           HandlerFunc
+	MethodNotAllowedHandler   HandlerFunc
+	OptionsMethodHandler      HandlerFunc
+	AllowOverwritingRoute     bool
+	UnescapePathParamValues   bool
 	UseEscapedPathForMatching bool
-
-	// NotFoundHandler sets handler for case when router did not match any routes to the request path. HTTP error 404 (not found)
-	NotFoundHandler HandlerFunc
-	// MethodNotAllowedHandler sets handler for case when router did match router with path but not with current request
-	// method. HTTP error 405 (method not allowed)
-	MethodNotAllowedHandler HandlerFunc
-	// OptionsMethodHandler sets handler for OPTIONS method. This has lower priority than handler set by `e.OPTIONS(path, ...)`
-	// When `CORS` middleware is used this handler will not be called as `CORS` will terminate in case of OPTIONS method
-	// middleware chain and actual handler will not be called.
-	OptionsMethodHandler HandlerFunc
 }
 
 // NewRouter returns a new Router instance.
@@ -183,20 +173,18 @@ func NewRouter(config RouterConfig) *DefaultRouter {
 type children []*node
 
 type node struct {
-	kind           kind
-	label          byte
-	prefix         string
 	parent         *node
-	staticChildren children
-	originalPath   string
 	methods        *routeMethods
 	paramChild     *node
 	anyChild       *node
+	prefix         string
+	originalPath   string
+	staticChildren children
 	paramsCount    int
-	// isLeaf indicates that node does not have child routes
-	isLeaf bool
-	// isHandler indicates that node has at least one handler registered to it
-	isHandler bool
+	kind           kind
+	label          byte
+	isLeaf         bool
+	isHandler      bool
 }
 
 type kind uint8
@@ -481,9 +469,9 @@ func (r *DefaultRouter) Remove(method string, path string) error {
 // AddRouteError is error returned by Router.Add containing information what actual route adding failed. Useful for
 // mass adding (i.e. Any() routes)
 type AddRouteError struct {
+	Err    error
 	Method string
 	Path   string
-	Err    error
 }
 
 func (e *AddRouteError) Error() string { return e.Method + " " + e.Path + ": " + e.Err.Error() }
@@ -505,7 +493,8 @@ func (r *DefaultRouter) Add(routable Routable) (RouteInfo, error) {
 		return nil, newAddRouteError(route, errors.New("adding route without handler function"))
 	}
 	method := route.Method
-	path := route.Path
+	path := normalizePathSlash(route.Path)
+
 	h := applyMiddleware(route.Handler, route.Middlewares...)
 	if !r.allowOverwritingRoute {
 		for _, rr := range r.routes {
@@ -515,12 +504,6 @@ func (r *DefaultRouter) Add(routable Routable) (RouteInfo, error) {
 		}
 	}
 
-	if path == "" {
-		path = "/"
-	}
-	if path[0] != '/' {
-		path = "/" + path
-	}
 	paramNames := make([]string, 0)
 	originalPath := path
 	wasAdded := false
@@ -585,6 +568,15 @@ func (r *DefaultRouter) Add(routable Routable) (RouteInfo, error) {
 	r.storeRouteInfo(ri)
 
 	return ri, nil
+}
+
+func normalizePathSlash(path string) string {
+	if path == "" {
+		path = "/"
+	} else if path[0] != '/' {
+		path = "/" + path
+	}
+	return path
 }
 
 func (r *DefaultRouter) storeRouteInfo(ri RouteInfo) {

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package echo
 
 import (
@@ -31,7 +34,7 @@ func TestDefaultJSONCodec_Encode(t *testing.T) {
 
 	enc := new(DefaultJSONSerializer)
 
-	err := enc.Serialize(c, user{1, "Jon Snow"}, "")
+	err := enc.Serialize(c, user{ID: 1, Name: "Jon Snow"}, "")
 	if assert.NoError(t, err) {
 		assert.Equal(t, userJSON+"\n", rec.Body.String())
 	}
@@ -39,7 +42,7 @@ func TestDefaultJSONCodec_Encode(t *testing.T) {
 	req = httptest.NewRequest(http.MethodPost, "/", nil)
 	rec = httptest.NewRecorder()
 	c = e.NewContext(req, rec).(*DefaultContext)
-	err = enc.Serialize(c, user{1, "Jon Snow"}, "  ")
+	err = enc.Serialize(c, user{ID: 1, Name: "Jon Snow"}, "  ")
 	if assert.NoError(t, err) {
 		assert.Equal(t, userJSONPretty+"\n", rec.Body.String())
 	}

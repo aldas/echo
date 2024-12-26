@@ -1,6 +1,10 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package middleware
 
 import (
+	"fmt"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -98,8 +102,9 @@ type CORSConfig struct {
 	// MaxAge determines the value of the Access-Control-Max-Age response header.
 	// This header indicates how long (in seconds) the results of a preflight
 	// request can be cached.
+	// The header is set only if MaxAge != 0, negative value sends "0" which instructs browsers not to cache that response.
 	//
-	// Optional. Default value 0.  The header is set only if MaxAge > 0.
+	// Optional. Default value 0 - meaning header is not sent.
 	//
 	// See also: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Max-Age
 	MaxAge int
@@ -148,19 +153,31 @@ func (config CORSConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 		config.AllowMethods = DefaultCORSConfig.AllowMethods
 	}
 
-	allowOriginPatterns := []string{}
+	allowOriginPatterns := make([]*regexp.Regexp, 0, len(config.AllowOrigins))
 	for _, origin := range config.AllowOrigins {
+		if origin == "*" {
+			continue // "*" is handled differently and does not need regexp
+		}
 		pattern := regexp.QuoteMeta(origin)
 		pattern = strings.ReplaceAll(pattern, "\\*", ".*")
 		pattern = strings.ReplaceAll(pattern, "\\?", ".")
 		pattern = "^" + pattern + "$"
-		allowOriginPatterns = append(allowOriginPatterns, pattern)
+
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			return nil, fmt.Errorf("invalid AllowOrigins pattern for CORS middleware, err: %w", err)
+		}
+		allowOriginPatterns = append(allowOriginPatterns, re)
 	}
 
 	allowMethods := strings.Join(config.AllowMethods, ",")
 	allowHeaders := strings.Join(config.AllowHeaders, ",")
 	exposeHeaders := strings.Join(config.ExposeHeaders, ",")
-	maxAge := strconv.Itoa(config.MaxAge)
+
+	maxAge := "0"
+	if config.MaxAge > 0 {
+		maxAge = strconv.Itoa(config.MaxAge)
+	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
@@ -236,7 +253,7 @@ func (config CORSConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 				}
 				if checkPatterns {
 					for _, re := range allowOriginPatterns {
-						if match, _ := regexp.MatchString(re, origin); match {
+						if match := re.MatchString(origin); match {
 							allowOrigin = origin
 							break
 						}
@@ -283,7 +300,7 @@ func (config CORSConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 					res.Header().Set(echo.HeaderAccessControlAllowHeaders, h)
 				}
 			}
-			if config.MaxAge > 0 {
+			if config.MaxAge != 0 {
 				res.Header().Set(echo.HeaderAccessControlMaxAge, maxAge)
 			}
 			return c.NoContent(http.StatusNoContent)

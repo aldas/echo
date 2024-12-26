@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package echo
 
 import (
@@ -11,6 +14,7 @@ import (
 	"golang.org/x/net/http2"
 	"io"
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -129,9 +133,9 @@ func TestStartConfig_Start(t *testing.T) {
 func TestStartConfig_GracefulShutdown(t *testing.T) {
 	var testCases = []struct {
 		name                   string
-		whenHandlerTakesLonger bool
 		expectBody             string
 		expectGracefulError    string
+		whenHandlerTakesLonger bool
 	}{
 		{
 			name:                   "ok, all handlers returns before graceful shutdown deadline",
@@ -432,10 +436,10 @@ func TestFilepathOrContent(t *testing.T) {
 	require.NoError(t, err)
 
 	testCases := []struct {
-		name        string
 		cert        interface{}
 		key         interface{}
 		expectedErr error
+		name        string
 	}{
 		{
 			name:        `ValidCertAndKeyFilePath`,
@@ -602,7 +606,7 @@ func TestStartConfig_WithHideBanner(t *testing.T) {
 			e := New()
 
 			buf := new(bytes.Buffer)
-			e.Logger = &testLogger{output: buf}
+			e.Logger = slog.New(slog.NewTextHandler(buf, nil))
 
 			e.GET("/ok", func(c Context) error {
 				return c.String(http.StatusOK, "OK")
@@ -664,7 +668,7 @@ func TestStartConfig_WithHidePort(t *testing.T) {
 			e := New()
 
 			buf := new(bytes.Buffer)
-			e.Logger = &testLogger{output: buf}
+			e.Logger = slog.New(slog.NewTextHandler(buf, nil))
 
 			e.GET("/ok", func(c Context) error {
 				return c.String(http.StatusOK, "OK")
@@ -695,7 +699,7 @@ func TestStartConfig_WithHidePort(t *testing.T) {
 			}
 			assert.NoError(t, <-errCh)
 
-			contains := strings.Contains(buf.String(), "http(s) server started on")
+			contains := strings.Contains(buf.String(), "http(s) server started")
 			if tc.hidePort {
 				assert.False(t, contains)
 			} else {
@@ -803,20 +807,4 @@ func TestWithDisableHTTP2(t *testing.T) {
 
 		})
 	}
-}
-
-type testLogger struct {
-	output io.Writer
-}
-
-func (l *testLogger) Write(p []byte) (n int, err error) {
-	return l.output.Write(p)
-}
-
-func (l *testLogger) Printf(format string, args ...interface{}) {
-	_, _ = l.output.Write([]byte(fmt.Sprintf(format, args...)))
-}
-
-func (l *testLogger) Error(err error) {
-	_, _ = l.output.Write([]byte(err.Error()))
 }

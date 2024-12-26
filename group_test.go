@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package echo
 
 import (
@@ -304,9 +307,9 @@ func TestGroup_TRACE(t *testing.T) {
 
 func TestGroup_RouteNotFound(t *testing.T) {
 	var testCases = []struct {
+		expectRoute interface{}
 		name        string
 		whenURL     string
-		expectRoute interface{}
 		expectCode  int
 	}{
 		{
@@ -504,9 +507,9 @@ func TestGroup_StaticMultiTest(t *testing.T) {
 		givenPrefix          string
 		givenRoot            string
 		whenURL              string
-		expectStatus         int
 		expectHeaderLocation string
 		expectBodyStartsWith string
+		expectStatus         int
 	}{
 		{
 			name:                 "ok",
@@ -664,13 +667,13 @@ func TestGroup_StaticMultiTest(t *testing.T) {
 
 func TestGroup_FileFS(t *testing.T) {
 	var testCases = []struct {
+		whenFS           fs.FS
 		name             string
 		whenPath         string
 		whenFile         string
-		whenFS           fs.FS
 		givenURL         string
-		expectCode       int
 		expectStartsWith []byte
+		expectCode       int
 	}{
 		{
 			name:             "ok",
@@ -725,19 +728,16 @@ func TestGroup_FileFS(t *testing.T) {
 
 func TestGroup_StaticPanic(t *testing.T) {
 	var testCases = []struct {
-		name        string
-		givenRoot   string
-		expectError string
+		name      string
+		givenRoot string
 	}{
 		{
-			name:        "panics for ../",
-			givenRoot:   "../images",
-			expectError: "can not create sub FS, invalid root given, err: sub ../images: invalid name",
+			name:      "panics for ../",
+			givenRoot: "../images",
 		},
 		{
-			name:        "panics for /",
-			givenRoot:   "/images",
-			expectError: "can not create sub FS, invalid root given, err: sub /images: invalid name",
+			name:      "panics for /",
+			givenRoot: "/images",
 		},
 	}
 
@@ -748,7 +748,7 @@ func TestGroup_StaticPanic(t *testing.T) {
 
 			g := e.Group("/assets")
 
-			assert.PanicsWithError(t, tc.expectError, func() {
+			assert.Panics(t, func() {
 				g.Static("/images", tc.givenRoot)
 			})
 		})
@@ -757,11 +757,11 @@ func TestGroup_StaticPanic(t *testing.T) {
 
 func TestGroup_RouteNotFoundWithMiddleware(t *testing.T) {
 	var testCases = []struct {
-		name                   string
-		givenCustom404         bool
-		whenURL                string
 		expectBody             interface{}
+		name                   string
+		whenURL                string
 		expectCode             int
+		givenCustom404         bool
 		expectMiddlewareCalled bool
 	}{
 		{

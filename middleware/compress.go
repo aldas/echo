@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package middleware
 
 import (
@@ -185,13 +188,16 @@ func (w *gzipResponseWriter) Flush() {
 	}
 
 	w.Writer.(*gzip.Writer).Flush()
-	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
-		flusher.Flush()
-	}
+
+	_ = http.NewResponseController(w.ResponseWriter).Flush()
 }
 
 func (w *gzipResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	return w.ResponseWriter.(http.Hijacker).Hijack()
+	return http.NewResponseController(w.ResponseWriter).Hijack()
+}
+
+func (w *gzipResponseWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
 }
 
 func (w *gzipResponseWriter) Push(target string, opts *http.PushOptions) error {

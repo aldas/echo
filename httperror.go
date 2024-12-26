@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package echo
 
 import (
@@ -30,9 +33,9 @@ var (
 
 // HTTPError represents an error that occurred while handling a request.
 type HTTPError struct {
-	Code     int         `json:"-"`
 	Message  interface{} `json:"message"`
-	Internal error       `json:"-"` // Stores the error returned by an external dependency
+	Internal error       `json:"-"`
+	Code     int         `json:"-"`
 }
 
 // NewHTTPError creates a new HTTPError instance.

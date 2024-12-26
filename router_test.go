@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package echo
 
 import (
@@ -689,10 +692,10 @@ func TestRouterParam(t *testing.T) {
 	e.GET("/users/:id", handlerFunc)
 
 	var testCases = []struct {
-		name        string
-		whenURL     string
 		expectRoute interface{}
 		expectParam map[string]string
+		name        string
+		whenURL     string
 	}{
 		{
 			name:        "route /users/1 to /users/:id",
@@ -726,10 +729,10 @@ func TestRouterParam(t *testing.T) {
 func TestRouter_addAndMatchAllSupportedMethods(t *testing.T) {
 	var testCases = []struct {
 		name            string
-		givenNoAddRoute bool
 		whenMethod      string
 		expectPath      string
 		expectError     string
+		givenNoAddRoute bool
 	}{
 		{name: "ok, CONNECT", whenMethod: http.MethodConnect},
 		{name: "ok, DELETE", whenMethod: http.MethodDelete},
@@ -1036,10 +1039,10 @@ func TestRouterParamWithSlash(t *testing.T) {
 // +--------------+      +---------------+    +---------------+
 func TestRouteMultiLevelBacktracking(t *testing.T) {
 	var testCases = []struct {
-		name        string
-		whenURL     string
 		expectRoute interface{}
 		expectParam map[string]string
+		name        string
+		whenURL     string
 	}{
 		{
 			name:        "route /a/c/df to /a/c/df",
@@ -1126,10 +1129,10 @@ func TestRouteMultiLevelBacktracking2(t *testing.T) {
 	e.GET("/*", handlerFunc)
 
 	var testCases = []struct {
+		expectParam map[string]string
 		name        string
 		whenURL     string
 		expectRoute string
-		expectParam map[string]string
 	}{
 		{
 			name:        "route /a/c/df to /a/c/df",
@@ -1205,10 +1208,10 @@ func TestRouterBacktrackingFromMultipleParamKinds(t *testing.T) {
 	e.GET("/:1/:2/:3/:4/fifth", handlerFunc)
 
 	var testCases = []struct {
+		expectParam map[string]string
 		name        string
 		whenURL     string
 		expectRoute string
-		expectParam map[string]string
 	}{
 		{
 			name:        "route /first to /*",
@@ -1269,9 +1272,9 @@ func TestRouterParamStaticConflict(t *testing.T) {
 	g.GET("/:name", handlerFunc)
 
 	var testCases = []struct {
-		whenURL     string
 		expectRoute interface{}
 		expectParam map[string]string
+		whenURL     string
 	}{
 		{
 			whenURL:     "/g/s",
@@ -1374,9 +1377,9 @@ func TestRouterMatchAny(t *testing.T) {
 	e.GET("/users/*", handlerFunc)
 
 	var testCases = []struct {
-		whenURL     string
 		expectRoute interface{}
 		expectParam map[string]string
+		whenURL     string
 	}{
 		{
 			whenURL:     "/",
@@ -1449,9 +1452,9 @@ func TestRouterMatchAnyPrefixIssue(t *testing.T) {
 	e.GET("/users/*", handlerFunc)
 
 	var testCases = []struct {
-		whenURL     string
 		expectRoute interface{}
 		expectParam map[string]string
+		whenURL     string
 	}{
 		{
 			whenURL:     "/",
@@ -1509,10 +1512,10 @@ func TestRouterMatchAnySlash(t *testing.T) {
 	e.GET("/assets/*", handlerFunc)
 
 	var testCases = []struct {
+		expectError error
+		expectParam map[string]string
 		whenURL     string
 		expectRoute string
-		expectParam map[string]string
-		expectError error
 	}{
 		{
 			whenURL:     "/",
@@ -1593,10 +1596,10 @@ func TestRouterMatchAnyMultiLevel(t *testing.T) {
 	e.GET("/*", handlerFunc)
 
 	var testCases = []struct {
-		whenURL     string
 		expectRoute interface{}
-		expectParam map[string]string
 		expectError error
+		expectParam map[string]string
+		whenURL     string
 	}{
 		{
 			whenURL:     "/api/users/jack",
@@ -1664,11 +1667,11 @@ func TestRouterMatchAnyMultiLevelWithPost(t *testing.T) {
 	e.Any("/*", handlerFunc)
 
 	var testCases = []struct {
+		expectRoute interface{}
+		expectError error
+		expectParam map[string]string
 		whenMethod  string
 		whenURL     string
-		expectRoute interface{}
-		expectParam map[string]string
-		expectError error
 	}{
 		{ // POST /api/auth/login shall choose login method
 			whenURL:     "/api/auth/login",
@@ -1759,11 +1762,11 @@ func TestRouterMultiRoute(t *testing.T) {
 	e.GET("/users/:id", handlerFunc)
 
 	var testCases = []struct {
+		expectError error
+		expectParam map[string]string
 		whenMethod  string
 		whenURL     string
 		expectRoute string
-		expectParam map[string]string
-		expectError error
 	}{
 		{
 			whenURL:     "/users",
@@ -1818,11 +1821,11 @@ func TestRouterPriority(t *testing.T) {
 	e.GET("/*", handlerFunc)
 
 	var testCases = []struct {
+		expectRoute interface{}
+		expectError error
+		expectParam map[string]string
 		whenMethod  string
 		whenURL     string
-		expectRoute interface{}
-		expectParam map[string]string
-		expectError error
 	}{
 		{
 			whenURL:     "/users",
@@ -1933,11 +1936,11 @@ func TestRouterPriorityNotFound(t *testing.T) {
 	e.GET("/a/bar", handlerFunc)
 
 	var testCases = []struct {
+		expectError error
+		expectParam map[string]string
 		whenMethod  string
 		whenURL     string
 		expectRoute string
-		expectParam map[string]string
-		expectError error
 	}{
 		{
 			whenURL:     "/a/foo",
@@ -1989,11 +1992,11 @@ func TestRouterParamNames(t *testing.T) {
 	e.GET("/users/:uid/files/:fid", handlerFunc)
 
 	var testCases = []struct {
+		expectRoute interface{}
+		expectError error
+		expectParam map[string]string
 		whenMethod  string
 		whenURL     string
-		expectRoute interface{}
-		expectParam map[string]string
-		expectError error
 	}{
 		{
 			whenURL:     "/users",
@@ -2052,11 +2055,11 @@ func TestRouterStaticDynamicConflict(t *testing.T) {
 	e.GET("/", handlerFunc)
 
 	var testCases = []struct {
+		expectError error
+		expectParam map[string]string
 		whenMethod  string
 		whenURL     string
 		expectRoute string
-		expectParam map[string]string
-		expectError error
 	}{
 		{
 			whenURL:     "/dictionary/skills",
@@ -2128,12 +2131,12 @@ func TestRouterParamBacktraceNotFound(t *testing.T) {
 	e.GET("/:param1/bar/:param2", handlerFunc)
 
 	var testCases = []struct {
+		expectError error
+		expectParam map[string]string
 		name        string
 		whenMethod  string
 		whenURL     string
 		expectRoute string
-		expectParam map[string]string
-		expectError error
 	}{
 		{
 			name:        "route /a to /:param1",
@@ -2232,12 +2235,12 @@ func TestRouterGitHubAPI(t *testing.T) {
 
 func TestRouter_Match_DifferentParamNamesForSamePlace(t *testing.T) {
 	var testCases = []struct {
+		expectError error
+		expectParam map[string]string
 		name        string
 		whenURL     string
 		whenMethod  string
 		expectRoute string
-		expectParam map[string]string
-		expectError error
 	}{
 		{
 			name:        "ok, 1=id + 2=file",
@@ -2294,11 +2297,11 @@ func TestRouter_Match_DifferentParamNamesForSamePlace(t *testing.T) {
 // of the path parameter. As tests show the result is different depending on where parameter exists in the route path.
 func TestDefaultRouter_PathParamsCanMatchEmptyValues(t *testing.T) {
 	var testCases = []struct {
+		expectError error
+		expectParam map[string]string
 		name        string
 		whenURL     string
 		expectRoute string
-		expectParam map[string]string
-		expectError error
 	}{
 		{
 			name:        "ok, route is matched with even empty param is in the middle and between slashes",
@@ -2411,10 +2414,10 @@ func TestRouterParam1466(t *testing.T) {
 	e.GET("/users/:username/uploads/:type", handlerFunc)
 
 	var testCases = []struct {
+		expectError error
+		expectParam map[string]string
 		whenURL     string
 		expectRoute string
-		expectParam map[string]string
-		expectError error
 	}{
 		{
 			whenURL:     "/users/ajitem",
@@ -2550,10 +2553,10 @@ func TestRouterPanicWhenParamNoRootOnlyChildsFailsFind(t *testing.T) {
 	e.GET("/users/:id/active", handlerFunc)
 
 	var testCases = []struct {
+		expectError error
+		expectParam map[string]string
 		whenURL     string
 		expectRoute string
-		expectParam map[string]string
-		expectError error
 	}{
 		{
 			whenURL:     "/users/alice/edit",
@@ -2598,6 +2601,28 @@ func TestRouterPanicWhenParamNoRootOnlyChildsFailsFind(t *testing.T) {
 	}
 }
 
+func TestRouter_addEmptyPathToSlashReverse(t *testing.T) {
+	r := NewRouter(RouterConfig{})
+	_, err := r.Add(Route{Method: http.MethodGet, Path: "", Handler: handlerFunc, Name: "empty"})
+	assert.NoError(t, err)
+
+	reversed, err := r.Routes().Reverse("empty") // emtpy path is normalized to `/` internally but stays "" in route
+
+	assert.NoError(t, err)
+	assert.Equal(t, "", reversed)
+}
+
+func TestRouter_ReverseNotFound(t *testing.T) {
+	r := NewRouter(RouterConfig{})
+	_, err := r.Add(Route{Method: http.MethodGet, Path: "", Handler: handlerFunc, Name: "empty"})
+	assert.NoError(t, err)
+
+	reversed, err := r.Routes().Reverse("not-existing")
+
+	assert.EqualError(t, err, "route not found")
+	assert.Equal(t, "", reversed)
+}
+
 func TestRoutes_ReverseHandlerName(t *testing.T) {
 	static := func(Context) error { return nil }
 	getUser := func(Context) error { return nil }
@@ -2607,9 +2632,9 @@ func TestRoutes_ReverseHandlerName(t *testing.T) {
 	var testCases = []struct {
 		name      string
 		when      string
-		whenArgs  []interface{}
 		expect    string
 		expectErr string
+		whenArgs  []interface{}
 	}{
 		{
 			name:     "ok, HandlerName + args",
@@ -2678,9 +2703,9 @@ func TestRoutes_Reverse(t *testing.T) {
 	var testCases = []struct {
 		name      string
 		when      string
-		whenArgs  []interface{}
 		expect    string
 		expectErr string
+		whenArgs  []interface{}
 	}{
 		{
 			name:   "ok, static",
@@ -2850,10 +2875,10 @@ func benchmarkRouterRoutes(b *testing.B, routes []testRoute, routesToFind []test
 func TestDefaultRouter_Remove(t *testing.T) {
 	var testCases = []struct {
 		name       string
-		givenPaths []string
 		whenMethod string
 		whenPath   string
 		expectErr  string
+		givenPaths []string
 	}{
 		{
 			name:     "ok, static",
@@ -3017,10 +3042,10 @@ func TestName(t *testing.T) {
 func TestDefaultRouter_UnescapePathParamValues(t *testing.T) {
 	var testCases = []struct {
 		name                         string
-		givenUnescapePathParamValues bool
 		whenURL                      string
 		expectPath                   string
 		expectPathParams             PathParams
+		givenUnescapePathParamValues bool
 	}{
 		{
 			name:                         "ok, unescape = true",
@@ -3145,10 +3170,10 @@ func TestDefaultRouter_AddDuplicateRouteAllowed(t *testing.T) {
 func TestDefaultRouter_UseEscapedPathForRouting(t *testing.T) {
 	var testCases = []struct {
 		name                               string
-		givenDoNotUseEscapedPathForRouting bool
 		whenRawPath                        string
 		expectBody                         string
 		expectStatus                       int
+		givenDoNotUseEscapedPathForRouting bool
 	}{
 		{
 			name:         "ok, static route",
@@ -3299,11 +3324,11 @@ func TestRouter_RouteWhenNotFoundRouteWithNodeSplitting(t *testing.T) {
 
 func TestRouter_RouteWhenNotFoundRouteAnyKind(t *testing.T) {
 	var testCases = []struct {
+		expectRoute interface{}
+		expectParam map[string]string
 		name        string
 		whenURL     string
-		expectRoute interface{}
 		expectID    int
-		expectParam map[string]string
 	}{
 		{
 			name:        "route not existent /xx to not found handler /*",
@@ -3368,11 +3393,11 @@ func TestRouter_RouteWhenNotFoundRouteAnyKind(t *testing.T) {
 
 func TestRouter_RouteWhenNotFoundRouteParamKind(t *testing.T) {
 	var testCases = []struct {
+		expectRoute interface{}
+		expectParam map[string]string
 		name        string
 		whenURL     string
-		expectRoute interface{}
 		expectID    int
-		expectParam map[string]string
 	}{
 		{
 			name:        "route not existent /xx to not found handler /:file",
@@ -3438,11 +3463,11 @@ func TestRouter_RouteWhenNotFoundRouteParamKind(t *testing.T) {
 func TestRouter_RouteWhenNotFoundRouteStaticKind(t *testing.T) {
 	// note: static not found handler is quite silly thing to have but we still support it
 	var testCases = []struct {
+		expectRoute interface{}
+		expectParam map[string]string
 		name        string
 		whenURL     string
-		expectRoute interface{}
 		expectID    int
-		expectParam map[string]string
 	}{
 		{
 			name:        "route not existent / to not found handler /",

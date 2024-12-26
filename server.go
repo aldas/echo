@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package echo
 
 import (
@@ -5,7 +8,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -18,60 +21,42 @@ const (
 
 // StartConfig is for creating configured http.Server instance to start serve http(s) requests with given Echo instance
 type StartConfig struct {
-	// Address for the server to listen on (if not using custom listener)
-	Address string
-
-	// ListenerNetwork allows setting listener network (see net.Listen for allowed values)
-	// Optional: defaults to "tcp"
-	ListenerNetwork string
-
-	// CertFilesystem is file system used to load certificates and keys (if certs/keys are given as paths)
-	CertFilesystem fs.FS
-
-	// DisableHTTP2 disables supports for HTTP2 in TLS server
-	DisableHTTP2 bool
-
-	// HideBanner does not log Echo banner on server startup
-	HideBanner bool
-
-	// HidePort does not log port on server startup
-	HidePort bool
-
-	// GracefulContext is context that completion signals graceful shutdown start
-	GracefulContext stdContext.Context
-
-	// GracefulTimeout is period which server allows listeners to finish serving ongoing requests. If this time is exceeded process is exited
-	// Defaults to 10 seconds
-	GracefulTimeout time.Duration
-
-	// OnShutdownError allows customization of what happens when (graceful) server Shutdown method returns an error.
-	// Defaults to calling e.logger.Error(err)
-	OnShutdownError func(err error)
-
-	// TLSConfigFunc allows modifying TLS configuration before listener is created with it.
-	TLSConfigFunc func(tlsConfig *tls.Config)
-
-	// ListenerAddrFunc allows getting listener address before server starts serving requests on listener. Useful when
-	// address is set as random (`:0`) port.
+	CertFilesystem   fs.FS
+	GracefulContext  stdContext.Context
+	OnShutdownError  func(err error)
+	TLSConfigFunc    func(tlsConfig *tls.Config)
 	ListenerAddrFunc func(addr net.Addr)
-
-	// BeforeServeFunc allows customizing/accessing server before server starts serving requests on listener.
-	BeforeServeFunc func(s *http.Server) error
+	BeforeServeFunc  func(s *http.Server) error
+	Address          string
+	ListenerNetwork  string
+	GracefulTimeout  time.Duration
+	DisableHTTP2     bool
+	HideBanner       bool
+	HidePort         bool
 }
 
 // Start starts a HTTP(s) server.
 func (sc StartConfig) Start(e *Echo) error {
 	logger := e.Logger
+	errLogger := slog.NewLogLogger(e.Logger.Handler(), slog.LevelError)
+
 	server := http.Server{
 		Handler: e,
 		// NB: all http.Server errors will be logged through Logger.Write calls. We could create writer that wraps
 		// logger and calls Logger.Error internally when http.Server logs error - atm we will use this naive way.
-		ErrorLog: log.New(logger, "", 0),
+		ErrorLog: errLogger,
+
+		// defaults for GoSec rule G112 // https://github.com/securego/gosec
+		// G112 (CWE-400): Potential Slowloris Attack because ReadHeaderTimeout is not configured in the http.Server
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
 	}
 
 	var tlsConfig *tls.Config = nil
 	if sc.TLSConfigFunc != nil {
-		tlsConfig = &tls.Config{}
+		tlsConfig = &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		}
 		configureTLS(&sc, tlsConfig)
 		sc.TLSConfigFunc(tlsConfig)
 	}
@@ -88,11 +73,17 @@ func (sc StartConfig) Start(e *Echo) error {
 // If `certFile` or `keyFile` is `[]byte` the values are treated as the certificate or key as-is.
 func (sc StartConfig) StartTLS(e *Echo, certFile, keyFile interface{}) error {
 	logger := e.Logger
+	errLogger := slog.NewLogLogger(e.Logger.Handler(), slog.LevelError)
 	s := http.Server{
 		Handler: e,
 		// NB: all http.Server errors will be logged through Logger.Write calls. We could create writer that wraps
 		// logger and calls Logger.Error internally when http.Server logs error - atm we will use this naive way.
-		ErrorLog: log.New(logger, "", 0),
+		ErrorLog: errLogger,
+
+		// defaults for GoSec rule G112 // https://github.com/securego/gosec
+		// G112 (CWE-400): Potential Slowloris Attack because ReadHeaderTimeout is not configured in the http.Server
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
 	}
 
 	certFs := sc.CertFilesystem
@@ -111,7 +102,10 @@ func (sc StartConfig) StartTLS(e *Echo, certFile, keyFile interface{}) error {
 	if err != nil {
 		return err
 	}
-	tlsConfig := &tls.Config{Certificates: []tls.Certificate{cer}}
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cer},
+		MinVersion:   tls.VersionTLS12,
+	}
 	configureTLS(&sc, tlsConfig)
 	if sc.TLSConfigFunc != nil {
 		sc.TLSConfigFunc(tlsConfig)
@@ -124,7 +118,7 @@ func (sc StartConfig) StartTLS(e *Echo, certFile, keyFile interface{}) error {
 	return serve(&sc, &s, listener, logger)
 }
 
-func serve(sc *StartConfig, server *http.Server, listener net.Listener, logger Logger) error {
+func serve(sc *StartConfig, server *http.Server, listener net.Listener, logger *slog.Logger) error {
 	if sc.BeforeServeFunc != nil {
 		if err := sc.BeforeServeFunc(server); err != nil {
 			return err
@@ -169,14 +163,14 @@ func createListener(sc *StartConfig, tlsConfig *tls.Config) (net.Listener, error
 	return listener, nil
 }
 
-func startupGreetings(sc *StartConfig, logger Logger, listener net.Listener) {
+func startupGreetings(sc *StartConfig, logger *slog.Logger, listener net.Listener) {
 	if !sc.HideBanner {
 		bannerText := fmt.Sprintf(banner, Version)
-		logger.Write([]byte(bannerText))
+		logger.Info(bannerText)
 	}
 
 	if !sc.HidePort {
-		logger.Write([]byte(fmt.Sprintf("http(s) server started on %s", listener.Addr())))
+		logger.Info("http(s) server started", "address", listener.Addr())
 	}
 }
 
@@ -191,7 +185,7 @@ func filepathOrContent(fileOrContent interface{}, certFilesystem fs.FS) (content
 	}
 }
 
-func gracefulShutdown(gracefulCtx stdContext.Context, sc *StartConfig, server *http.Server, logger Logger) {
+func gracefulShutdown(gracefulCtx stdContext.Context, sc *StartConfig, server *http.Server, logger *slog.Logger) {
 	<-gracefulCtx.Done() // wait until shutdown context is closed.
 	// note: is server if closed by other means this method is still run but is good as no-op
 
@@ -208,6 +202,6 @@ func gracefulShutdown(gracefulCtx stdContext.Context, sc *StartConfig, server *h
 			sc.OnShutdownError(err)
 			return
 		}
-		logger.Error(fmt.Errorf("failed to shut down server within given timeout: %w", err))
+		logger.Error("failed to shut down server within given timeout", "error", err)
 	}
 }

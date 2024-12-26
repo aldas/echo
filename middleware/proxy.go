@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package middleware
 
 import (
@@ -350,12 +353,15 @@ func (config ProxyConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 					c.Set("_error", nil)
 				}
 
+				// This is needed for ProxyConfig.ModifyResponse and/or ProxyConfig.Transport to be able to process the Request
+				// that Balancer may have replaced with c.SetRequest.
+				req = c.Request()
+
 				// Proxy
 				switch {
 				case c.IsWebSocket():
 					proxyRaw(c, tgt).ServeHTTP(res, req)
-				case req.Header.Get(echo.HeaderAccept) == "text/event-stream":
-				default:
+				default: // even SSE requests
 					proxyHTTP(c, tgt, config).ServeHTTP(res, req)
 				}
 
@@ -392,9 +398,10 @@ func proxyHTTP(c echo.Context, tgt *ProxyTarget, config ProxyConfig) http.Handle
 		// If the client canceled the request (usually by closing the connection), we can report a
 		// client error (4xx) instead of a server error (5xx) to correctly identify the situation.
 		// The Go standard library (at of late 2020) wraps the exported, standard
-		// context.Canceled error with unexported garbage value requiring a substring check, see
+		// context. Canceled error with unexported garbage value requiring a substring check, see
 		// https://github.com/golang/go/blob/6965b01ea248cabb70c3749fd218b36089a21efb/src/net/net.go#L416-L430
-		if err == context.Canceled || strings.Contains(err.Error(), "operation was canceled") {
+		// From Caddy https://github.com/caddyserver/caddy/blob/afa778ae05503f563af0d1015cdf7e5e78b1eeec/modules/caddyhttp/reverseproxy/reverseproxy.go#L1352
+		if errors.Is(err, context.Canceled) || strings.Contains(err.Error(), "operation was canceled") {
 			httpError := echo.NewHTTPError(StatusCodeContextCanceled, fmt.Sprintf("client closed connection: %v", err))
 			httpError.Internal = err
 			c.Set("_error", httpError)

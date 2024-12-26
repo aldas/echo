@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package middleware
 
 import (
@@ -170,7 +173,7 @@ func TestDecompressSkipper(t *testing.T) {
 
 	e.ServeHTTP(rec, req)
 
-	assert.Equal(t, rec.Header().Get(echo.HeaderContentType), echo.MIMEApplicationJSONCharsetUTF8)
+	assert.Equal(t, rec.Header().Get(echo.HeaderContentType), echo.MIMEApplicationJSON)
 	reqBody, err := io.ReadAll(c.Request().Body)
 	assert.NoError(t, err)
 	assert.Equal(t, body, string(reqBody))

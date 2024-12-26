@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package echo
 
 import (
@@ -40,7 +43,7 @@ func TestHandlerName(t *testing.T) {
 		{
 			name:            "ok, func as named package variable",
 			whenHandlerFunc: myNamedHandler,
-			expect:          "github.com/labstack/echo/v5.glob..func4",
+			expect:          "github.com/labstack/echo/v5.init.func4",
 		},
 		{
 			name:            "ok, func as named function variable",
@@ -69,18 +72,18 @@ func TestHandlerName_differentFuncSameName(t *testing.T) {
 		}
 	}
 	h1 := handlerCreator("name1")
-	assert.Equal(t, "github.com/labstack/echo/v5.TestHandlerName_differentFuncSameName.func2", HandlerName(h1))
+	assert.Equal(t, "github.com/labstack/echo/v5.TestHandlerName_differentFuncSameName.TestHandlerName_differentFuncSameName.func1.func2", HandlerName(h1))
 
 	h2 := handlerCreator("name2")
-	assert.Equal(t, "github.com/labstack/echo/v5.TestHandlerName_differentFuncSameName.func3", HandlerName(h2))
+	assert.Equal(t, "github.com/labstack/echo/v5.TestHandlerName_differentFuncSameName.TestHandlerName_differentFuncSameName.func1.func3", HandlerName(h2))
 }
 
 func TestRoute_ToRouteInfo(t *testing.T) {
 	var testCases = []struct {
-		name       string
-		given      Route
-		whenParams []string
 		expect     RouteInfo
+		given      Route
+		name       string
+		whenParams []string
 	}{
 		{
 			name: "ok, no params, with name",
@@ -212,11 +215,11 @@ func exampleRoutes() Routes {
 func TestRoutes_FindByMethodPath(t *testing.T) {
 	var testCases = []struct {
 		name        string
-		given       Routes
 		whenMethod  string
 		whenPath    string
 		expectName  string
 		expectError string
+		given       Routes
 	}{
 		{
 			name:       "ok, found",
@@ -263,10 +266,10 @@ func TestRoutes_FindByMethodPath(t *testing.T) {
 func TestRoutes_FilterByMethod(t *testing.T) {
 	var testCases = []struct {
 		name        string
-		given       Routes
 		whenMethod  string
-		expectNames []string
 		expectError string
+		given       Routes
+		expectNames []string
 	}{
 		{
 			name:        "ok, found",
@@ -315,10 +318,10 @@ func TestRoutes_FilterByMethod(t *testing.T) {
 func TestRoutes_FilterByPath(t *testing.T) {
 	var testCases = []struct {
 		name        string
-		given       Routes
 		whenPath    string
-		expectNames []string
 		expectError string
+		given       Routes
+		expectNames []string
 	}{
 		{
 			name:        "ok, found",
@@ -367,10 +370,10 @@ func TestRoutes_FilterByPath(t *testing.T) {
 func TestRoutes_FilterByName(t *testing.T) {
 	var testCases = []struct {
 		name             string
-		given            Routes
 		whenName         string
-		expectMethodPath []string
 		expectError      string
+		given            Routes
+		expectMethodPath []string
 	}{
 		{
 			name:             "ok, found multiple",
@@ -425,10 +428,10 @@ func TestRoutes_FilterByName(t *testing.T) {
 func TestRouteInfo_Reverse(t *testing.T) {
 	var testCases = []struct {
 		name        string
-		givenParams []string
 		givenPath   string
-		whenParams  []interface{}
 		expect      string
+		givenParams []string
+		whenParams  []interface{}
 	}{
 		{
 			name:      "ok,static with no params",

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package echo
 
 import (
@@ -9,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"math"
 	"mime/multipart"
 	"net/http"
@@ -27,11 +31,11 @@ type Template struct {
 	templates *template.Template
 }
 
-var testUser = user{1, "Jon Snow"}
+var testUser = user{ID: 1, Name: "Jon Snow"}
 
 func BenchmarkAllocJSONP(b *testing.B) {
 	e := New()
-	e.Logger = &noOpLogger{}
+	e.Logger = slog.New(&discardHandler{})
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(userJSON))
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec).(*DefaultContext)
@@ -46,7 +50,7 @@ func BenchmarkAllocJSONP(b *testing.B) {
 
 func BenchmarkAllocJSON(b *testing.B) {
 	e := New()
-	e.Logger = &noOpLogger{}
+	e.Logger = slog.New(&discardHandler{})
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(userJSON))
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec).(*DefaultContext)
@@ -61,7 +65,7 @@ func BenchmarkAllocJSON(b *testing.B) {
 
 func BenchmarkAllocXML(b *testing.B) {
 	e := New()
-	e.Logger = &noOpLogger{}
+	e.Logger = slog.New(&discardHandler{})
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(userJSON))
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec).(*DefaultContext)
@@ -83,210 +87,182 @@ func BenchmarkRealIPForHeaderXForwardFor(b *testing.B) {
 	}
 }
 
-func (t *Template) Render(w io.Writer, name string, data interface{}, c Context) error {
+func (t *Template) Render(c Context, w io.Writer, name string, data interface{}) error {
 	return t.templates.ExecuteTemplate(w, name, data)
 }
 
-type responseWriterErr struct {
-}
-
-func (responseWriterErr) Header() http.Header {
-	return http.Header{}
-}
-
-func (responseWriterErr) Write([]byte) (int, error) {
-	return 0, errors.New("err")
-}
-
-func (responseWriterErr) WriteHeader(statusCode int) {
-
-}
-
-func TestContext(t *testing.T) {
+func TestContextEcho(t *testing.T) {
 	e := New()
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(userJSON))
 	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec).(*DefaultContext)
 
-	// Echo
+	c := e.NewContext(req, rec)
+
 	assert.Equal(t, e, c.Echo())
+}
 
-	// Request
+func TestContextRequest(t *testing.T) {
+	e := New()
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(userJSON))
+	rec := httptest.NewRecorder()
+
+	c := e.NewContext(req, rec)
+
 	assert.NotNil(t, c.Request())
+	assert.Equal(t, req, c.Request())
+}
 
-	// Response
+func TestContextResponse(t *testing.T) {
+	e := New()
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(userJSON))
+	rec := httptest.NewRecorder()
+
+	c := e.NewContext(req, rec)
+
 	assert.NotNil(t, c.Response())
+}
 
-	//--------
-	// Render
-	//--------
+func TestContextRenderTemplate(t *testing.T) {
+	e := New()
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(userJSON))
+	rec := httptest.NewRecorder()
+
+	c := e.NewContext(req, rec)
 
 	tmpl := &Template{
 		templates: template.Must(template.New("hello").Parse("Hello, {{.}}!")),
 	}
-	c.echo.Renderer = tmpl
+	c.Echo().Renderer = tmpl
 	err := c.Render(http.StatusOK, "hello", "Jon Snow")
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusOK, rec.Code)
 		assert.Equal(t, "Hello, Jon Snow!", rec.Body.String())
 	}
+}
 
-	c.echo.Renderer = nil
-	err = c.Render(http.StatusOK, "hello", "Jon Snow")
-	assert.Error(t, err)
+func TestContextRenderErrorsOnNoRenderer(t *testing.T) {
+	e := New()
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(userJSON))
+	rec := httptest.NewRecorder()
 
-	// JSON
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
-	err = c.JSON(http.StatusOK, user{1, "Jon Snow"})
+	c := e.NewContext(req, rec)
+
+	c.Echo().Renderer = nil
+	assert.Error(t, c.Render(http.StatusOK, "hello", "Jon Snow"))
+}
+
+func TestContextJSON(t *testing.T) {
+	e := New()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(userJSON))
+	c := e.NewContext(req, rec)
+
+	err := c.JSON(http.StatusOK, user{ID: 1, Name: "Jon Snow"})
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Equal(t, MIMEApplicationJSONCharsetUTF8, rec.Header().Get(HeaderContentType))
+		assert.Equal(t, MIMEApplicationJSON, rec.Header().Get(HeaderContentType))
 		assert.Equal(t, userJSON+"\n", rec.Body.String())
 	}
+}
 
-	// JSON with "?pretty"
-	req = httptest.NewRequest(http.MethodGet, "/?pretty", nil)
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
-	err = c.JSON(http.StatusOK, user{1, "Jon Snow"})
+func TestContextJSONErrorsOut(t *testing.T) {
+	e := New()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(userJSON))
+	c := e.NewContext(req, rec)
+
+	err := c.JSON(http.StatusOK, make(chan bool))
+	assert.EqualError(t, err, "json: unsupported type: chan bool")
+}
+
+func TestContextJSONPrettyURL(t *testing.T) {
+	e := New()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/?pretty", nil)
+	c := e.NewContext(req, rec)
+
+	err := c.JSON(http.StatusOK, user{ID: 1, Name: "Jon Snow"})
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Equal(t, MIMEApplicationJSONCharsetUTF8, rec.Header().Get(HeaderContentType))
+		assert.Equal(t, MIMEApplicationJSON, rec.Header().Get(HeaderContentType))
 		assert.Equal(t, userJSONPretty+"\n", rec.Body.String())
 	}
-	req = httptest.NewRequest(http.MethodGet, "/", nil) // reset
+}
 
-	// JSONPretty
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
-	err = c.JSONPretty(http.StatusOK, user{1, "Jon Snow"}, "  ")
+func TestContextJSONPretty(t *testing.T) {
+	e := New()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	c := e.NewContext(req, rec)
+
+	err := c.JSONPretty(http.StatusOK, user{ID: 1, Name: "Jon Snow"}, "  ")
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Equal(t, MIMEApplicationJSONCharsetUTF8, rec.Header().Get(HeaderContentType))
+		assert.Equal(t, MIMEApplicationJSON, rec.Header().Get(HeaderContentType))
 		assert.Equal(t, userJSONPretty+"\n", rec.Body.String())
 	}
+}
 
-	// JSON (error)
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
-	err = c.JSON(http.StatusOK, make(chan bool))
-	assert.Error(t, err)
+func TestContextJSONWithEmptyIntent(t *testing.T) {
+	e := New()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	c := e.NewContext(req, rec)
 
-	// JSONP
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
+	u := user{ID: 1, Name: "Jon Snow"}
+	emptyIndent := ""
+	buf := new(bytes.Buffer)
+
+	enc := json.NewEncoder(buf)
+	enc.SetIndent(emptyIndent, emptyIndent)
+	_ = enc.Encode(u)
+	err := c.JSONPretty(http.StatusOK, user{ID: 1, Name: "Jon Snow"}, emptyIndent)
+	if assert.NoError(t, err) {
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, MIMEApplicationJSON, rec.Header().Get(HeaderContentType))
+		assert.Equal(t, buf.String(), rec.Body.String())
+	}
+}
+
+func TestContextJSONP(t *testing.T) {
+	e := New()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	c := e.NewContext(req, rec)
+
 	callback := "callback"
-	err = c.JSONP(http.StatusOK, callback, user{1, "Jon Snow"})
+	err := c.JSONP(http.StatusOK, callback, user{ID: 1, Name: "Jon Snow"})
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusOK, rec.Code)
 		assert.Equal(t, MIMEApplicationJavaScriptCharsetUTF8, rec.Header().Get(HeaderContentType))
 		assert.Equal(t, callback+"("+userJSON+"\n);", rec.Body.String())
 	}
+}
 
-	// XML
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
-	err = c.XML(http.StatusOK, user{1, "Jon Snow"})
-	if assert.NoError(t, err) {
-		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Equal(t, MIMEApplicationXMLCharsetUTF8, rec.Header().Get(HeaderContentType))
-		assert.Equal(t, xml.Header+userXML, rec.Body.String())
-	}
+func TestContextJSONBlob(t *testing.T) {
+	e := New()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	c := e.NewContext(req, rec)
 
-	// XML with "?pretty"
-	req = httptest.NewRequest(http.MethodGet, "/?pretty", nil)
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
-	err = c.XML(http.StatusOK, user{1, "Jon Snow"})
-	if assert.NoError(t, err) {
-		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Equal(t, MIMEApplicationXMLCharsetUTF8, rec.Header().Get(HeaderContentType))
-		assert.Equal(t, xml.Header+userXMLPretty, rec.Body.String())
-	}
-	req = httptest.NewRequest(http.MethodGet, "/", nil)
-
-	// XML (error)
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
-	err = c.XML(http.StatusOK, make(chan bool))
-	assert.Error(t, err)
-
-	// XML response write error
-	c = e.NewContext(req, rec).(*DefaultContext)
-	c.response.Writer = responseWriterErr{}
-	err = c.XML(0, 0)
-	assert.Error(t, err)
-
-	// XMLPretty
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
-	err = c.XMLPretty(http.StatusOK, user{1, "Jon Snow"}, "  ")
-	if assert.NoError(t, err) {
-		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Equal(t, MIMEApplicationXMLCharsetUTF8, rec.Header().Get(HeaderContentType))
-		assert.Equal(t, xml.Header+userXMLPretty, rec.Body.String())
-	}
-
-	t.Run("empty indent", func(t *testing.T) {
-		var (
-			u           = user{1, "Jon Snow"}
-			buf         = new(bytes.Buffer)
-			emptyIndent = ""
-		)
-
-		t.Run("json", func(t *testing.T) {
-			buf.Reset()
-
-			// New JSONBlob with empty indent
-			rec = httptest.NewRecorder()
-			c = e.NewContext(req, rec).(*DefaultContext)
-			enc := json.NewEncoder(buf)
-			enc.SetIndent(emptyIndent, emptyIndent)
-			err = enc.Encode(u)
-			err = c.json(http.StatusOK, user{1, "Jon Snow"}, emptyIndent)
-			if assert.NoError(t, err) {
-				assert.Equal(t, http.StatusOK, rec.Code)
-				assert.Equal(t, MIMEApplicationJSONCharsetUTF8, rec.Header().Get(HeaderContentType))
-				assert.Equal(t, buf.String(), rec.Body.String())
-			}
-		})
-
-		t.Run("xml", func(t *testing.T) {
-			buf.Reset()
-
-			// New XMLBlob with empty indent
-			rec = httptest.NewRecorder()
-			c = e.NewContext(req, rec).(*DefaultContext)
-			enc := xml.NewEncoder(buf)
-			enc.Indent(emptyIndent, emptyIndent)
-			err = enc.Encode(u)
-			err = c.xml(http.StatusOK, user{1, "Jon Snow"}, emptyIndent)
-			if assert.NoError(t, err) {
-				assert.Equal(t, http.StatusOK, rec.Code)
-				assert.Equal(t, MIMEApplicationXMLCharsetUTF8, rec.Header().Get(HeaderContentType))
-				assert.Equal(t, xml.Header+buf.String(), rec.Body.String())
-			}
-		})
-	})
-
-	// Legacy JSONBlob
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
-	data, err := json.Marshal(user{1, "Jon Snow"})
+	data, err := json.Marshal(user{ID: 1, Name: "Jon Snow"})
 	assert.NoError(t, err)
 	err = c.JSONBlob(http.StatusOK, data)
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Equal(t, MIMEApplicationJSONCharsetUTF8, rec.Header().Get(HeaderContentType))
+		assert.Equal(t, MIMEApplicationJSON, rec.Header().Get(HeaderContentType))
 		assert.Equal(t, userJSON, rec.Body.String())
 	}
+}
 
-	// Legacy JSONPBlob
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
-	callback = "callback"
-	data, err = json.Marshal(user{1, "Jon Snow"})
+func TestContextJSONPBlob(t *testing.T) {
+	e := New()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	c := e.NewContext(req, rec)
+
+	callback := "callback"
+	data, err := json.Marshal(user{ID: 1, Name: "Jon Snow"})
 	assert.NoError(t, err)
 	err = c.JSONPBlob(http.StatusOK, callback, data)
 	if assert.NoError(t, err) {
@@ -294,11 +270,57 @@ func TestContext(t *testing.T) {
 		assert.Equal(t, MIMEApplicationJavaScriptCharsetUTF8, rec.Header().Get(HeaderContentType))
 		assert.Equal(t, callback+"("+userJSON+");", rec.Body.String())
 	}
+}
 
-	// Legacy XMLBlob
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
-	data, err = xml.Marshal(user{1, "Jon Snow"})
+func TestContextXML(t *testing.T) {
+	e := New()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	c := e.NewContext(req, rec)
+
+	err := c.XML(http.StatusOK, user{ID: 1, Name: "Jon Snow"})
+	if assert.NoError(t, err) {
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, MIMEApplicationXMLCharsetUTF8, rec.Header().Get(HeaderContentType))
+		assert.Equal(t, xml.Header+userXML, rec.Body.String())
+	}
+}
+
+func TestContextXMLPrettyURL(t *testing.T) {
+	e := New()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/?pretty", nil)
+	c := e.NewContext(req, rec)
+
+	err := c.XML(http.StatusOK, user{ID: 1, Name: "Jon Snow"})
+	if assert.NoError(t, err) {
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, MIMEApplicationXMLCharsetUTF8, rec.Header().Get(HeaderContentType))
+		assert.Equal(t, xml.Header+userXMLPretty, rec.Body.String())
+	}
+}
+
+func TestContextXMLPretty(t *testing.T) {
+	e := New()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	c := e.NewContext(req, rec)
+
+	err := c.XMLPretty(http.StatusOK, user{ID: 1, Name: "Jon Snow"}, "  ")
+	if assert.NoError(t, err) {
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, MIMEApplicationXMLCharsetUTF8, rec.Header().Get(HeaderContentType))
+		assert.Equal(t, xml.Header+userXMLPretty, rec.Body.String())
+	}
+}
+
+func TestContextXMLBlob(t *testing.T) {
+	e := New()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	c := e.NewContext(req, rec)
+
+	data, err := xml.Marshal(user{ID: 1, Name: "Jon Snow"})
 	assert.NoError(t, err)
 	err = c.XMLBlob(http.StatusOK, data)
 	if assert.NoError(t, err) {
@@ -306,75 +328,27 @@ func TestContext(t *testing.T) {
 		assert.Equal(t, MIMEApplicationXMLCharsetUTF8, rec.Header().Get(HeaderContentType))
 		assert.Equal(t, xml.Header+userXML, rec.Body.String())
 	}
+}
 
-	// String
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
-	err = c.String(http.StatusOK, "Hello, World!")
+func TestContextXMLWithEmptyIntent(t *testing.T) {
+	e := New()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	c := e.NewContext(req, rec)
+
+	u := user{ID: 1, Name: "Jon Snow"}
+	emptyIndent := ""
+	buf := new(bytes.Buffer)
+
+	enc := xml.NewEncoder(buf)
+	enc.Indent(emptyIndent, emptyIndent)
+	_ = enc.Encode(u)
+	err := c.XMLPretty(http.StatusOK, user{ID: 1, Name: "Jon Snow"}, emptyIndent)
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Equal(t, MIMETextPlainCharsetUTF8, rec.Header().Get(HeaderContentType))
-		assert.Equal(t, "Hello, World!", rec.Body.String())
+		assert.Equal(t, MIMEApplicationXMLCharsetUTF8, rec.Header().Get(HeaderContentType))
+		assert.Equal(t, xml.Header+buf.String(), rec.Body.String())
 	}
-
-	// HTML
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
-	err = c.HTML(http.StatusOK, "Hello, <strong>World!</strong>")
-	if assert.NoError(t, err) {
-		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Equal(t, MIMETextHTMLCharsetUTF8, rec.Header().Get(HeaderContentType))
-		assert.Equal(t, "Hello, <strong>World!</strong>", rec.Body.String())
-	}
-
-	// Stream
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
-	r := strings.NewReader("response from a stream")
-	err = c.Stream(http.StatusOK, "application/octet-stream", r)
-	if assert.NoError(t, err) {
-		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Equal(t, "application/octet-stream", rec.Header().Get(HeaderContentType))
-		assert.Equal(t, "response from a stream", rec.Body.String())
-	}
-
-	// Attachment
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
-	err = c.Attachment("_fixture/images/walle.png", "walle.png")
-	if assert.NoError(t, err) {
-		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Equal(t, "attachment; filename=\"walle.png\"", rec.Header().Get(HeaderContentDisposition))
-		assert.Equal(t, 219885, rec.Body.Len())
-	}
-
-	// Inline
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
-	err = c.Inline("_fixture/images/walle.png", "walle.png")
-	if assert.NoError(t, err) {
-		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Equal(t, "inline; filename=\"walle.png\"", rec.Header().Get(HeaderContentDisposition))
-		assert.Equal(t, 219885, rec.Body.Len())
-	}
-
-	// NoContent
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec).(*DefaultContext)
-	c.NoContent(http.StatusOK)
-	assert.Equal(t, http.StatusOK, rec.Code)
-
-	// Reset
-	c.pathParams = &PathParams{
-		{Name: "foo", Value: "bar"},
-	}
-	c.Set("foe", "ban")
-	c.query = url.Values(map[string][]string{"fon": {"baz"}})
-	c.Reset(req, httptest.NewRecorder())
-	assert.Equal(t, 0, len(c.PathParams()))
-	assert.Equal(t, 0, len(c.store))
-	assert.Equal(t, nil, c.RouteInfo())
-	assert.Equal(t, 0, len(c.QueryParams()))
 }
 
 func TestContext_Error(t *testing.T) {
@@ -395,11 +369,11 @@ func TestContext_JSON_CommitsCustomResponseCode(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec).(*DefaultContext)
-	err := c.JSON(http.StatusCreated, user{1, "Jon Snow"})
+	err := c.JSON(http.StatusCreated, user{ID: 1, Name: "Jon Snow"})
 
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusCreated, rec.Code)
-		assert.Equal(t, MIMEApplicationJSONCharsetUTF8, rec.Header().Get(HeaderContentType))
+		assert.Equal(t, MIMEApplicationJSON, rec.Header().Get(HeaderContentType))
 		assert.Equal(t, userJSON+"\n", rec.Body.String())
 	}
 }
@@ -414,6 +388,86 @@ func TestContext_JSON_DoesntCommitResponseCodePrematurely(t *testing.T) {
 	if assert.Error(t, err) {
 		assert.False(t, c.response.Committed)
 	}
+}
+
+func TestContextAttachment(t *testing.T) {
+	var testCases = []struct {
+		name         string
+		whenName     string
+		expectHeader string
+	}{
+		{
+			name:         "ok",
+			whenName:     "walle.png",
+			expectHeader: `attachment; filename="walle.png"`,
+		},
+		{
+			name:         "ok, escape quotes in malicious filename",
+			whenName:     `malicious.sh"; \"; dummy=.txt`,
+			expectHeader: `attachment; filename="malicious.sh\"; \\\"; dummy=.txt"`,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := New()
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			c := e.NewContext(req, rec)
+
+			err := c.Attachment("_fixture/images/walle.png", tc.whenName)
+			if assert.NoError(t, err) {
+				assert.Equal(t, tc.expectHeader, rec.Header().Get(HeaderContentDisposition))
+
+				assert.Equal(t, http.StatusOK, rec.Code)
+				assert.Equal(t, 219885, rec.Body.Len())
+			}
+		})
+	}
+}
+
+func TestContextInline(t *testing.T) {
+	var testCases = []struct {
+		name         string
+		whenName     string
+		expectHeader string
+	}{
+		{
+			name:         "ok",
+			whenName:     "walle.png",
+			expectHeader: `inline; filename="walle.png"`,
+		},
+		{
+			name:         "ok, escape quotes in malicious filename",
+			whenName:     `malicious.sh"; \"; dummy=.txt`,
+			expectHeader: `inline; filename="malicious.sh\"; \\\"; dummy=.txt"`,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := New()
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			c := e.NewContext(req, rec)
+
+			err := c.Inline("_fixture/images/walle.png", tc.whenName)
+			if assert.NoError(t, err) {
+				assert.Equal(t, tc.expectHeader, rec.Header().Get(HeaderContentDisposition))
+
+				assert.Equal(t, http.StatusOK, rec.Code)
+				assert.Equal(t, 219885, rec.Body.Len())
+			}
+		})
+	}
+}
+
+func TestContextNoContent(t *testing.T) {
+	e := New()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/?pretty", nil)
+	c := e.NewContext(req, rec)
+
+	c.NoContent(http.StatusOK)
+	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
 func TestContextCookie(t *testing.T) {
@@ -703,9 +757,9 @@ func TestContextFormValue(t *testing.T) {
 
 func TestContext_QueryParams(t *testing.T) {
 	var testCases = []struct {
+		expect   url.Values
 		name     string
 		givenURL string
-		expect   url.Values
 	}{
 		{
 			name:     "multiple values in url",
@@ -850,6 +904,11 @@ func TestContextMultipartForm(t *testing.T) {
 	buf := new(bytes.Buffer)
 	mw := multipart.NewWriter(buf)
 	mw.WriteField("name", "Jon Snow")
+	fileContent := "This is a test file"
+	w, err := mw.CreateFormFile("file", "test.txt")
+	if assert.NoError(t, err) {
+		w.Write([]byte(fileContent))
+	}
 	mw.Close()
 	req := httptest.NewRequest(http.MethodPost, "/", buf)
 	req.Header.Set(HeaderContentType, mw.FormDataContentType())
@@ -858,6 +917,13 @@ func TestContextMultipartForm(t *testing.T) {
 	f, err := c.MultipartForm()
 	if assert.NoError(t, err) {
 		assert.NotNil(t, f)
+
+		files := f.File["file"]
+		if assert.Len(t, files, 1) {
+			file := files[0]
+			assert.Equal(t, "test.txt", file.Filename)
+			assert.Equal(t, int64(len(fileContent)), file.Size)
+		}
 	}
 }
 
@@ -1042,7 +1108,7 @@ func TestContext_Bind(t *testing.T) {
 	req.Header.Add(HeaderContentType, MIMEApplicationJSON)
 	err := c.Bind(u)
 	assert.NoError(t, err)
-	assert.Equal(t, &user{1, "Jon Snow"}, u)
+	assert.Equal(t, &user{ID: 1, Name: "Jon Snow"}, u)
 }
 
 func TestContext_RealIP(t *testing.T) {
@@ -1136,12 +1202,12 @@ func TestContext_RealIP(t *testing.T) {
 
 func TestContext_File(t *testing.T) {
 	var testCases = []struct {
+		whenFS           fs.FS
 		name             string
 		whenFile         string
-		whenFS           fs.FS
-		expectStatus     int
-		expectStartsWith []byte
 		expectError      string
+		expectStartsWith []byte
+		expectStatus     int
 	}{
 		{
 			name:             "ok, from default file system",
@@ -1202,12 +1268,12 @@ func TestContext_File(t *testing.T) {
 
 func TestContext_FileFS(t *testing.T) {
 	var testCases = []struct {
+		whenFS           fs.FS
 		name             string
 		whenFile         string
-		whenFS           fs.FS
-		expectStatus     int
-		expectStartsWith []byte
 		expectError      string
+		expectStartsWith []byte
+		expectStatus     int
 	}{
 		{
 			name:             "ok",

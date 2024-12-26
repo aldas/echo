@@ -1,4 +1,6 @@
-// run tests as external package to get real feel for API
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package echo
 
 import (
@@ -90,8 +92,8 @@ func TestQueryParamsBinder_FailFast(t *testing.T) {
 	var testCases = []struct {
 		name          string
 		whenURL       string
-		givenFailFast bool
 		expectError   []string
+		givenFailFast bool
 	}{
 		{
 			name:          "ok, FailFast=true stops at first error",
@@ -164,7 +166,7 @@ func TestFormFieldBinder(t *testing.T) {
 }
 
 func TestValueBinder_errorStopsBinding(t *testing.T) {
-	// this test documents "feature" that binding multiple params can change destination if it was binded before
+	// this test documents "feature" that binding multiple params can change destination if it was bound before
 	// failing parameter binding
 
 	c := createTestContext("/api/user/999?id=1&nr=nope", nil, nil)
@@ -198,10 +200,10 @@ func TestValueBinder_BindError(t *testing.T) {
 
 func TestValueBinder_GetValues(t *testing.T) {
 	var testCases = []struct {
-		name           string
 		whenValuesFunc func(sourceParam string) []string
-		expect         []int64
+		name           string
 		expectError    string
+		expect         []int64
 	}{
 		{
 			name:   "ok, default implementation",
@@ -265,13 +267,13 @@ func TestValueBinder_CustomFuncWithError(t *testing.T) {
 
 func TestValueBinder_CustomFunc(t *testing.T) {
 	var testCases = []struct {
-		name              string
-		givenFailFast     bool
-		givenFuncErrors   []error
-		whenURL           string
-		expectParamValues []string
 		expectValue       interface{}
+		name              string
+		whenURL           string
+		givenFuncErrors   []error
+		expectParamValues []string
 		expectErrors      []string
+		givenFailFast     bool
 	}{
 		{
 			name:              "ok, binds value",
@@ -340,13 +342,13 @@ func TestValueBinder_CustomFunc(t *testing.T) {
 
 func TestValueBinder_MustCustomFunc(t *testing.T) {
 	var testCases = []struct {
-		name              string
-		givenFailFast     bool
-		givenFuncErrors   []error
-		whenURL           string
-		expectParamValues []string
 		expectValue       interface{}
+		name              string
+		whenURL           string
+		givenFuncErrors   []error
+		expectParamValues []string
 		expectErrors      []string
+		givenFailFast     bool
 	}{
 		{
 			name:              "ok, binds value",
@@ -417,12 +419,12 @@ func TestValueBinder_MustCustomFunc(t *testing.T) {
 func TestValueBinder_String(t *testing.T) {
 	var testCases = []struct {
 		name            string
-		givenFailFast   bool
-		givenBindErrors []error
 		whenURL         string
-		whenMust        bool
 		expectValue     string
 		expectError     string
+		givenBindErrors []error
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:        "ok, binds value",
@@ -493,12 +495,12 @@ func TestValueBinder_String(t *testing.T) {
 func TestValueBinder_Strings(t *testing.T) {
 	var testCases = []struct {
 		name            string
-		givenFailFast   bool
-		givenBindErrors []error
 		whenURL         string
-		whenMust        bool
-		expectValue     []string
 		expectError     string
+		givenBindErrors []error
+		expectValue     []string
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:        "ok, binds value",
@@ -569,12 +571,12 @@ func TestValueBinder_Strings(t *testing.T) {
 func TestValueBinder_Int64_intValue(t *testing.T) {
 	var testCases = []struct {
 		name            string
-		givenFailFast   bool
-		givenBindErrors []error
 		whenURL         string
-		whenMust        bool
-		expectValue     int64
 		expectError     string
+		givenBindErrors []error
+		expectValue     int64
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:        "ok, binds value",
@@ -673,12 +675,12 @@ func TestValueBinder_Int_errorMessage(t *testing.T) {
 func TestValueBinder_Uint64_uintValue(t *testing.T) {
 	var testCases = []struct {
 		name            string
-		givenFailFast   bool
-		givenBindErrors []error
 		whenURL         string
-		whenMust        bool
-		expectValue     uint64
 		expectError     string
+		givenBindErrors []error
+		expectValue     uint64
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:        "ok, binds value",
@@ -880,12 +882,12 @@ func TestValueBinder_Int_Types(t *testing.T) {
 func TestValueBinder_Int64s_intsValue(t *testing.T) {
 	var testCases = []struct {
 		name            string
-		givenFailFast   bool
-		givenBindErrors []error
 		whenURL         string
-		whenMust        bool
-		expectValue     []int64
 		expectError     string
+		givenBindErrors []error
+		expectValue     []int64
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:        "ok, binds value",
@@ -969,12 +971,12 @@ func TestValueBinder_Int64s_intsValue(t *testing.T) {
 func TestValueBinder_Uint64s_uintsValue(t *testing.T) {
 	var testCases = []struct {
 		name            string
-		givenFailFast   bool
-		givenBindErrors []error
 		whenURL         string
-		whenMust        bool
-		expectValue     []uint64
 		expectError     string
+		givenBindErrors []error
+		expectValue     []uint64
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:        "ok, binds value",
@@ -1225,12 +1227,12 @@ func TestValueBinder_Ints_Types_FailFast(t *testing.T) {
 func TestValueBinder_Bool(t *testing.T) {
 	var testCases = []struct {
 		name            string
-		givenFailFast   bool
-		givenBindErrors []error
 		whenURL         string
+		expectError     string
+		givenBindErrors []error
+		givenFailFast   bool
 		whenMust        bool
 		expectValue     bool
-		expectError     string
 	}{
 		{
 			name:        "ok, binds value",
@@ -1314,12 +1316,12 @@ func TestValueBinder_Bool(t *testing.T) {
 func TestValueBinder_Bools(t *testing.T) {
 	var testCases = []struct {
 		name            string
-		givenFailFast   bool
-		givenBindErrors []error
 		whenURL         string
-		whenMust        bool
-		expectValue     []bool
 		expectError     string
+		givenBindErrors []error
+		expectValue     []bool
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:        "ok, binds value",
@@ -1410,12 +1412,12 @@ func TestValueBinder_Bools(t *testing.T) {
 func TestValueBinder_Float64(t *testing.T) {
 	var testCases = []struct {
 		name            string
-		givenFailFast   bool
-		givenBindErrors []error
 		whenURL         string
-		whenMust        bool
-		expectValue     float64
 		expectError     string
+		givenBindErrors []error
+		expectValue     float64
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:        "ok, binds value",
@@ -1499,12 +1501,12 @@ func TestValueBinder_Float64(t *testing.T) {
 func TestValueBinder_Float64s(t *testing.T) {
 	var testCases = []struct {
 		name            string
-		givenFailFast   bool
-		givenBindErrors []error
 		whenURL         string
-		whenMust        bool
-		expectValue     []float64
 		expectError     string
+		givenBindErrors []error
+		expectValue     []float64
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:        "ok, binds value",
@@ -1595,12 +1597,12 @@ func TestValueBinder_Float64s(t *testing.T) {
 func TestValueBinder_Float32(t *testing.T) {
 	var testCases = []struct {
 		name            string
-		givenNoFailFast bool
-		givenBindErrors []error
 		whenURL         string
-		whenMust        bool
-		expectValue     float32
 		expectError     string
+		givenBindErrors []error
+		expectValue     float32
+		givenNoFailFast bool
+		whenMust        bool
 	}{
 		{
 			name:        "ok, binds value",
@@ -1684,12 +1686,12 @@ func TestValueBinder_Float32(t *testing.T) {
 func TestValueBinder_Float32s(t *testing.T) {
 	var testCases = []struct {
 		name            string
-		givenFailFast   bool
-		givenBindErrors []error
 		whenURL         string
-		whenMust        bool
-		expectValue     []float32
 		expectError     string
+		givenBindErrors []error
+		expectValue     []float32
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:        "ok, binds value",
@@ -1780,14 +1782,14 @@ func TestValueBinder_Float32s(t *testing.T) {
 func TestValueBinder_Time(t *testing.T) {
 	exampleTime, _ := time.Parse(time.RFC3339, "2020-12-23T09:45:31+02:00")
 	var testCases = []struct {
-		name            string
-		givenFailFast   bool
-		givenBindErrors []error
-		whenURL         string
-		whenMust        bool
-		whenLayout      string
 		expectValue     time.Time
+		name            string
+		whenURL         string
+		whenLayout      string
 		expectError     string
+		givenBindErrors []error
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:        "ok, binds value",
@@ -1862,13 +1864,13 @@ func TestValueBinder_Times(t *testing.T) {
 	exampleTime2, _ := time.Parse(time.RFC3339, "2000-01-02T09:45:31+00:00")
 	var testCases = []struct {
 		name            string
-		givenFailFast   bool
-		givenBindErrors []error
 		whenURL         string
-		whenMust        bool
 		whenLayout      string
-		expectValue     []time.Time
 		expectError     string
+		givenBindErrors []error
+		expectValue     []time.Time
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:        "ok, binds value",
@@ -1947,12 +1949,12 @@ func TestValueBinder_Duration(t *testing.T) {
 	example := 42 * time.Second
 	var testCases = []struct {
 		name            string
-		givenFailFast   bool
-		givenBindErrors []error
 		whenURL         string
-		whenMust        bool
-		expectValue     time.Duration
 		expectError     string
+		givenBindErrors []error
+		expectValue     time.Duration
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:        "ok, binds value",
@@ -2025,12 +2027,12 @@ func TestValueBinder_Durations(t *testing.T) {
 	exampleDuration2 := 1 * time.Millisecond
 	var testCases = []struct {
 		name            string
-		givenFailFast   bool
-		givenBindErrors []error
 		whenURL         string
-		whenMust        bool
-		expectValue     []time.Duration
 		expectError     string
+		givenBindErrors []error
+		expectValue     []time.Duration
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:        "ok, binds value",
@@ -2102,13 +2104,13 @@ func TestValueBinder_BindUnmarshaler(t *testing.T) {
 	exampleTime, _ := time.Parse(time.RFC3339, "2020-12-23T09:45:31+02:00")
 
 	var testCases = []struct {
-		name            string
-		givenFailFast   bool
-		givenBindErrors []error
-		whenURL         string
-		whenMust        bool
 		expectValue     Timestamp
+		name            string
+		whenURL         string
 		expectError     string
+		givenBindErrors []error
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:        "ok, binds value",
@@ -2194,12 +2196,12 @@ func TestValueBinder_JSONUnmarshaler(t *testing.T) {
 
 	var testCases = []struct {
 		name            string
-		givenFailFast   bool
-		givenBindErrors []error
 		whenURL         string
-		whenMust        bool
-		expectValue     big.Int
 		expectError     string
+		expectValue     big.Int
+		givenBindErrors []error
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:        "ok, binds value",
@@ -2285,12 +2287,12 @@ func TestValueBinder_TextUnmarshaler(t *testing.T) {
 
 	var testCases = []struct {
 		name            string
-		givenFailFast   bool
-		givenBindErrors []error
 		whenURL         string
-		whenMust        bool
-		expectValue     big.Int
 		expectError     string
+		expectValue     big.Int
+		givenBindErrors []error
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:        "ok, binds value",
@@ -2373,9 +2375,9 @@ func TestValueBinder_TextUnmarshaler(t *testing.T) {
 
 func TestValueBinder_BindWithDelimiter_types(t *testing.T) {
 	var testCases = []struct {
+		expect  interface{}
 		name    string
 		whenURL string
-		expect  interface{}
 	}{
 		{
 			name:   "ok, strings",
@@ -2521,12 +2523,12 @@ func TestValueBinder_BindWithDelimiter_types(t *testing.T) {
 func TestValueBinder_BindWithDelimiter(t *testing.T) {
 	var testCases = []struct {
 		name            string
-		givenFailFast   bool
-		givenBindErrors []error
 		whenURL         string
-		whenMust        bool
-		expectValue     []int64
 		expectError     string
+		givenBindErrors []error
+		expectValue     []int64
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:        "ok, binds value",
@@ -2620,13 +2622,13 @@ func TestBindWithDelimiter_invalidType(t *testing.T) {
 func TestValueBinder_UnixTime(t *testing.T) {
 	exampleTime, _ := time.Parse(time.RFC3339, "2020-12-28T18:36:43+00:00") // => 1609180603
 	var testCases = []struct {
-		name            string
-		givenFailFast   bool
-		givenBindErrors []error
-		whenURL         string
-		whenMust        bool
 		expectValue     time.Time
+		name            string
+		whenURL         string
 		expectError     string
+		givenBindErrors []error
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:        "ok, binds value, unix time in seconds",
@@ -2716,13 +2718,13 @@ func TestValueBinder_UnixTime(t *testing.T) {
 func TestValueBinder_UnixTimeMilli(t *testing.T) {
 	exampleTime, _ := time.Parse(time.RFC3339Nano, "2022-03-13T15:13:30.140000000+00:00") // => 1647184410140
 	var testCases = []struct {
-		name            string
-		givenFailFast   bool
-		givenBindErrors []error
-		whenURL         string
-		whenMust        bool
 		expectValue     time.Time
+		name            string
+		whenURL         string
 		expectError     string
+		givenBindErrors []error
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:        "ok, binds value, unix time in milliseconds",
@@ -2809,13 +2811,13 @@ func TestValueBinder_UnixTimeNano(t *testing.T) {
 	exampleTimeNano, _ := time.Parse(time.RFC3339Nano, "2020-12-28T18:36:43.123456789+00:00") // => 1609180603123456789
 	exampleTimeNanoBelowSec, _ := time.Parse(time.RFC3339Nano, "1970-01-01T00:00:00.999999999+00:00")
 	var testCases = []struct {
-		name            string
-		givenFailFast   bool
-		givenBindErrors []error
-		whenURL         string
-		whenMust        bool
 		expectValue     time.Time
+		name            string
+		whenURL         string
 		expectError     string
+		givenBindErrors []error
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:        "ok, binds value, unix time in nano seconds (sec precision)",
@@ -2966,17 +2968,16 @@ func BenchmarkRawFunc_Int64_single(b *testing.B) {
 
 func BenchmarkDefaultBinder_BindInt64_10_fields(b *testing.B) {
 	type Opts struct {
-		Int64  int64  `query:"int64"`
-		Int32  int32  `query:"int32"`
-		Int16  int16  `query:"int16"`
-		Int8   int8   `query:"int8"`
-		String string `query:"string"`
-
-		Uint64  uint64   `query:"uint64"`
-		Uint32  uint32   `query:"uint32"`
-		Uint16  uint16   `query:"uint16"`
-		Uint8   uint8    `query:"uint8"`
+		String  string   `query:"string"`
 		Strings []string `query:"strings"`
+		Int64   int64    `query:"int64"`
+		Uint64  uint64   `query:"uint64"`
+		Int32   int32    `query:"int32"`
+		Uint32  uint32   `query:"uint32"`
+		Int16   int16    `query:"int16"`
+		Uint16  uint16   `query:"uint16"`
+		Int8    int8     `query:"int8"`
+		Uint8   uint8    `query:"uint8"`
 	}
 	c := createTestContext("/search?int64=1&int32=2&int16=3&int8=4&string=test&uint64=5&uint32=6&uint16=7&uint8=8&strings=first&strings=second", nil, nil)
 
@@ -2994,17 +2995,16 @@ func BenchmarkDefaultBinder_BindInt64_10_fields(b *testing.B) {
 
 func BenchmarkValueBinder_BindInt64_10_fields(b *testing.B) {
 	type Opts struct {
-		Int64  int64  `query:"int64"`
-		Int32  int32  `query:"int32"`
-		Int16  int16  `query:"int16"`
-		Int8   int8   `query:"int8"`
-		String string `query:"string"`
-
-		Uint64  uint64   `query:"uint64"`
-		Uint32  uint32   `query:"uint32"`
-		Uint16  uint16   `query:"uint16"`
-		Uint8   uint8    `query:"uint8"`
+		String  string   `query:"string"`
 		Strings []string `query:"strings"`
+		Int64   int64    `query:"int64"`
+		Uint64  uint64   `query:"uint64"`
+		Int32   int32    `query:"int32"`
+		Uint32  uint32   `query:"uint32"`
+		Int16   int16    `query:"int16"`
+		Uint16  uint16   `query:"uint16"`
+		Int8    int8     `query:"int8"`
+		Uint8   uint8    `query:"uint8"`
 	}
 	c := createTestContext("/search?int64=1&int32=2&int16=3&int8=4&string=test&uint64=5&uint32=6&uint16=7&uint8=8&strings=first&strings=second", nil, nil)
 
@@ -3033,14 +3033,14 @@ func BenchmarkValueBinder_BindInt64_10_fields(b *testing.B) {
 
 func TestValueBinder_TimeError(t *testing.T) {
 	var testCases = []struct {
-		name            string
-		givenFailFast   bool
-		givenBindErrors []error
-		whenURL         string
-		whenMust        bool
-		whenLayout      string
 		expectValue     time.Time
+		name            string
+		whenURL         string
+		whenLayout      string
 		expectError     string
+		givenBindErrors []error
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:        "nok, conversion fails, value is not changed",
@@ -3086,13 +3086,13 @@ func TestValueBinder_TimeError(t *testing.T) {
 func TestValueBinder_TimesError(t *testing.T) {
 	var testCases = []struct {
 		name            string
-		givenFailFast   bool
-		givenBindErrors []error
 		whenURL         string
-		whenMust        bool
 		whenLayout      string
-		expectValue     []time.Time
 		expectError     string
+		givenBindErrors []error
+		expectValue     []time.Time
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:          "nok, fail fast without binding value",
@@ -3148,12 +3148,12 @@ func TestValueBinder_TimesError(t *testing.T) {
 func TestValueBinder_DurationError(t *testing.T) {
 	var testCases = []struct {
 		name            string
-		givenFailFast   bool
-		givenBindErrors []error
 		whenURL         string
-		whenMust        bool
-		expectValue     time.Duration
 		expectError     string
+		givenBindErrors []error
+		expectValue     time.Duration
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:        "nok, conversion fails, value is not changed",
@@ -3199,12 +3199,12 @@ func TestValueBinder_DurationError(t *testing.T) {
 func TestValueBinder_DurationsError(t *testing.T) {
 	var testCases = []struct {
 		name            string
-		givenFailFast   bool
-		givenBindErrors []error
 		whenURL         string
-		whenMust        bool
-		expectValue     []time.Duration
 		expectError     string
+		givenBindErrors []error
+		expectValue     []time.Duration
+		givenFailFast   bool
+		whenMust        bool
 	}{
 		{
 			name:          "nok, fail fast without binding value",

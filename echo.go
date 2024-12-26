@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 /*
 Package echo implements high performance, minimalist Go web framework.
 
@@ -22,7 +25,6 @@ Example:
 	    e := echo.New()
 
 	    // Middleware
-	    e.Use(middleware.Logger())
 	    e.Use(middleware.Recover())
 
 	    // Routes
@@ -43,8 +45,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -60,42 +62,24 @@ import (
 // fields from handlers/middlewares and changing field values at the same time leads to data-races.
 // Same rule applies to adding new routes after server has been started - Adding a route is not Goroutine safe action.
 type Echo struct {
-	// premiddleware are middlewares that are run for every request before routing is done
-	premiddleware []MiddlewareFunc
-	// middleware are middlewares that are run after router found a matching route (not found and method not found are also matches)
-	middleware []MiddlewareFunc
-
-	router        Router
-	routers       map[string]Router
-	routerCreator func(e *Echo) Router
-
-	contextPool sync.Pool
-	// contextPathParamAllocSize holds maximum parameter count for all added routes. This is necessary info at context
-	// creation moment so we can allocate path parameter values slice with correct size.
+	contextPool               sync.Pool
+	Binder                    Binder
+	Filesystem                fs.FS
+	router                    Router
+	Renderer                  Renderer
+	Validator                 Validator
+	JSONSerializer            JSONSerializer
+	routerCreator             func(e *Echo) Router
+	HTTPErrorHandler          HTTPErrorHandler
+	NewContextFunc            func(e *Echo, pathParamAllocSize int) ServableContext
+	routers                   map[string]Router
+	Logger                    *slog.Logger
+	IPExtractor               IPExtractor
+	OnAddRoute                func(host string, route Routable) error
+	premiddleware             []MiddlewareFunc
+	middleware                []MiddlewareFunc
 	contextPathParamAllocSize int
-
-	// NewContextFunc allows using custom context implementations, instead of default *echo.context
-	NewContextFunc   func(e *Echo, pathParamAllocSize int) ServableContext
-	Debug            bool
-	HTTPErrorHandler HTTPErrorHandler
-	Binder           Binder
-	JSONSerializer   JSONSerializer
-	Validator        Validator
-	Renderer         Renderer
-	Logger           Logger
-	IPExtractor      IPExtractor
-
-	// Filesystem is file system used by Static and File handlers to access files.
-	// Defaults to os.DirFS(".")
-	//
-	// When dealing with `embed.FS` use `fs := echo.MustSubFS(fs, "rootDirectory") to create sub fs which uses necessary
-	// prefix for directory path. This is necessary as `//go:embed assets/images` embeds files with paths
-	// including `assets/images` as their prefix.
-	Filesystem fs.FS
-
-	// OnAddRoute is called when Echo adds new route to specific host router. Handler is called for every router
-	// and before route is added to the host router.
-	OnAddRoute func(host string, route Routable) error
+	Debug                     bool
 }
 
 // JSONSerializer is the interface that encodes and decodes JSON to and from interfaces.
@@ -123,17 +107,17 @@ type Validator interface {
 	Validate(i interface{}) error
 }
 
-// Renderer is the interface that wraps the Render function.
-type Renderer interface {
-	Render(io.Writer, string, interface{}, Context) error
-}
-
 // Map defines a generic map of type `map[string]interface{}`.
 type Map map[string]interface{}
 
 // MIME types
 const (
-	MIMEApplicationJSON                  = "application/json"
+	// MIMEApplicationJSON JavaScript Object Notation (JSON) https://www.rfc-editor.org/rfc/rfc8259
+	MIMEApplicationJSON = "application/json"
+	// Deprecated: Please use MIMEApplicationJSON instead. JSON should be encoded using UTF-8 by default.
+	// No "charset" parameter is defined for this registration.
+	// Adding one really has no effect on compliant recipients.
+	// See RFC 8259, section 8.1. https://datatracker.ietf.org/doc/html/rfc8259#section-8.1n"
 	MIMEApplicationJSONCharsetUTF8       = MIMEApplicationJSON + "; " + charsetUTF8
 	MIMEApplicationJavaScript            = "application/javascript"
 	MIMEApplicationJavaScriptCharsetUTF8 = MIMEApplicationJavaScript + "; " + charsetUTF8
@@ -217,7 +201,7 @@ const (
 	HeaderXFrameOptions                   = "X-Frame-Options"
 	HeaderContentSecurityPolicy           = "Content-Security-Policy"
 	HeaderContentSecurityPolicyReportOnly = "Content-Security-Policy-Report-Only"
-	HeaderXCSRFToken                      = "X-CSRF-Token"
+	HeaderXCSRFToken                      = "X-CSRF-Token" // #nosec G101
 	HeaderReferrerPolicy                  = "Referrer-Policy"
 )
 
@@ -242,7 +226,7 @@ var methods = [...]string{
 
 // New creates an instance of Echo.
 func New() *Echo {
-	logger := newJSONLogger(os.Stdout)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	e := &Echo{
 		Logger:         logger,
 		Filesystem:     newDefaultFS(),
@@ -316,7 +300,7 @@ func (e *Echo) ResetRouterCreator(creator func(e *Echo) Router) {
 // Note: DefaultHTTPErrorHandler does not log errors. Use middleware for it if errors need to be logged (separately)
 // Note: In case errors happens in middleware call-chain that is returning from handler (which did not return an error).
 // When handler has already sent response (ala c.JSON()) and there is error in middleware that is returning from
-// handler. Then the error that global error handler received will be ignored because we have already "commited" the
+// handler. Then the error that global error handler received will be ignored because we have already "committed" the
 // response and status code header has been sent to the client.
 func DefaultHTTPErrorHandler(exposeError bool) HTTPErrorHandler {
 	return func(c Context, err error) {
@@ -358,7 +342,7 @@ func DefaultHTTPErrorHandler(exposeError bool) HTTPErrorHandler {
 			cErr = c.JSON(code, message)
 		}
 		if cErr != nil {
-			c.Echo().Logger.Error(err) // truly rare case. ala client already disconnected
+			c.Echo().Logger.Error("echo default error handler failed to send error to client", "error", cErr) // truly rare case. ala client already disconnected
 		}
 	}
 }
@@ -746,8 +730,8 @@ func applyMiddleware(h HandlerFunc, middleware ...MiddlewareFunc) HandlerFunc {
 // all old applications that rely on being able to traverse up from current executable run path.
 // NB: private because you really should use fs.FS implementation instances
 type defaultFS struct {
-	prefix string
 	fs     fs.FS
+	prefix string
 }
 
 func newDefaultFS() *defaultFS {
@@ -760,7 +744,7 @@ func newDefaultFS() *defaultFS {
 
 func (fs defaultFS) Open(name string) (fs.File, error) {
 	if fs.fs == nil {
-		return os.Open(name)
+		return os.Open(name) // #nosec G304
 	}
 	return fs.fs.Open(name)
 }

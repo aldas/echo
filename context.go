@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package echo
 
 import (
@@ -228,22 +231,16 @@ const (
 // DefaultContext is default implementation of Context interface and can be embedded into structs to compose
 // new Contexts with extended/modified behaviour.
 type DefaultContext struct {
-	request  *http.Request
-	response *Response
-
-	route RouteInfo
-	path  string
-
-	// pathParams holds path/uri parameters determined by Router. Lifecycle is handled by Echo to reduce allocations.
-	pathParams *PathParams
-	// currentParams hold path parameters set by non-Echo implementation (custom middlewares, handlers) during the lifetime of Request.
-	// Lifecycle is not handle by Echo and could have excess allocations per served Request
+	route         RouteInfo
+	request       *http.Request
+	response      *Response
+	pathParams    *PathParams
+	query         url.Values
+	store         Map
+	echo          *Echo
+	path          string
 	currentParams PathParams
-
-	query url.Values
-	store Map
-	echo  *Echo
-	lock  sync.RWMutex
+	lock          sync.RWMutex
 }
 
 // NewDefaultContext creates new instance of DefaultContext.
@@ -493,7 +490,7 @@ func (c *DefaultContext) FormFile(name string) (*multipart.FileHeader, error) {
 	if err != nil {
 		return nil, err
 	}
-	f.Close()
+	_ = f.Close()
 	return fh, nil
 }
 
@@ -558,7 +555,7 @@ func (c *DefaultContext) Render(code int, name string, data interface{}) (err er
 		return ErrRendererNotRegistered
 	}
 	buf := new(bytes.Buffer)
-	if err = c.echo.Renderer.Render(buf, name, data, c); err != nil {
+	if err = c.echo.Renderer.Render(c, buf, name, data); err != nil {
 		return
 	}
 	return c.HTMLBlob(code, buf.Bytes())
@@ -599,7 +596,7 @@ func (c *DefaultContext) jsonPBlob(code int, callback string, i interface{}) (er
 }
 
 func (c *DefaultContext) json(code int, i interface{}, indent string) error {
-	c.writeContentType(MIMEApplicationJSONCharsetUTF8)
+	c.writeContentType(MIMEApplicationJSON)
 	c.response.Status = code
 	return c.echo.JSONSerializer.Serialize(c, i, indent)
 }
@@ -620,7 +617,7 @@ func (c *DefaultContext) JSONPretty(code int, i interface{}, indent string) (err
 
 // JSONBlob sends a JSON blob response with status code.
 func (c *DefaultContext) JSONBlob(code int, b []byte) (err error) {
-	return c.Blob(code, MIMEApplicationJSONCharsetUTF8, b)
+	return c.Blob(code, MIMEApplicationJSON, b)
 }
 
 // JSONP sends a JSONP response with status code. It uses `callback` to construct
@@ -749,8 +746,10 @@ func (c *DefaultContext) Inline(file, name string) error {
 	return c.contentDisposition(file, name, "inline")
 }
 
+var quoteEscaper = strings.NewReplacer("\\", "\\\\", `"`, "\\\"")
+
 func (c *DefaultContext) contentDisposition(file, name, dispositionType string) error {
-	c.response.Header().Set(HeaderContentDisposition, fmt.Sprintf("%s; filename=%q", dispositionType, name))
+	c.response.Header().Set(HeaderContentDisposition, fmt.Sprintf(`%s; filename="%s"`, dispositionType, quoteEscaper.Replace(name)))
 	return c.File(file)
 }
 

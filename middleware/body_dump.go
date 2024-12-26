@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package middleware
 
 import (
@@ -90,9 +93,16 @@ func (w *bodyDumpResponseWriter) Write(b []byte) (int, error) {
 }
 
 func (w *bodyDumpResponseWriter) Flush() {
-	w.ResponseWriter.(http.Flusher).Flush()
+	err := http.NewResponseController(w.ResponseWriter).Flush()
+	if err != nil && errors.Is(err, http.ErrNotSupported) {
+		panic(errors.New("response writer flushing is not supported"))
+	}
 }
 
 func (w *bodyDumpResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	return w.ResponseWriter.(http.Hijacker).Hijack()
+	return http.NewResponseController(w.ResponseWriter).Hijack()
+}
+
+func (w *bodyDumpResponseWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
 }

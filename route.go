@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package echo
 
 import (
@@ -11,12 +14,11 @@ import (
 // Route contains information to adding/registering new route with the router.
 // Method+Path pair uniquely identifies the Route. It is mandatory to provide Method+Path+Handler fields.
 type Route struct {
+	Handler     HandlerFunc
 	Method      string
 	Path        string
-	Handler     HandlerFunc
+	Name        string
 	Middlewares []MiddlewareFunc
-
-	Name string
 }
 
 // ToRouteInfo converts Route to RouteInfo
@@ -55,8 +57,8 @@ func (r Route) ForGroup(pathPrefix string, middlewares []MiddlewareFunc) Routabl
 type routeInfo struct {
 	method string
 	path   string
-	params []string
 	name   string
+	params []string
 }
 
 func (r routeInfo) Method() string {

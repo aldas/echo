@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package echo
 
 import (
@@ -11,10 +14,10 @@ import (
 // by an HTTP handler to construct an HTTP response.
 // See: https://golang.org/pkg/net/http/#ResponseWriter
 type Response struct {
+	Writer      http.ResponseWriter
 	echo        *Echo
 	beforeFuncs []func()
 	afterFuncs  []func()
-	Writer      http.ResponseWriter
 	Status      int
 	Size        int64
 	Committed   bool
@@ -46,15 +49,13 @@ func (r *Response) After(fn func()) {
 	r.afterFuncs = append(r.afterFuncs, fn)
 }
 
-var errHeaderAlreadyCommitted = errors.New("response already committed")
-
 // WriteHeader sends an HTTP response header with status code. If WriteHeader is
 // not called explicitly, the first call to Write will trigger an implicit
 // WriteHeader(http.StatusOK). Thus explicit calls to WriteHeader are mainly
 // used to send error codes.
 func (r *Response) WriteHeader(code int) {
 	if r.Committed {
-		r.echo.Logger.Error(errHeaderAlreadyCommitted)
+		r.echo.Logger.Error("echo: response already written to client")
 		return
 	}
 	r.Status = code
@@ -85,14 +86,17 @@ func (r *Response) Write(b []byte) (n int, err error) {
 // buffered data to the client.
 // See [http.Flusher](https://golang.org/pkg/net/http/#Flusher)
 func (r *Response) Flush() {
-	r.Writer.(http.Flusher).Flush()
+	err := http.NewResponseController(r.Writer).Flush()
+	if err != nil && errors.Is(err, http.ErrNotSupported) {
+		panic(errors.New("response writer flushing is not supported"))
+	}
 }
 
 // Hijack implements the http.Hijacker interface to allow an HTTP handler to
 // take over the connection.
 // See [http.Hijacker](https://golang.org/pkg/net/http/#Hijacker)
 func (r *Response) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	return r.Writer.(http.Hijacker).Hijack()
+	return http.NewResponseController(r.Writer).Hijack()
 }
 
 // Unwrap returns the original http.ResponseWriter.

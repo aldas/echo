@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 package echo
 
 import (
@@ -9,10 +12,10 @@ import (
 // routes that share a common middleware or functionality that should be separate
 // from the parent echo instance while still inheriting from it.
 type Group struct {
+	echo       *Echo
 	host       string
 	prefix     string
 	middleware []MiddlewareFunc
-	echo       *Echo
 }
 
 // Use implements `Echo#Use()` for sub-routes within the Group.

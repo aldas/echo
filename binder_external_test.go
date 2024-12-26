@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
 // run tests as external package to get real feel for API
 package echo_test
 
@@ -14,8 +17,8 @@ func ExampleValueBinder_BindErrors() {
 	// example route function that binds query params to different destinations and returns all bind errors in one go
 	routeFunc := func(c echo.Context) error {
 		var opts struct {
-			Active bool
 			IDs    []int64
+			Active bool
 		}
 		length := int64(50) // default length is 50
 
@@ -52,8 +55,8 @@ func ExampleValueBinder_BindError() {
 	// example route function that binds query params to different destinations and stops binding on first bind error
 	failFastRouteFunc := func(c echo.Context) error {
 		var opts struct {
-			Active bool
 			IDs    []int64
+			Active bool
 		}
 		length := int64(50) // default length is 50
 
