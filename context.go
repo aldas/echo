@@ -75,7 +75,7 @@ func (c *Context) Reset(r *http.Request, w http.ResponseWriter) {
 
 	c.route = nil
 	c.path = ""
-	// NOTE: Don't reset because it has to have length of c.echo.contextPathParamAllocSize at all times
+	// NOTE: empty by setting length to 0. PathParams has to have capacity of c.echo.contextPathParamAllocSize at all times
 	*c.pathParams = (*c.pathParams)[:0]
 }
 
@@ -221,33 +221,31 @@ func (c *Context) SetPathParams(params PathParams) {
 	if params == nil {
 		panic("context SetPathParams called with nil PathParams")
 	}
-	// Router accesses c.pathParams by index and may resize it to full capacity during routing
-	// for that to work without going out-of-bounds we must make sure that c.pathParams slice is not replaced with smaller
-	// slice than Router can set when routing Route with maximum amount of parameters.
-	if cap(*c.pathParams) > cap(params) {
-		pathParams := c.pathParams
-		*pathParams = (*pathParams)[0:len(params)] // resize slice to given params length for copy to work
-		copy(*pathParams, params)
-	} else { // slice with bigger capacity is fine
-		c.pathParams = &params
-	}
+	c.setPathParams(&params)
 }
 
 // InitializeRoute sets the route related variables of this request to the context.
 func (c *Context) InitializeRoute(ri *RouteInfo, params *PathParams) {
 	c.route = ri
 	c.path = ri.Path
+	c.setPathParams(params)
+}
 
+func (c *Context) setPathParams(params *PathParams) {
 	// Router accesses c.pathParams by index and may resize it to full capacity during routing
 	// for that to work without going out-of-bounds we must make sure that c.pathParams slice is not replaced with smaller
 	// slice than Router can set when routing Route with maximum amount of parameters.
-	if cap(*c.pathParams) > cap(*params) {
-		pathParams := c.pathParams
+	pathParams := c.pathParams
+	if cap(*c.pathParams) < len(*params) {
+		// normally we should not end up here. pathParams is normally sized to Echo.contextPathParamAllocSize which should not
+		// be smaller than anything router knows as maximum path parameter count to be.
+		tmp := make(PathParams, len(*params))
+		c.pathParams = &tmp
+		pathParams = c.pathParams
+	} else if len(*c.pathParams) != len(*params) {
 		*pathParams = (*pathParams)[0:len(*params)] // resize slice to given params length for copy to work
-		copy(*pathParams, *params)
-	} else { // slice with bigger capacity is fine
-		c.pathParams = params
 	}
+	copy(*pathParams, *params)
 }
 
 // QueryParam returns the query param for the provided name.

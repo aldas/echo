@@ -766,8 +766,8 @@ var optionsMethodHandler = func(c *Context) error {
 // - Reset it `Context#Reset()`
 // - Return it `Echo#ReleaseContext()`.
 func (r *DefaultRouter) Route(c *Context) HandlerFunc {
-	pathParams := c.pathParams
-	*pathParams = (*pathParams)[0:cap(*pathParams)] // resize slice to maximum capacity so we can index set values
+	pathParams := c.PathParams()
+	pathParams = pathParams[0:cap(pathParams)] // resize slice to maximum capacity so we can index set values
 
 	req := c.Request()
 	path := req.URL.Path
@@ -817,8 +817,8 @@ func (r *DefaultRouter) Route(c *Context) HandlerFunc {
 			paramIndex--
 			// for param/any node.prefix value is always `:` so we can not deduce searchIndex from that and must use pValue
 			// for that index as it would also contain part of path we cut off before moving into node we are backtracking from
-			searchIndex -= len((*pathParams)[paramIndex].Value)
-			(*pathParams)[paramIndex].Value = ""
+			searchIndex -= len(pathParams[paramIndex].Value)
+			pathParams[paramIndex].Value = ""
 		}
 		search = path[searchIndex:]
 		return
@@ -910,7 +910,7 @@ func (r *DefaultRouter) Route(c *Context) HandlerFunc {
 				}
 			}
 
-			(*pathParams)[paramIndex].Value = search[:i]
+			pathParams[paramIndex].Value = search[:i]
 			paramIndex++
 			search = search[i:]
 			searchIndex = searchIndex + i
@@ -922,7 +922,7 @@ func (r *DefaultRouter) Route(c *Context) HandlerFunc {
 		if child := currentNode.anyChild; child != nil {
 			// If any node is found, use remaining path for paramValues
 			currentNode = child
-			(*pathParams)[currentNode.paramsCount-1].Value = search
+			pathParams[currentNode.paramsCount-1].Value = search
 			// update indexes/search in case we need to backtrack when no handler match is found
 			paramIndex++
 			searchIndex += +len(search)
@@ -957,9 +957,9 @@ func (r *DefaultRouter) Route(c *Context) HandlerFunc {
 	}
 
 	if currentNode == nil && previousBestMatchNode == nil {
-		*pathParams = (*pathParams)[0:0]
+		pathParams = pathParams[0:0]
 
-		c.InitializeRoute(notFoundRouteInfo, pathParams)
+		c.InitializeRoute(notFoundRouteInfo, &pathParams)
 		return r.notFoundHandler // nothing matched at all with given path
 	}
 
@@ -994,24 +994,24 @@ func (r *DefaultRouter) Route(c *Context) HandlerFunc {
 		}
 	}
 
-	*pathParams = (*pathParams)[0:currentNode.paramsCount]
+	pathParams = pathParams[0:currentNode.paramsCount]
 	if matchedRouteMethod != nil {
 		for i, name := range matchedRouteMethod.Parameters {
-			(*pathParams)[i].Name = name
+			pathParams[i].Name = name
 		}
 	}
 
 	if r.unescapePathParamValues {
 		// See issue #1531, #1258 - there are cases when path parameter need to be unescaped
-		for i, p := range *pathParams {
+		for i, p := range pathParams {
 			tmpVal, err := url.PathUnescape(p.Value)
 			if err == nil { // handle problems by ignoring them.
-				(*pathParams)[i].Value = tmpVal
+				pathParams[i].Value = tmpVal
 			}
 		}
 	}
 
-	c.InitializeRoute(rInfo, pathParams)
+	c.InitializeRoute(rInfo, &pathParams)
 	c.SetPath(rPath) // after InitializeRoute so we would not accidentally change `notFoundRouteInfo` or `methodNotAllowedRouteInfo` Path
 
 	return rHandler
