@@ -386,10 +386,19 @@ func (config RequestLoggerConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 	}, nil
 }
 
+// RequestLogger creates Request Logger middleware with Echo default settings that uses Context.Logger() as logger.
 func RequestLogger() echo.MiddlewareFunc {
 	return RequestLoggerWithConfig(RequestLoggerConfig{
-		LogStatus: true,
-		LogURI:    true,
+		LogRequestID:     true, // FIXME: RequestID middleware probably should c.SetLogger() logger with that field as attr
+		LogRemoteIP:      true,
+		LogHost:          true,
+		LogMethod:        true,
+		LogURI:           true,
+		LogUserAgent:     true,
+		LogStatus:        true,
+		LogLatency:       true,
+		LogContentLength: true,
+		LogResponseSize:  true,
 		// forwards error to the global error handler, so it can decide appropriate status code.
 		// NB: side-effect of that is - request is now "commited" written to the client. Middlewares up in chain can not
 		// change Response status code or response body.
@@ -398,14 +407,30 @@ func RequestLogger() echo.MiddlewareFunc {
 			logger := c.Logger()
 			if v.Error == nil {
 				logger.LogAttrs(context.Background(), slog.LevelInfo, "REQUEST",
+					slog.String("method", v.Method),
 					slog.String("uri", v.URI),
 					slog.Int("status", v.Status),
+					slog.Duration("latency", v.Latency),
+					slog.String("request_id", v.RequestID),
+					slog.String("request_ip", v.RemoteIP),
+					slog.String("host", v.Host),
+					slog.String("user_agent", v.UserAgent),
+					slog.String("req_size", v.ContentLength),
+					slog.Int64("req_size", v.ResponseSize),
 				)
 			} else {
 				logger.LogAttrs(context.Background(), slog.LevelError, "REQUEST_ERROR",
+					slog.String("method", v.Method),
 					slog.String("uri", v.URI),
 					slog.Int("status", v.Status),
 					slog.String("err", v.Error.Error()),
+					slog.Duration("latency", v.Latency),
+					slog.String("request_id", v.RequestID),
+					slog.String("request_ip", v.RemoteIP),
+					slog.String("host", v.Host),
+					slog.String("user_agent", v.UserAgent),
+					slog.String("req_size", v.ContentLength),
+					slog.Int64("req_size", v.ResponseSize),
 				)
 			}
 			return nil

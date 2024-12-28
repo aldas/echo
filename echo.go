@@ -74,7 +74,7 @@ type Echo struct {
 	routers          map[string]Router
 	Logger           *slog.Logger
 	IPExtractor      IPExtractor
-	OnAddRoute       func(host string, route Routable) error
+	OnAddRoute       func(host string, route Route) error
 	// premiddleware are middlewares that are called before routing is done
 	premiddleware []MiddlewareFunc
 	// middleware are middlewares that are called after routing is done and before handler is called
@@ -542,24 +542,24 @@ func (e *Echo) File(path, file string, middleware ...MiddlewareFunc) RouteInfo {
 }
 
 // AddRoute registers a new Route with default host Router
-func (e *Echo) AddRoute(route Routable) (RouteInfo, error) {
+func (e *Echo) AddRoute(route Route) (RouteInfo, error) {
 	return e.add("", route)
 }
 
-func (e *Echo) add(host string, route Routable) (RouteInfo, error) {
+func (e *Echo) add(host string, route Route) (RouteInfo, error) {
 	if e.OnAddRoute != nil {
 		if err := e.OnAddRoute(host, route); err != nil {
-			return nil, err
+			return RouteInfo{}, err
 		}
 	}
 
 	router := e.findRouter(host)
 	ri, err := router.Add(route)
 	if err != nil {
-		return nil, err
+		return RouteInfo{}, err
 	}
 
-	paramsCount := len(ri.Params())
+	paramsCount := len(ri.Parameters)
 	if paramsCount > e.contextPathParamAllocSize {
 		e.contextPathParamAllocSize = paramsCount
 	}

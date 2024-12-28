@@ -182,7 +182,7 @@ func (g *Group) Add(method, path string, handler HandlerFunc, middleware ...Midd
 }
 
 // AddRoute registers a new Routable with Router
-func (g *Group) AddRoute(route Routable) (RouteInfo, error) {
+func (g *Group) AddRoute(route Route) (RouteInfo, error) {
 	// Combine middleware into a new slice to avoid accidentally passing the same slice for
 	// multiple routes, which would lead to later add() calls overwriting the
 	// middleware from earlier calls.

@@ -476,12 +476,12 @@ func TestContextCookie(t *testing.T) {
 func TestContext_PathParams(t *testing.T) {
 	var testCases = []struct {
 		name   string
-		given  *PathParams
+		given  PathParams
 		expect PathParams
 	}{
 		{
 			name: "param exists",
-			given: &PathParams{
+			given: PathParams{
 				{Name: "uid", Value: "101"},
 				{Name: "fid", Value: "501"},
 			},
@@ -492,7 +492,7 @@ func TestContext_PathParams(t *testing.T) {
 		},
 		{
 			name:   "params is empty",
-			given:  &PathParams{},
+			given:  PathParams{},
 			expect: PathParams{},
 		},
 	}
@@ -503,7 +503,7 @@ func TestContext_PathParams(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := e.NewContext(req, nil)
 
-			c.SetRawPathParams(tc.given)
+			c.SetPathParams(tc.given)
 
 			assert.EqualValues(t, tc.expect, c.PathParams())
 		})
@@ -513,13 +513,13 @@ func TestContext_PathParams(t *testing.T) {
 func TestContext_PathParam(t *testing.T) {
 	var testCases = []struct {
 		name          string
-		given         *PathParams
+		given         PathParams
 		whenParamName string
 		expect        string
 	}{
 		{
 			name: "param exists",
-			given: &PathParams{
+			given: PathParams{
 				{Name: "uid", Value: "101"},
 				{Name: "fid", Value: "501"},
 			},
@@ -528,7 +528,7 @@ func TestContext_PathParam(t *testing.T) {
 		},
 		{
 			name: "multiple same param values exists - return first",
-			given: &PathParams{
+			given: PathParams{
 				{Name: "uid", Value: "101"},
 				{Name: "uid", Value: "202"},
 				{Name: "fid", Value: "501"},
@@ -538,7 +538,7 @@ func TestContext_PathParam(t *testing.T) {
 		},
 		{
 			name: "param does not exists",
-			given: &PathParams{
+			given: PathParams{
 				{Name: "uid", Value: "101"},
 			},
 			whenParamName: "nope",
@@ -552,7 +552,7 @@ func TestContext_PathParam(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := e.NewContext(req, nil)
 
-			c.SetRawPathParams(tc.given)
+			c.SetPathParams(tc.given)
 
 			assert.EqualValues(t, tc.expect, c.PathParam(tc.whenParamName))
 		})
@@ -562,14 +562,14 @@ func TestContext_PathParam(t *testing.T) {
 func TestContext_PathParamDefault(t *testing.T) {
 	var testCases = []struct {
 		name             string
-		given            *PathParams
+		given            PathParams
 		whenParamName    string
 		whenDefaultValue string
 		expect           string
 	}{
 		{
 			name: "param exists",
-			given: &PathParams{
+			given: PathParams{
 				{Name: "uid", Value: "101"},
 				{Name: "fid", Value: "501"},
 			},
@@ -579,7 +579,7 @@ func TestContext_PathParamDefault(t *testing.T) {
 		},
 		{
 			name: "param exists and is empty",
-			given: &PathParams{
+			given: PathParams{
 				{Name: "uid", Value: ""},
 				{Name: "fid", Value: "501"},
 			},
@@ -589,7 +589,7 @@ func TestContext_PathParamDefault(t *testing.T) {
 		},
 		{
 			name: "param does not exists",
-			given: &PathParams{
+			given: PathParams{
 				{Name: "uid", Value: "101"},
 			},
 			whenParamName:    "nope",
@@ -604,7 +604,7 @@ func TestContext_PathParamDefault(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := e.NewContext(req, nil)
 
-			c.SetRawPathParams(tc.given)
+			c.SetPathParams(tc.given)
 
 			assert.EqualValues(t, tc.expect, c.PathParamDefault(tc.whenParamName, tc.whenDefaultValue))
 		})
@@ -659,13 +659,13 @@ func TestContext_SetParamNamesShouldNotModifyPathParams(t *testing.T) {
 	c := e.NewContext(nil, nil)
 
 	assert.Equal(t, 0, e.contextPathParamAllocSize)
-	expectedTwoParams := &PathParams{
+	expectedTwoParams := PathParams{
 		{Name: "1", Value: "one"},
 		{Name: "2", Value: "two"},
 	}
-	c.SetRawPathParams(expectedTwoParams)
+	c.SetPathParams(expectedTwoParams)
 	assert.Equal(t, 0, e.contextPathParamAllocSize)
-	assert.Equal(t, *expectedTwoParams, c.PathParams())
+	assert.Equal(t, expectedTwoParams, c.PathParams())
 
 	expectedThreeParams := PathParams{
 		{Name: "1", Value: "one"},

@@ -133,11 +133,11 @@ func TestGroupRouteMiddlewareWithMatchAny(t *testing.T) {
 	}
 	m2 := func(next HandlerFunc) HandlerFunc {
 		return func(c *Context) error {
-			return c.String(http.StatusOK, c.RouteInfo().Path())
+			return c.String(http.StatusOK, c.RouteInfo().Path)
 		}
 	}
 	h := func(c *Context) error {
-		return c.String(http.StatusOK, c.RouteInfo().Path())
+		return c.String(http.StatusOK, c.RouteInfo().Path)
 	}
 	g.Use(m1)
 	g.GET("/help", h, m2)
@@ -169,10 +169,10 @@ func TestGroup_CONNECT(t *testing.T) {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
-	assert.Equal(t, http.MethodConnect, ri.Method())
-	assert.Equal(t, "/users/activate", ri.Path())
-	assert.Equal(t, http.MethodConnect+":/users/activate", ri.Name())
-	assert.Nil(t, ri.Params())
+	assert.Equal(t, http.MethodConnect, ri.Method)
+	assert.Equal(t, "/users/activate", ri.Path)
+	assert.Equal(t, http.MethodConnect+":/users/activate", ri.Name)
+	assert.Nil(t, ri.Parameters)
 
 	status, body := request(http.MethodConnect, "/users/activate", e)
 	assert.Equal(t, http.StatusTeapot, status)
@@ -187,10 +187,10 @@ func TestGroup_DELETE(t *testing.T) {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
-	assert.Equal(t, http.MethodDelete, ri.Method())
-	assert.Equal(t, "/users/activate", ri.Path())
-	assert.Equal(t, http.MethodDelete+":/users/activate", ri.Name())
-	assert.Nil(t, ri.Params())
+	assert.Equal(t, http.MethodDelete, ri.Method)
+	assert.Equal(t, "/users/activate", ri.Path)
+	assert.Equal(t, http.MethodDelete+":/users/activate", ri.Name)
+	assert.Nil(t, ri.Parameters)
 
 	status, body := request(http.MethodDelete, "/users/activate", e)
 	assert.Equal(t, http.StatusTeapot, status)
@@ -205,10 +205,10 @@ func TestGroup_HEAD(t *testing.T) {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
-	assert.Equal(t, http.MethodHead, ri.Method())
-	assert.Equal(t, "/users/activate", ri.Path())
-	assert.Equal(t, http.MethodHead+":/users/activate", ri.Name())
-	assert.Nil(t, ri.Params())
+	assert.Equal(t, http.MethodHead, ri.Method)
+	assert.Equal(t, "/users/activate", ri.Path)
+	assert.Equal(t, http.MethodHead+":/users/activate", ri.Name)
+	assert.Nil(t, ri.Parameters)
 
 	status, body := request(http.MethodHead, "/users/activate", e)
 	assert.Equal(t, http.StatusTeapot, status)
@@ -223,10 +223,10 @@ func TestGroup_OPTIONS(t *testing.T) {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
-	assert.Equal(t, http.MethodOptions, ri.Method())
-	assert.Equal(t, "/users/activate", ri.Path())
-	assert.Equal(t, http.MethodOptions+":/users/activate", ri.Name())
-	assert.Nil(t, ri.Params())
+	assert.Equal(t, http.MethodOptions, ri.Method)
+	assert.Equal(t, "/users/activate", ri.Path)
+	assert.Equal(t, http.MethodOptions+":/users/activate", ri.Name)
+	assert.Nil(t, ri.Parameters)
 
 	status, body := request(http.MethodOptions, "/users/activate", e)
 	assert.Equal(t, http.StatusTeapot, status)
@@ -241,10 +241,10 @@ func TestGroup_PATCH(t *testing.T) {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
-	assert.Equal(t, http.MethodPatch, ri.Method())
-	assert.Equal(t, "/users/activate", ri.Path())
-	assert.Equal(t, http.MethodPatch+":/users/activate", ri.Name())
-	assert.Nil(t, ri.Params())
+	assert.Equal(t, http.MethodPatch, ri.Method)
+	assert.Equal(t, "/users/activate", ri.Path)
+	assert.Equal(t, http.MethodPatch+":/users/activate", ri.Name)
+	assert.Nil(t, ri.Parameters)
 
 	status, body := request(http.MethodPatch, "/users/activate", e)
 	assert.Equal(t, http.StatusTeapot, status)
@@ -259,10 +259,10 @@ func TestGroup_POST(t *testing.T) {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
-	assert.Equal(t, http.MethodPost, ri.Method())
-	assert.Equal(t, "/users/activate", ri.Path())
-	assert.Equal(t, http.MethodPost+":/users/activate", ri.Name())
-	assert.Nil(t, ri.Params())
+	assert.Equal(t, http.MethodPost, ri.Method)
+	assert.Equal(t, "/users/activate", ri.Path)
+	assert.Equal(t, http.MethodPost+":/users/activate", ri.Name)
+	assert.Nil(t, ri.Parameters)
 
 	status, body := request(http.MethodPost, "/users/activate", e)
 	assert.Equal(t, http.StatusTeapot, status)
@@ -277,10 +277,10 @@ func TestGroup_PUT(t *testing.T) {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
-	assert.Equal(t, http.MethodPut, ri.Method())
-	assert.Equal(t, "/users/activate", ri.Path())
-	assert.Equal(t, http.MethodPut+":/users/activate", ri.Name())
-	assert.Nil(t, ri.Params())
+	assert.Equal(t, http.MethodPut, ri.Method)
+	assert.Equal(t, "/users/activate", ri.Path)
+	assert.Equal(t, http.MethodPut+":/users/activate", ri.Name)
+	assert.Nil(t, ri.Parameters)
 
 	status, body := request(http.MethodPut, "/users/activate", e)
 	assert.Equal(t, http.StatusTeapot, status)
@@ -295,10 +295,10 @@ func TestGroup_TRACE(t *testing.T) {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
-	assert.Equal(t, http.MethodTrace, ri.Method())
-	assert.Equal(t, "/users/activate", ri.Path())
-	assert.Equal(t, http.MethodTrace+":/users/activate", ri.Name())
-	assert.Nil(t, ri.Params())
+	assert.Equal(t, http.MethodTrace, ri.Method)
+	assert.Equal(t, "/users/activate", ri.Path)
+	assert.Equal(t, http.MethodTrace+":/users/activate", ri.Name)
+	assert.Nil(t, ri.Parameters)
 
 	status, body := request(http.MethodTrace, "/users/activate", e)
 	assert.Equal(t, http.StatusTeapot, status)
@@ -487,10 +487,10 @@ func TestGroup_Static(t *testing.T) {
 
 	g := e.Group("/books")
 	ri := g.Static("/download", "_fixture")
-	assert.Equal(t, http.MethodGet, ri.Method())
-	assert.Equal(t, "/books/download*", ri.Path())
-	assert.Equal(t, "GET:/books/download*", ri.Name())
-	assert.Equal(t, []string{"*"}, ri.Params())
+	assert.Equal(t, http.MethodGet, ri.Method)
+	assert.Equal(t, "/books/download*", ri.Path)
+	assert.Equal(t, "GET:/books/download*", ri.Name)
+	assert.Equal(t, []string{"*"}, ri.Parameters)
 
 	req := httptest.NewRequest(http.MethodGet, "/books/download/index.html", nil)
 	rec := httptest.NewRecorder()

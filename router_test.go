@@ -645,12 +645,12 @@ var (
 	handlerHelper = func(key string, value int) func(c *Context) error {
 		return func(c *Context) error {
 			c.Set(key, value)
-			c.Set("path", c.RouteInfo().Path())
+			c.Set("path", c.RouteInfo().Path)
 			return nil
 		}
 	}
 	handlerFunc = func(c *Context) error {
-		c.Set("path", c.RouteInfo().Path())
+		c.Set("path", c.RouteInfo().Path)
 		return nil
 	}
 )
@@ -816,11 +816,11 @@ func TestMethodNotAllowedAndNotFound(t *testing.T) {
 	// Routes
 	ri, err := e.AddRoute(Route{Method: http.MethodGet, Path: "/*", Handler: handlerFunc})
 	assert.NoError(t, err)
-	assert.Equal(t, "GET:/*", ri.Name())
+	assert.Equal(t, "GET:/*", ri.Name)
 
 	ri, err = e.AddRoute(Route{Method: http.MethodPost, Path: "/users/:id", Handler: handlerFunc})
 	assert.NoError(t, err)
-	assert.Equal(t, "POST:/users/:id", ri.Name())
+	assert.Equal(t, "POST:/users/:id", ri.Name)
 
 	var testCases = []struct {
 		name              string
@@ -2812,13 +2812,13 @@ func TestRouter_Routes(t *testing.T) {
 	for _, r := range router.Routes() {
 		found := false
 		for _, rr := range routes {
-			if r.Method() == rr.Method && r.Path() == rr.Path {
+			if r.Method == rr.Method && r.Path == rr.Path {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Errorf("Route %s %s not found", r.Method(), r.Path())
+			t.Errorf("Route %s %s not found", r.Method, r.Path)
 		}
 	}
 }
@@ -3005,7 +3005,7 @@ func TestDefaultRouter_AddWithoutHandler(t *testing.T) {
 
 	ri, err := router.Add(Route{Method: http.MethodGet, Path: "/info", Handler: nil})
 	assert.EqualError(t, err, "GET /info: adding route without handler function")
-	assert.Nil(t, ri)
+	assert.Equal(t, RouteInfo{}, ri)
 }
 
 func TestDefaultRouter_AddDuplicateRouteNotAllowed(t *testing.T) {
@@ -3025,7 +3025,7 @@ func TestDefaultRouter_AddDuplicateRouteNotAllowed(t *testing.T) {
 	assert.NotNil(t, ri)
 
 	ri, err = router.Add(Route{Method: http.MethodGet, Path: "/info", Handler: handlerFunc, Name: "new"})
-	assert.Nil(t, ri)
+	assert.Equal(t, RouteInfo{}, ri)
 	assert.EqualError(t, err, "GET /info: adding duplicate route (same method+path) is not allowed")
 	assert.Len(t, router.Routes(), 1)
 
@@ -3137,10 +3137,10 @@ func TestDefaultRouter_AddDuplicateRouteAllowed(t *testing.T) {
 
 	ri, err := router.Add(Route{Method: http.MethodGet, Path: "/info", Handler: handlerFunc, Name: "old"})
 	assert.NoError(t, err)
-	assert.Equal(t, ri, routeInfo{
-		method: http.MethodGet,
-		path:   "/info",
-		name:   "old",
+	assert.Equal(t, ri, RouteInfo{
+		Method: http.MethodGet,
+		Path:   "/info",
+		Name:   "old",
 	})
 
 	ri, err = router.Add(Route{
@@ -3152,15 +3152,15 @@ func TestDefaultRouter_AddDuplicateRouteAllowed(t *testing.T) {
 		Name: "new",
 	})
 	assert.NoError(t, err)
-	assert.Equal(t, ri, routeInfo{
-		method: http.MethodGet,
-		path:   "/info",
-		name:   "new",
+	assert.Equal(t, ri, RouteInfo{
+		Method: http.MethodGet,
+		Path:   "/info",
+		Name:   "new",
 	})
 
 	routes := router.Routes()
 	assert.Len(t, routes, 1)
-	assert.Equal(t, "new", routes[0].Name())
+	assert.Equal(t, "new", routes[0].Name)
 
 	status, body := request(http.MethodGet, "/info", e)
 	assert.Equal(t, http.StatusTeapot, status)
@@ -3214,7 +3214,7 @@ func TestDefaultRouter_UseEscapedPathForRouting(t *testing.T) {
 				Method: http.MethodGet,
 				Path:   "/what's up",
 				Handler: func(c *Context) error {
-					return c.String(http.StatusTeapot, c.RouteInfo().Path())
+					return c.String(http.StatusTeapot, c.RouteInfo().Path)
 				},
 			})
 			assert.NoError(t, err)
@@ -3223,7 +3223,7 @@ func TestDefaultRouter_UseEscapedPathForRouting(t *testing.T) {
 				Method: http.MethodGet,
 				Path:   "/test/:param",
 				Handler: func(c *Context) error {
-					return c.String(http.StatusTeapot, c.RouteInfo().Path()+"|"+c.PathParam("param"))
+					return c.String(http.StatusTeapot, c.RouteInfo().Path+"|"+c.PathParam("param"))
 				},
 			})
 			assert.NoError(t, err)
@@ -3292,7 +3292,7 @@ func TestRouter_RouteWhenNotFoundRouteWithNodeSplitting(t *testing.T) {
 	r := e.router
 
 	hf := func(c *Context) error {
-		return c.String(http.StatusOK, c.RouteInfo().Name())
+		return c.String(http.StatusOK, c.RouteInfo().Name)
 	}
 	r.Add(Route{Method: http.MethodGet, Path: "/test*", Handler: hf, Name: "0"})
 	r.Add(Route{Method: RouteNotFound, Path: "/test*", Handler: hf, Name: "1"})
@@ -3517,8 +3517,7 @@ type mySimpleRouter struct {
 	route Route
 }
 
-func (m *mySimpleRouter) Add(addRoute Routable) (RouteInfo, error) {
-	route := addRoute.ToRoute()
+func (m *mySimpleRouter) Add(route Route) (RouteInfo, error) {
 	h := route.Handler
 	route.Handler = func(c *Context) error {
 		c.Set("router", "mySimpleRouter")

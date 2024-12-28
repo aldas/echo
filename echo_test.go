@@ -334,10 +334,10 @@ func TestEchoStaticRedirectIndex(t *testing.T) {
 
 	// HandlerFunc
 	ri := e.Static("/static", "_fixture")
-	assert.Equal(t, http.MethodGet, ri.Method())
-	assert.Equal(t, "/static*", ri.Path())
-	assert.Equal(t, "GET:/static*", ri.Name())
-	assert.Equal(t, []string{"*"}, ri.Params())
+	assert.Equal(t, http.MethodGet, ri.Method)
+	assert.Equal(t, "/static*", ri.Path)
+	assert.Equal(t, "GET:/static*", ri.Name)
+	assert.Equal(t, []string{"*"}, ri.Parameters)
 
 	ctx, cancel := stdContext.WithTimeout(stdContext.Background(), 200*time.Millisecond)
 	defer cancel()
@@ -410,7 +410,7 @@ func TestEchoMiddleware(t *testing.T) {
 	e.Pre(func(next HandlerFunc) HandlerFunc {
 		return func(c *Context) error {
 			// before route match is found RouteInfo does not exist
-			assert.Equal(t, nil, c.RouteInfo())
+			assert.Equal(t, RouteInfo{}, c.RouteInfo())
 			buf.WriteString("-1")
 			return next(c)
 		}
@@ -510,25 +510,6 @@ func TestEchoWrapMiddleware(t *testing.T) {
 	}
 }
 
-func TestEchoGet_routeInfoIsImmutable(t *testing.T) {
-	e := New()
-	ri := e.GET("/test", handlerFunc)
-	assert.Equal(t, "GET:/test", ri.Name())
-
-	riFromRouter, err := e.Router().Routes().FindByMethodPath(http.MethodGet, "/test")
-	assert.NoError(t, err)
-	assert.Equal(t, "GET:/test", riFromRouter.Name())
-
-	rInfo := ri.(routeInfo)
-	rInfo.name = "changed" // this change should not change other returned values
-
-	assert.Equal(t, "GET:/test", ri.Name())
-
-	riFromRouter, err = e.Router().Routes().FindByMethodPath(http.MethodGet, "/test")
-	assert.NoError(t, err)
-	assert.Equal(t, "GET:/test", riFromRouter.Name())
-}
-
 func TestEchoConnect(t *testing.T) {
 	e := New()
 
@@ -536,10 +517,10 @@ func TestEchoConnect(t *testing.T) {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
-	assert.Equal(t, http.MethodConnect, ri.Method())
-	assert.Equal(t, "/", ri.Path())
-	assert.Equal(t, http.MethodConnect+":/", ri.Name())
-	assert.Nil(t, ri.Params())
+	assert.Equal(t, http.MethodConnect, ri.Method)
+	assert.Equal(t, "/", ri.Path)
+	assert.Equal(t, http.MethodConnect+":/", ri.Name)
+	assert.Nil(t, ri.Parameters)
 
 	status, body := request(http.MethodConnect, "/", e)
 	assert.Equal(t, http.StatusTeapot, status)
@@ -553,10 +534,10 @@ func TestEchoDelete(t *testing.T) {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
-	assert.Equal(t, http.MethodDelete, ri.Method())
-	assert.Equal(t, "/", ri.Path())
-	assert.Equal(t, http.MethodDelete+":/", ri.Name())
-	assert.Nil(t, ri.Params())
+	assert.Equal(t, http.MethodDelete, ri.Method)
+	assert.Equal(t, "/", ri.Path)
+	assert.Equal(t, http.MethodDelete+":/", ri.Name)
+	assert.Nil(t, ri.Parameters)
 
 	status, body := request(http.MethodDelete, "/", e)
 	assert.Equal(t, http.StatusTeapot, status)
@@ -570,10 +551,10 @@ func TestEchoGet(t *testing.T) {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
-	assert.Equal(t, http.MethodGet, ri.Method())
-	assert.Equal(t, "/", ri.Path())
-	assert.Equal(t, http.MethodGet+":/", ri.Name())
-	assert.Nil(t, ri.Params())
+	assert.Equal(t, http.MethodGet, ri.Method)
+	assert.Equal(t, "/", ri.Path)
+	assert.Equal(t, http.MethodGet+":/", ri.Name)
+	assert.Nil(t, ri.Parameters)
 
 	status, body := request(http.MethodGet, "/", e)
 	assert.Equal(t, http.StatusTeapot, status)
@@ -587,10 +568,10 @@ func TestEchoHead(t *testing.T) {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
-	assert.Equal(t, http.MethodHead, ri.Method())
-	assert.Equal(t, "/", ri.Path())
-	assert.Equal(t, http.MethodHead+":/", ri.Name())
-	assert.Nil(t, ri.Params())
+	assert.Equal(t, http.MethodHead, ri.Method)
+	assert.Equal(t, "/", ri.Path)
+	assert.Equal(t, http.MethodHead+":/", ri.Name)
+	assert.Nil(t, ri.Parameters)
 
 	status, body := request(http.MethodHead, "/", e)
 	assert.Equal(t, http.StatusTeapot, status)
@@ -604,10 +585,10 @@ func TestEchoOptions(t *testing.T) {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
-	assert.Equal(t, http.MethodOptions, ri.Method())
-	assert.Equal(t, "/", ri.Path())
-	assert.Equal(t, http.MethodOptions+":/", ri.Name())
-	assert.Nil(t, ri.Params())
+	assert.Equal(t, http.MethodOptions, ri.Method)
+	assert.Equal(t, "/", ri.Path)
+	assert.Equal(t, http.MethodOptions+":/", ri.Name)
+	assert.Nil(t, ri.Parameters)
 
 	status, body := request(http.MethodOptions, "/", e)
 	assert.Equal(t, http.StatusTeapot, status)
@@ -621,10 +602,10 @@ func TestEchoPatch(t *testing.T) {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
-	assert.Equal(t, http.MethodPatch, ri.Method())
-	assert.Equal(t, "/", ri.Path())
-	assert.Equal(t, http.MethodPatch+":/", ri.Name())
-	assert.Nil(t, ri.Params())
+	assert.Equal(t, http.MethodPatch, ri.Method)
+	assert.Equal(t, "/", ri.Path)
+	assert.Equal(t, http.MethodPatch+":/", ri.Name)
+	assert.Nil(t, ri.Parameters)
 
 	status, body := request(http.MethodPatch, "/", e)
 	assert.Equal(t, http.StatusTeapot, status)
@@ -638,10 +619,10 @@ func TestEchoPost(t *testing.T) {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
-	assert.Equal(t, http.MethodPost, ri.Method())
-	assert.Equal(t, "/", ri.Path())
-	assert.Equal(t, http.MethodPost+":/", ri.Name())
-	assert.Nil(t, ri.Params())
+	assert.Equal(t, http.MethodPost, ri.Method)
+	assert.Equal(t, "/", ri.Path)
+	assert.Equal(t, http.MethodPost+":/", ri.Name)
+	assert.Nil(t, ri.Parameters)
 
 	status, body := request(http.MethodPost, "/", e)
 	assert.Equal(t, http.StatusTeapot, status)
@@ -655,10 +636,10 @@ func TestEchoPut(t *testing.T) {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
-	assert.Equal(t, http.MethodPut, ri.Method())
-	assert.Equal(t, "/", ri.Path())
-	assert.Equal(t, http.MethodPut+":/", ri.Name())
-	assert.Nil(t, ri.Params())
+	assert.Equal(t, http.MethodPut, ri.Method)
+	assert.Equal(t, "/", ri.Path)
+	assert.Equal(t, http.MethodPut+":/", ri.Name)
+	assert.Nil(t, ri.Parameters)
 
 	status, body := request(http.MethodPut, "/", e)
 	assert.Equal(t, http.StatusTeapot, status)
@@ -672,10 +653,10 @@ func TestEchoTrace(t *testing.T) {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
-	assert.Equal(t, http.MethodTrace, ri.Method())
-	assert.Equal(t, "/", ri.Path())
-	assert.Equal(t, http.MethodTrace+":/", ri.Name())
-	assert.Nil(t, ri.Params())
+	assert.Equal(t, http.MethodTrace, ri.Method)
+	assert.Equal(t, "/", ri.Path)
+	assert.Equal(t, http.MethodTrace+":/", ri.Name)
+	assert.Nil(t, ri.Parameters)
 
 	status, body := request(http.MethodTrace, "/", e)
 	assert.Equal(t, http.StatusTeapot, status)
@@ -722,13 +703,13 @@ func TestEcho_Routers_HandleHostsProperly(t *testing.T) {
 		for _, r := range routeCom.Routes() {
 			found := false
 			for _, rr := range routes {
-				if r.Method() == rr.Method && r.Path() == rr.Path {
+				if r.Method == rr.Method && r.Path == rr.Path {
 					found = true
 					break
 				}
 			}
 			if !found {
-				t.Errorf("Route %s %s not found", r.Method(), r.Path())
+				t.Errorf("Route %s %s not found", r.Method, r.Path)
 			}
 		}
 	}
@@ -1035,7 +1016,7 @@ func TestEcho_OnAddRoute(t *testing.T) {
 	}
 
 	var testCases = []struct {
-		whenRoute   Routable
+		whenRoute   Route
 		whenError   error
 		name        string
 		whenHost    string
@@ -1086,14 +1067,14 @@ func TestEcho_OnAddRoute(t *testing.T) {
 
 			added := make([]rr, 0)
 			cnt := 0
-			e.OnAddRoute = func(host string, route Routable) error {
+			e.OnAddRoute = func(host string, route Route) error {
 				if cnt > 0 && tc.whenError != nil { // we want to GET /static to succeed for nok tests
 					return tc.whenError
 				}
 				cnt++
 				added = append(added, rr{
 					host: host,
-					path: route.ToRoute().Path,
+					path: route.Path,
 				})
 				return nil
 			}

@@ -99,9 +99,7 @@ func TestCreateExtractors(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
-			if tc.givenPathParams != nil {
-				c.SetRawPathParams(&tc.givenPathParams)
-			}
+			c.SetPathParams(tc.givenPathParams)
 
 			extractors, err := CreateExtractors(tc.whenLoopups)
 			if tc.expectCreateError != "" {
@@ -375,7 +373,7 @@ func TestValuesFromParam(t *testing.T) {
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
 			if tc.givenPathParams != nil {
-				c.SetRawPathParams(&tc.givenPathParams)
+				c.SetPathParams(tc.givenPathParams)
 			}
 
 			extractor := valuesFromParam(tc.whenName)

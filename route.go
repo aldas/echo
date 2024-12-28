@@ -14,10 +14,10 @@ import (
 // Route contains information to adding/registering new route with the router.
 // Method+Path pair uniquely identifies the Route. It is mandatory to provide Method+Path+Handler fields.
 type Route struct {
-	Handler     HandlerFunc
 	Method      string
 	Path        string
 	Name        string
+	Handler     HandlerFunc
 	Middlewares []MiddlewareFunc
 }
 
@@ -28,21 +28,16 @@ func (r Route) ToRouteInfo(params []string) RouteInfo {
 		name = r.Method + ":" + r.Path
 	}
 
-	return routeInfo{
-		method: r.Method,
-		path:   r.Path,
-		params: append([]string(nil), params...),
-		name:   name,
+	return RouteInfo{
+		Method:     r.Method,
+		Path:       r.Path,
+		Parameters: append([]string(nil), params...),
+		Name:       name,
 	}
 }
 
-// ToRoute returns Route which Router uses to register the method handler for path.
-func (r Route) ToRoute() Route {
-	return r
-}
-
 // ForGroup recreates Route with added group prefix and group middlewares it is grouped to.
-func (r Route) ForGroup(pathPrefix string, middlewares []MiddlewareFunc) Routable {
+func (r Route) ForGroup(pathPrefix string, middlewares []MiddlewareFunc) Route {
 	r.Path = pathPrefix + r.Path
 
 	if len(middlewares) > 0 {
@@ -54,48 +49,47 @@ func (r Route) ForGroup(pathPrefix string, middlewares []MiddlewareFunc) Routabl
 	return r
 }
 
-type routeInfo struct {
-	method string
-	path   string
-	name   string
-	params []string
+// RouteInfo contains information about registered Route.
+type RouteInfo struct {
+	Name       string
+	Method     string
+	Path       string
+	Parameters []string
+
+	// NOTE: handler and middlewares are not exposed because handler could be already wrapping middlewares. Therefore,
+	// it is not always 100% known if handler function already wraps middlewares or not. In Echo handler could be one
+	// function or several functions wrapping each other.
 }
 
-func (r routeInfo) Method() string {
-	return r.method
-}
-
-func (r routeInfo) Path() string {
-	return r.path
-}
-
-func (r routeInfo) Params() []string {
-	return append([]string(nil), r.params...)
-}
-
-func (r routeInfo) Name() string {
-	return r.name
+// Clone creates copy of RouteInfo
+func (r RouteInfo) Clone() RouteInfo {
+	return RouteInfo{
+		Name:       r.Name,
+		Method:     r.Method,
+		Path:       r.Path,
+		Parameters: append([]string(nil), r.Parameters...),
+	}
 }
 
 // Reverse reverses route to URL string by replacing path parameters with given params values.
-func (r routeInfo) Reverse(params ...any) string {
+func (r RouteInfo) Reverse(params ...any) string {
 	uri := new(bytes.Buffer)
 	ln := len(params)
 	n := 0
-	for i, l := 0, len(r.path); i < l; i++ {
-		hasBackslash := r.path[i] == '\\'
-		if hasBackslash && i+1 < l && r.path[i+1] == ':' {
+	for i, l := 0, len(r.Path); i < l; i++ {
+		hasBackslash := r.Path[i] == '\\'
+		if hasBackslash && i+1 < l && r.Path[i+1] == ':' {
 			i++ // backslash before colon escapes that colon. in that case skip backslash
 		}
-		if n < ln && (r.path[i] == anyLabel || (!hasBackslash && r.path[i] == paramLabel)) {
+		if n < ln && (r.Path[i] == anyLabel || (!hasBackslash && r.Path[i] == paramLabel)) {
 			// in case of `*` wildcard or `:` (unescaped colon) param we replace everything till next slash or end of path
-			for ; i < l && r.path[i] != '/'; i++ {
+			for ; i < l && r.Path[i] != '/'; i++ {
 			}
 			uri.WriteString(fmt.Sprintf("%v", params[n]))
 			n++
 		}
 		if i < l {
-			uri.WriteByte(r.path[i])
+			uri.WriteByte(r.Path[i])
 		}
 	}
 	return uri.String()
@@ -113,7 +107,7 @@ func HandlerName(h HandlerFunc) string {
 // Reverse reverses route to URL string by replacing path parameters with given params values.
 func (r Routes) Reverse(routeName string, pathParams ...any) (string, error) {
 	for _, rr := range r {
-		if rr.Name() == routeName {
+		if rr.Name == routeName {
 			return rr.Reverse(pathParams...), nil
 		}
 	}
@@ -123,15 +117,15 @@ func (r Routes) Reverse(routeName string, pathParams ...any) (string, error) {
 // FindByMethodPath searched for matching route info by method and path
 func (r Routes) FindByMethodPath(method string, path string) (RouteInfo, error) {
 	if r == nil {
-		return nil, errors.New("route not found by method and path")
+		return RouteInfo{}, errors.New("route not found by method and path")
 	}
 
 	for _, rr := range r {
-		if rr.Method() == method && rr.Path() == path {
+		if rr.Method == method && rr.Path == path {
 			return rr, nil
 		}
 	}
-	return nil, errors.New("route not found by method and path")
+	return RouteInfo{}, errors.New("route not found by method and path")
 }
 
 // FilterByMethod searched for matching route info by method
@@ -142,7 +136,7 @@ func (r Routes) FilterByMethod(method string) (Routes, error) {
 
 	result := make(Routes, 0)
 	for _, rr := range r {
-		if rr.Method() == method {
+		if rr.Method == method {
 			result = append(result, rr)
 		}
 	}
@@ -160,7 +154,7 @@ func (r Routes) FilterByPath(path string) (Routes, error) {
 
 	result := make(Routes, 0)
 	for _, rr := range r {
-		if rr.Path() == path {
+		if rr.Path == path {
 			result = append(result, rr)
 		}
 	}
@@ -178,7 +172,7 @@ func (r Routes) FilterByName(name string) (Routes, error) {
 
 	result := make(Routes, 0)
 	for _, rr := range r {
-		if rr.Name() == name {
+		if rr.Name == name {
 			result = append(result, rr)
 		}
 	}

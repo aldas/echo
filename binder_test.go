@@ -35,7 +35,7 @@ func createTestContext(URL string, body io.Reader, pathParams map[string]string)
 				Value: value,
 			})
 		}
-		c.SetRawPathParams(&params)
+		c.SetPathParams(params)
 	}
 
 	return c

@@ -96,11 +96,11 @@ func TestRoute_ToRouteInfo(t *testing.T) {
 				Middlewares: nil,
 				Name:        "test route",
 			},
-			expect: routeInfo{
-				method: http.MethodGet,
-				path:   "/test",
-				params: nil,
-				name:   "test route",
+			expect: RouteInfo{
+				Method:     http.MethodGet,
+				Path:       "/test",
+				Parameters: nil,
+				Name:       "test route",
 			},
 		},
 		{
@@ -115,11 +115,11 @@ func TestRoute_ToRouteInfo(t *testing.T) {
 				Name:        "",
 			},
 			whenParams: []string{"id", "file"},
-			expect: routeInfo{
-				method: http.MethodGet,
-				path:   "users/:id/:file",
-				params: []string{"id", "file"},
-				name:   "GET:users/:id/:file",
+			expect: RouteInfo{
+				Method:     http.MethodGet,
+				Path:       "users/:id/:file",
+				Parameters: []string{"id", "file"},
+				Name:       "GET:users/:id/:file",
 			},
 		},
 	}
@@ -130,25 +130,6 @@ func TestRoute_ToRouteInfo(t *testing.T) {
 			assert.Equal(t, tc.expect, ri)
 		})
 	}
-}
-
-func TestRoute_ToRoute(t *testing.T) {
-	route := Route{
-		Method: http.MethodGet,
-		Path:   "/test",
-		Handler: func(c *Context) error {
-			return c.String(http.StatusTeapot, "OK")
-		},
-		Middlewares: nil,
-		Name:        "test route",
-	}
-
-	r := route.ToRoute()
-	assert.Equal(t, r.Method, http.MethodGet)
-	assert.Equal(t, r.Path, "/test")
-	assert.NotNil(t, r.Handler)
-	assert.Nil(t, r.Middlewares)
-	assert.Equal(t, r.Name, "test route")
 }
 
 func TestRoute_ForGroup(t *testing.T) {
@@ -167,9 +148,8 @@ func TestRoute_ForGroup(t *testing.T) {
 			return next(c)
 		}
 	}
-	gr := route.ForGroup("/users", []MiddlewareFunc{mw})
+	r := route.ForGroup("/users", []MiddlewareFunc{mw})
 
-	r := gr.ToRoute()
 	assert.Equal(t, r.Method, http.MethodGet)
 	assert.Equal(t, r.Path, "/users/test")
 	assert.NotNil(t, r.Handler)
@@ -179,35 +159,35 @@ func TestRoute_ForGroup(t *testing.T) {
 
 func exampleRoutes() Routes {
 	return Routes{
-		routeInfo{
-			method: http.MethodGet,
-			path:   "/users",
-			params: nil,
-			name:   "GET:/users",
+		RouteInfo{
+			Method:     http.MethodGet,
+			Path:       "/users",
+			Parameters: nil,
+			Name:       "GET:/users",
 		},
-		routeInfo{
-			method: http.MethodGet,
-			path:   "/users/:id",
-			params: []string{"id"},
-			name:   "GET:/users/:id",
+		RouteInfo{
+			Method:     http.MethodGet,
+			Path:       "/users/:id",
+			Parameters: []string{"id"},
+			Name:       "GET:/users/:id",
 		},
-		routeInfo{
-			method: http.MethodPost,
-			path:   "/users/:id",
-			params: []string{"id"},
-			name:   "POST:/users/:id",
+		RouteInfo{
+			Method:     http.MethodPost,
+			Path:       "/users/:id",
+			Parameters: []string{"id"},
+			Name:       "POST:/users/:id",
 		},
-		routeInfo{
-			method: http.MethodDelete,
-			path:   "/groups",
-			params: nil,
-			name:   "non_unique_name",
+		RouteInfo{
+			Method:     http.MethodDelete,
+			Path:       "/groups",
+			Parameters: nil,
+			Name:       "non_unique_name",
 		},
-		routeInfo{
-			method: http.MethodPost,
-			path:   "/groups",
-			params: nil,
-			name:   "non_unique_name",
+		RouteInfo{
+			Method:     http.MethodPost,
+			Path:       "/groups",
+			Parameters: nil,
+			Name:       "non_unique_name",
 		},
 	}
 }
@@ -252,12 +232,12 @@ func TestRoutes_FindByMethodPath(t *testing.T) {
 
 			if tc.expectError != "" {
 				assert.EqualError(t, err, tc.expectError)
-				assert.Nil(t, ri)
+				assert.Equal(t, RouteInfo{}, ri)
 			} else {
 				assert.NoError(t, err)
 			}
 			if tc.expectName != "" {
-				assert.Equal(t, tc.expectName, ri.Name())
+				assert.Equal(t, tc.expectName, ri.Name)
 			}
 		})
 	}
@@ -306,7 +286,7 @@ func TestRoutes_FilterByMethod(t *testing.T) {
 			if len(tc.expectNames) > 0 {
 				assert.Len(t, ris, len(tc.expectNames))
 				for _, ri := range ris {
-					assert.Contains(t, tc.expectNames, ri.Name())
+					assert.Contains(t, tc.expectNames, ri.Name)
 				}
 			} else {
 				assert.Nil(t, ris)
@@ -358,7 +338,7 @@ func TestRoutes_FilterByPath(t *testing.T) {
 			if len(tc.expectNames) > 0 {
 				assert.Len(t, ris, len(tc.expectNames))
 				for _, ri := range ris {
-					assert.Contains(t, tc.expectNames, ri.Name())
+					assert.Contains(t, tc.expectNames, ri.Name)
 				}
 			} else {
 				assert.Nil(t, ris)
@@ -416,7 +396,7 @@ func TestRoutes_FilterByName(t *testing.T) {
 			if len(tc.expectMethodPath) > 0 {
 				assert.Len(t, ris, len(tc.expectMethodPath))
 				for _, ri := range ris {
-					assert.Contains(t, tc.expectMethodPath, fmt.Sprintf("%v:%v", ri.Method(), ri.Path()))
+					assert.Contains(t, tc.expectMethodPath, fmt.Sprintf("%v:%v", ri.Method, ri.Path))
 				}
 			} else {
 				assert.Nil(t, ris)
@@ -512,10 +492,10 @@ func TestRouteInfo_Reverse(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			r := routeInfo{
-				path:   tc.givenPath,
-				params: tc.givenParams,
-				name:   tc.expect,
+			r := RouteInfo{
+				Path:       tc.givenPath,
+				Parameters: tc.givenParams,
+				Name:       tc.expect,
 			}
 
 			assert.Equal(t, tc.expect, r.Reverse(tc.whenParams...))

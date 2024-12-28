@@ -569,11 +569,13 @@ func TestBindParam(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	c.SetRouteInfo(routeInfo{path: "/users/:id/:name"})
-	c.SetRawPathParams(&PathParams{
-		{Name: "id", Value: "1"},
-		{Name: "name", Value: "Jon Snow"},
-	})
+	c.InitializeRoute(
+		&RouteInfo{Path: "/users/:id/:name"},
+		&PathParams{
+			{Name: "id", Value: "1"},
+			{Name: "name", Value: "Jon Snow"},
+		},
+	)
 
 	u := new(user)
 	err := c.Bind(u)
@@ -584,10 +586,12 @@ func TestBindParam(t *testing.T) {
 
 	// Second test for the absence of a param
 	c2 := e.NewContext(req, rec)
-	c2.SetRouteInfo(routeInfo{path: "/users/:id"})
-	c2.SetRawPathParams(&PathParams{
-		{Name: "id", Value: "1"},
-	})
+	c2.InitializeRoute(
+		&RouteInfo{Path: "/users/:id"},
+		&PathParams{
+			{Name: "id", Value: "1"},
+		},
+	)
 
 	u = new(user)
 	err = c2.Bind(u)
@@ -605,10 +609,12 @@ func TestBindParam(t *testing.T) {
 	rec2 := httptest.NewRecorder()
 
 	c3 := e2.NewContext(req2, rec2)
-	c3.SetRouteInfo(routeInfo{path: "/users/:id"})
-	c3.SetRawPathParams(&PathParams{
-		{Name: "id", Value: "1"},
-	})
+	c3.InitializeRoute(
+		&RouteInfo{Path: "/users/:id"},
+		&PathParams{
+			{Name: "id", Value: "1"},
+		},
+	)
 
 	u = new(user)
 	err = c3.Bind(u)
@@ -901,7 +907,7 @@ func TestDefaultBinder_BindToStructFromMixedSources(t *testing.T) {
 			c := e.NewContext(req, rec)
 
 			if !tc.whenNoPathParams {
-				c.SetRawPathParams(&PathParams{
+				c.SetPathParams(PathParams{
 					{Name: "node", Value: "node_from_path"},
 				})
 			}
@@ -1114,7 +1120,7 @@ func TestDefaultBinder_BindBody(t *testing.T) {
 			c := e.NewContext(req, rec)
 
 			if !tc.whenNoPathParams {
-				c.SetRawPathParams(&PathParams{
+				c.SetPathParams(PathParams{
 					{Name: "node", Value: "real_node"},
 				})
 			}

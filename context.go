@@ -35,7 +35,7 @@ const (
 // Context represents the context of the current HTTP request. It holds request and
 // response objects, path, path parameters, data and registered handler.
 type Context struct {
-	route         RouteInfo
+	route         *RouteInfo
 	request       *http.Request
 	response      *Response
 	pathParams    *PathParams
@@ -174,27 +174,27 @@ func (c *Context) SetPath(p string) {
 }
 
 // RouteInfo returns current request route information. Method, Path, Name and params if they exist for matched route.
-// In case of 404 (route not found) and 405 (method not allowed) RouteInfo returns generic struct for these cases.
+//
+// RouteInfo returns generic "empty" struct for these cases:
+// * Context is accessed before Routing is done. For example inside Pre middlewares (`e.Pre()`)
+// * Router did not find matching route - 404 (route not found)
+// * Router did not find matching route with same method - 405 (method not allowed)
 func (c *Context) RouteInfo() RouteInfo {
-	return c.route
+	if c.route != nil {
+		return c.route.Clone()
+	}
+	return RouteInfo{}
 }
 
 // SetRouteInfo sets the route info of this request to the context.
 func (c *Context) SetRouteInfo(ri RouteInfo) {
+	c.route = &ri
+}
+
+// InitializeRoute sets the route related variables of this request to the context.
+func (c *Context) InitializeRoute(ri *RouteInfo, params *PathParams) {
 	c.route = ri
-}
-
-// RawPathParams returns raw path pathParams value. Allocation of PathParams is handled by Context.
-func (c *Context) RawPathParams() *PathParams {
-	return c.pathParams
-}
-
-// SetRawPathParams replaces any existing param values with new values for this context lifetime (request).
-//
-// DO NOT USE!
-// Do not set any other value than what you got from RawPathParams as allocation of PathParams is handled by Context.
-// If you mess up size of pathParams size your application will panic/crash during routing
-func (c *Context) SetRawPathParams(params *PathParams) {
+	c.path = ri.Path
 	c.pathParams = params
 }
 
@@ -216,6 +216,9 @@ func (c *Context) PathParam(name string) string {
 // but not when path parameter is last part of route path
 // * route `/download/file.:ext` will not match request `/download/file.`
 func (c *Context) PathParamDefault(name, defaultValue string) string {
+	if c.currentParams != nil {
+		return c.currentParams.Get(name, defaultValue)
+	}
 	return c.pathParams.Get(name, defaultValue)
 }
 
@@ -572,6 +575,11 @@ func (c *Context) Redirect(code int, url string) error {
 // Logger returns logger in Context
 func (c *Context) Logger() *slog.Logger {
 	return c.logger
+}
+
+// SetLogger sets logger in Context
+func (c *Context) SetLogger(logger *slog.Logger) {
+	c.logger = logger
 }
 
 // Echo returns the `Echo` instance.
