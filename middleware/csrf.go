@@ -68,7 +68,7 @@ type CSRFConfig struct {
 	CookieSameSite http.SameSite
 
 	// ErrorHandler defines a function which is executed for returning custom errors.
-	ErrorHandler func(c echo.Context, err error) error
+	ErrorHandler func(c *echo.Context, err error) error
 }
 
 // ErrCSRFInvalid is returned when CSRF check fails
@@ -130,7 +130,7 @@ func (config CSRFConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if config.Skipper(c) {
 				return next(c)
 			}

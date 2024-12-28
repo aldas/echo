@@ -30,7 +30,7 @@ type BasicAuthConfig struct {
 }
 
 // BasicAuthValidator defines a function to validate BasicAuthWithConfig credentials.
-type BasicAuthValidator func(c echo.Context, user string, password string) (bool, error)
+type BasicAuthValidator func(c *echo.Context, user string, password string) (bool, error)
 
 const (
 	basic        = "basic"
@@ -63,7 +63,7 @@ func (config BasicAuthConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if config.Skipper(c) {
 				return next(c)
 			}

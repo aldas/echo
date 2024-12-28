@@ -12,14 +12,14 @@ import (
 
 func TestHTTPError(t *testing.T) {
 	t.Run("non-internal", func(t *testing.T) {
-		err := NewHTTPError(http.StatusBadRequest, map[string]interface{}{
+		err := NewHTTPError(http.StatusBadRequest, map[string]any{
 			"code": 12,
 		})
 
 		assert.Equal(t, "code=400, message=map[code:12]", err.Error())
 	})
 	t.Run("internal", func(t *testing.T) {
-		err := NewHTTPError(http.StatusBadRequest, map[string]interface{}{
+		err := NewHTTPError(http.StatusBadRequest, map[string]any{
 			"code": 12,
 		})
 		err = err.WithInternal(errors.New("internal error"))
@@ -39,14 +39,14 @@ func TestNewHTTPErrorWithInternal_noCustomMessage(t *testing.T) {
 
 func TestHTTPError_Unwrap(t *testing.T) {
 	t.Run("non-internal", func(t *testing.T) {
-		err := NewHTTPError(http.StatusBadRequest, map[string]interface{}{
+		err := NewHTTPError(http.StatusBadRequest, map[string]any{
 			"code": 12,
 		})
 
 		assert.Nil(t, errors.Unwrap(err))
 	})
 	t.Run("internal", func(t *testing.T) {
-		err := NewHTTPError(http.StatusBadRequest, map[string]interface{}{
+		err := NewHTTPError(http.StatusBadRequest, map[string]any{
 			"code": 12,
 		})
 		err = err.WithInternal(errors.New("internal error"))

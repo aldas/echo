@@ -154,7 +154,7 @@ func (g *Group) FileFS(path, file string, filesystem fs.FS, m ...MiddlewareFunc)
 
 // File implements `Echo#File()` for sub-routes within the Group. Panics on error.
 func (g *Group) File(path, file string, middleware ...MiddlewareFunc) RouteInfo {
-	handler := func(c Context) error {
+	handler := func(c *Context) error {
 		return c.File(file)
 	}
 	return g.Add(http.MethodGet, path, handler, middleware...)
@@ -162,7 +162,7 @@ func (g *Group) File(path, file string, middleware ...MiddlewareFunc) RouteInfo 
 
 // RouteNotFound implements `Echo#RouteNotFound()` for sub-routes within the Group.
 //
-// Example: `g.RouteNotFound("/*", func(c echo.Context) error { return c.NoContent(http.StatusNotFound) })`
+// Example: `g.RouteNotFound("/*", func(c *echo.Context) error { return c.NoContent(http.StatusNotFound) })`
 func (g *Group) RouteNotFound(path string, h HandlerFunc, m ...MiddlewareFunc) RouteInfo {
 	return g.Add(RouteNotFound, path, h, m...)
 }

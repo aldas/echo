@@ -48,7 +48,7 @@ type ProxyConfig struct {
 	// only called when the request to the target fails, or an internal error in the Proxy
 	// middleware has occurred. Successful requests that return a non-200 response code cannot
 	// be retried.
-	RetryFilter func(c echo.Context, e error) bool
+	RetryFilter func(c *echo.Context, e error) bool
 
 	// ErrorHandler defines a function which can be used to return custom errors from
 	// the Proxy middleware. ErrorHandler is only invoked when there has been
@@ -57,7 +57,7 @@ type ProxyConfig struct {
 	// when a ProxyTarget returns a non-200 response. In these cases, the response
 	// is already written so errors cannot be modified. ErrorHandler is only
 	// invoked after all retry attempts have been exhausted.
-	ErrorHandler func(c echo.Context, err error) error
+	ErrorHandler func(c *echo.Context, err error) error
 
 	// Rewrite defines URL path rewrite rules. The values captured in asterisk can be
 	// retrieved by index e.g. $1, $2 and so on.
@@ -96,9 +96,9 @@ type ProxyTarget struct {
 
 // ProxyBalancer defines an interface to implement a load balancing technique.
 type ProxyBalancer interface {
-	AddTarget(*ProxyTarget) bool
-	RemoveTarget(string) bool
-	Next(echo.Context) (*ProxyTarget, error)
+	AddTarget(target *ProxyTarget) bool
+	RemoveTarget(targetName string) bool
+	Next(c *echo.Context) (*ProxyTarget, error)
 }
 
 type commonBalancer struct {
@@ -125,7 +125,7 @@ var DefaultProxyConfig = ProxyConfig{
 	ContextKey: "target",
 }
 
-func proxyRaw(c echo.Context, t *ProxyTarget) http.Handler {
+func proxyRaw(c *echo.Context, t *ProxyTarget) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		in, _, err := c.Response().Hijack()
 		if err != nil {
@@ -211,7 +211,7 @@ func (b *commonBalancer) RemoveTarget(name string) bool {
 // Next randomly returns an upstream target.
 //
 // Note: `nil` is returned in case upstream target list is empty.
-func (b *randomBalancer) Next(c echo.Context) (*ProxyTarget, error) {
+func (b *randomBalancer) Next(c *echo.Context) (*ProxyTarget, error) {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 	if len(b.targets) == 0 {
@@ -230,7 +230,7 @@ func (b *randomBalancer) Next(c echo.Context) (*ProxyTarget, error) {
 // return the original failed target.
 //
 // Note: `nil` is returned in case upstream target list is empty.
-func (b *roundRobinBalancer) Next(c echo.Context) (*ProxyTarget, error) {
+func (b *roundRobinBalancer) Next(c *echo.Context) (*ProxyTarget, error) {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 	if len(b.targets) == 0 {
@@ -290,7 +290,7 @@ func (config ProxyConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 		return nil, errors.New("echo proxy middleware requires balancer")
 	}
 	if config.RetryFilter == nil {
-		config.RetryFilter = func(c echo.Context, e error) bool {
+		config.RetryFilter = func(c *echo.Context, e error) bool {
 			if httpErr, ok := e.(*echo.HTTPError); ok {
 				return httpErr.Code == http.StatusBadGateway
 			}
@@ -298,7 +298,7 @@ func (config ProxyConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 		}
 	}
 	if config.ErrorHandler == nil {
-		config.ErrorHandler = func(c echo.Context, err error) error {
+		config.ErrorHandler = func(c *echo.Context, err error) error {
 			return err
 		}
 	}
@@ -313,7 +313,7 @@ func (config ProxyConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) (err error) {
+		return func(c *echo.Context) (err error) {
 			if config.Skipper(c) {
 				return next(c)
 			}
@@ -388,7 +388,7 @@ func (config ProxyConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 // 499 too instead of the more problematic 5xx, which does not allow to detect this situation
 const StatusCodeContextCanceled = 499
 
-func proxyHTTP(c echo.Context, tgt *ProxyTarget, config ProxyConfig) http.Handler {
+func proxyHTTP(c *echo.Context, tgt *ProxyTarget, config ProxyConfig) http.Handler {
 	proxy := httputil.NewSingleHostReverseProxy(tgt.URL)
 	proxy.ErrorHandler = func(resp http.ResponseWriter, req *http.Request, err error) {
 		desc := tgt.URL.String()

@@ -8,7 +8,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"encoding/xml"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -38,7 +37,7 @@ func BenchmarkAllocJSONP(b *testing.B) {
 	e.Logger = slog.New(&discardHandler{})
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(userJSON))
 	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec).(*DefaultContext)
+	c := e.NewContext(req, rec)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -53,7 +52,7 @@ func BenchmarkAllocJSON(b *testing.B) {
 	e.Logger = slog.New(&discardHandler{})
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(userJSON))
 	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec).(*DefaultContext)
+	c := e.NewContext(req, rec)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -68,7 +67,7 @@ func BenchmarkAllocXML(b *testing.B) {
 	e.Logger = slog.New(&discardHandler{})
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(userJSON))
 	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec).(*DefaultContext)
+	c := e.NewContext(req, rec)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -79,7 +78,7 @@ func BenchmarkAllocXML(b *testing.B) {
 }
 
 func BenchmarkRealIPForHeaderXForwardFor(b *testing.B) {
-	c := DefaultContext{request: &http.Request{
+	c := Context{request: &http.Request{
 		Header: http.Header{HeaderXForwardedFor: []string{"127.0.0.1, 127.0.1.1, "}},
 	}}
 	for i := 0; i < b.N; i++ {
@@ -87,7 +86,7 @@ func BenchmarkRealIPForHeaderXForwardFor(b *testing.B) {
 	}
 }
 
-func (t *Template) Render(c Context, w io.Writer, name string, data interface{}) error {
+func (t *Template) Render(c *Context, w io.Writer, name string, data any) error {
 	return t.templates.ExecuteTemplate(w, name, data)
 }
 
@@ -173,20 +172,6 @@ func TestContextJSONErrorsOut(t *testing.T) {
 
 	err := c.JSON(http.StatusOK, make(chan bool))
 	assert.EqualError(t, err, "json: unsupported type: chan bool")
-}
-
-func TestContextJSONPrettyURL(t *testing.T) {
-	e := New()
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/?pretty", nil)
-	c := e.NewContext(req, rec)
-
-	err := c.JSON(http.StatusOK, user{ID: 1, Name: "Jon Snow"})
-	if assert.NoError(t, err) {
-		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Equal(t, MIMEApplicationJSON, rec.Header().Get(HeaderContentType))
-		assert.Equal(t, userJSONPretty+"\n", rec.Body.String())
-	}
 }
 
 func TestContextJSONPretty(t *testing.T) {
@@ -286,20 +271,6 @@ func TestContextXML(t *testing.T) {
 	}
 }
 
-func TestContextXMLPrettyURL(t *testing.T) {
-	e := New()
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/?pretty", nil)
-	c := e.NewContext(req, rec)
-
-	err := c.XML(http.StatusOK, user{ID: 1, Name: "Jon Snow"})
-	if assert.NoError(t, err) {
-		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Equal(t, MIMEApplicationXMLCharsetUTF8, rec.Header().Get(HeaderContentType))
-		assert.Equal(t, xml.Header+userXMLPretty, rec.Body.String())
-	}
-}
-
 func TestContextXMLPretty(t *testing.T) {
 	e := New()
 	rec := httptest.NewRecorder()
@@ -351,24 +322,11 @@ func TestContextXMLWithEmptyIntent(t *testing.T) {
 	}
 }
 
-func TestContext_Error(t *testing.T) {
-	e := New()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-
-	c.Error(errors.New("error"))
-
-	assert.True(t, c.Response().Committed)
-	assert.Equal(t, http.StatusInternalServerError, rec.Code)
-	assert.Equal(t, `{"message":"Internal Server Error"}`+"\n", rec.Body.String())
-}
-
 func TestContext_JSON_CommitsCustomResponseCode(t *testing.T) {
 	e := New()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec).(*DefaultContext)
+	c := e.NewContext(req, rec)
 	err := c.JSON(http.StatusCreated, user{ID: 1, Name: "Jon Snow"})
 
 	if assert.NoError(t, err) {
@@ -382,7 +340,7 @@ func TestContext_JSON_DoesntCommitResponseCodePrematurely(t *testing.T) {
 	e := New()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec).(*DefaultContext)
+	c := e.NewContext(req, rec)
 	err := c.JSON(http.StatusCreated, map[string]float64{"a": math.NaN()})
 
 	if assert.Error(t, err) {
@@ -478,7 +436,7 @@ func TestContextCookie(t *testing.T) {
 	req.Header.Add(HeaderCookie, theme)
 	req.Header.Add(HeaderCookie, user)
 	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec).(*DefaultContext)
+	c := e.NewContext(req, rec)
 
 	// Read single
 	cookie, err := c.Cookie("theme")
@@ -545,7 +503,7 @@ func TestContext_PathParams(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := e.NewContext(req, nil)
 
-			c.(RoutableContext).SetRawPathParams(tc.given)
+			c.SetRawPathParams(tc.given)
 
 			assert.EqualValues(t, tc.expect, c.PathParams())
 		})
@@ -594,7 +552,7 @@ func TestContext_PathParam(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := e.NewContext(req, nil)
 
-			c.(RoutableContext).SetRawPathParams(tc.given)
+			c.SetRawPathParams(tc.given)
 
 			assert.EqualValues(t, tc.expect, c.PathParam(tc.whenParamName))
 		})
@@ -646,7 +604,7 @@ func TestContext_PathParamDefault(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			c := e.NewContext(req, nil)
 
-			c.(RoutableContext).SetRawPathParams(tc.given)
+			c.SetRawPathParams(tc.given)
 
 			assert.EqualValues(t, tc.expect, c.PathParamDefault(tc.whenParamName, tc.whenDefaultValue))
 		})
@@ -660,7 +618,7 @@ func TestContextGetAndSetParam(t *testing.T) {
 		Method:      http.MethodGet,
 		Path:        "/:foo",
 		Name:        "",
-		Handler:     func(Context) error { return nil },
+		Handler:     func(*Context) error { return nil },
 		Middlewares: nil,
 	})
 	assert.NoError(t, err)
@@ -670,7 +628,7 @@ func TestContextGetAndSetParam(t *testing.T) {
 
 	params := &PathParams{{Name: "foo", Value: "101"}}
 	// ParamNames
-	c.(*DefaultContext).pathParams = params
+	c.pathParams = params
 
 	// round-trip param values with modification
 	paramVals := c.PathParams()
@@ -688,17 +646,17 @@ func TestContextGetAndSetParam(t *testing.T) {
 
 	// shouldn't explode during Reset() afterwards!
 	assert.NotPanics(t, func() {
-		c.(ServableContext).Reset(nil, nil)
+		c.Reset(nil, nil)
 	})
 	assert.Equal(t, PathParams{}, c.PathParams())
-	assert.Len(t, *c.(*DefaultContext).pathParams, 0)
-	assert.Equal(t, cap(*c.(*DefaultContext).pathParams), 1)
+	assert.Len(t, *c.pathParams, 0)
+	assert.Equal(t, cap(*c.pathParams), 1)
 }
 
 // Issue #1655
 func TestContext_SetParamNamesShouldNotModifyPathParams(t *testing.T) {
 	e := New()
-	c := e.NewContext(nil, nil).(*DefaultContext)
+	c := e.NewContext(nil, nil)
 
 	assert.Equal(t, 0, e.contextPathParamAllocSize)
 	expectedTwoParams := &PathParams{
@@ -939,7 +897,7 @@ func TestContextRedirect(t *testing.T) {
 }
 
 func TestContextStore(t *testing.T) {
-	var c Context = new(DefaultContext)
+	var c = new(Context)
 	c.Set("name", "Jon Snow")
 	assert.Equal(t, "Jon Snow", c.Get("name"))
 }
@@ -947,7 +905,7 @@ func TestContextStore(t *testing.T) {
 func BenchmarkContext_Store(b *testing.B) {
 	e := &Echo{}
 
-	c := &DefaultContext{
+	c := &Context{
 		echo: e,
 	}
 
@@ -961,7 +919,7 @@ func BenchmarkContext_Store(b *testing.B) {
 
 type validator struct{}
 
-func (*validator) Validate(i interface{}) error {
+func (*validator) Validate(i any) error {
 	return nil
 }
 
@@ -987,7 +945,7 @@ func TestContext_QueryString(t *testing.T) {
 }
 
 func TestContext_Request(t *testing.T) {
-	var c Context = new(DefaultContext)
+	var c = new(Context)
 
 	assert.Nil(t, c.Request())
 
@@ -999,11 +957,11 @@ func TestContext_Request(t *testing.T) {
 
 func TestContext_Scheme(t *testing.T) {
 	tests := []struct {
-		c Context
+		c *Context
 		s string
 	}{
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					TLS: &tls.ConnectionState{},
 				},
@@ -1011,7 +969,7 @@ func TestContext_Scheme(t *testing.T) {
 			"https",
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderXForwardedProto: []string{"https"}},
 				},
@@ -1019,7 +977,7 @@ func TestContext_Scheme(t *testing.T) {
 			"https",
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderXForwardedProtocol: []string{"http"}},
 				},
@@ -1027,7 +985,7 @@ func TestContext_Scheme(t *testing.T) {
 			"http",
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderXForwardedSsl: []string{"on"}},
 				},
@@ -1035,7 +993,7 @@ func TestContext_Scheme(t *testing.T) {
 			"https",
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderXUrlScheme: []string{"https"}},
 				},
@@ -1043,7 +1001,7 @@ func TestContext_Scheme(t *testing.T) {
 			"https",
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{},
 			},
 			"http",
@@ -1057,11 +1015,11 @@ func TestContext_Scheme(t *testing.T) {
 
 func TestContext_IsWebSocket(t *testing.T) {
 	tests := []struct {
-		c  Context
+		c  *Context
 		ws assert.BoolAssertionFunc
 	}{
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderUpgrade: []string{"websocket"}},
 				},
@@ -1069,7 +1027,7 @@ func TestContext_IsWebSocket(t *testing.T) {
 			assert.True,
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderUpgrade: []string{"Websocket"}},
 				},
@@ -1077,13 +1035,13 @@ func TestContext_IsWebSocket(t *testing.T) {
 			assert.True,
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{},
 			},
 			assert.False,
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderUpgrade: []string{"other"}},
 				},
@@ -1113,11 +1071,11 @@ func TestContext_Bind(t *testing.T) {
 
 func TestContext_RealIP(t *testing.T) {
 	tests := []struct {
-		c Context
+		c *Context
 		s string
 	}{
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderXForwardedFor: []string{"127.0.0.1, 127.0.1.1, "}},
 				},
@@ -1125,7 +1083,7 @@ func TestContext_RealIP(t *testing.T) {
 			"127.0.0.1",
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderXForwardedFor: []string{"127.0.0.1,127.0.1.1"}},
 				},
@@ -1133,7 +1091,7 @@ func TestContext_RealIP(t *testing.T) {
 			"127.0.0.1",
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderXForwardedFor: []string{"127.0.0.1"}},
 				},
@@ -1141,7 +1099,7 @@ func TestContext_RealIP(t *testing.T) {
 			"127.0.0.1",
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderXForwardedFor: []string{"[2001:db8:85a3:8d3:1319:8a2e:370:7348], 2001:db8::1, "}},
 				},
@@ -1149,7 +1107,7 @@ func TestContext_RealIP(t *testing.T) {
 			"2001:db8:85a3:8d3:1319:8a2e:370:7348",
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderXForwardedFor: []string{"[2001:db8:85a3:8d3:1319:8a2e:370:7348],[2001:db8::1]"}},
 				},
@@ -1157,7 +1115,7 @@ func TestContext_RealIP(t *testing.T) {
 			"2001:db8:85a3:8d3:1319:8a2e:370:7348",
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{HeaderXForwardedFor: []string{"2001:db8:85a3:8d3:1319:8a2e:370:7348"}},
 				},
@@ -1165,7 +1123,7 @@ func TestContext_RealIP(t *testing.T) {
 			"2001:db8:85a3:8d3:1319:8a2e:370:7348",
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{
 						"X-Real-Ip": []string{"192.168.0.1"},
@@ -1175,7 +1133,7 @@ func TestContext_RealIP(t *testing.T) {
 			"192.168.0.1",
 		},
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					Header: http.Header{
 						"X-Real-Ip": []string{"[2001:db8::1]"},
@@ -1186,7 +1144,7 @@ func TestContext_RealIP(t *testing.T) {
 		},
 
 		{
-			&DefaultContext{
+			&Context{
 				request: &http.Request{
 					RemoteAddr: "89.89.89.89:1654",
 				},
@@ -1240,8 +1198,8 @@ func TestContext_File(t *testing.T) {
 				e.Filesystem = tc.whenFS
 			}
 
-			handler := func(ec Context) error {
-				return ec.(*DefaultContext).File(tc.whenFile)
+			handler := func(ec *Context) error {
+				return ec.File(tc.whenFile)
 			}
 
 			req := httptest.NewRequest(http.MethodGet, "/match.png", nil)
@@ -1296,8 +1254,8 @@ func TestContext_FileFS(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			e := New()
 
-			handler := func(ec Context) error {
-				return ec.(*DefaultContext).FileFS(tc.whenFile, tc.whenFS)
+			handler := func(ec *Context) error {
+				return ec.FileFS(tc.whenFile, tc.whenFS)
 			}
 
 			req := httptest.NewRequest(http.MethodGet, "/match.png", nil)

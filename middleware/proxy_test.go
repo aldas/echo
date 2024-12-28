@@ -111,7 +111,7 @@ func TestProxy(t *testing.T) {
 
 	// ProxyTarget is set in context
 	contextObserver := func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) (err error) {
+		return func(c *echo.Context) (err error) {
 			next(c)
 			assert.Contains(t, targets, c.Get("target"), "target is not set in context")
 			return nil
@@ -390,7 +390,7 @@ type testProvider struct {
 	err    error
 }
 
-func (p *testProvider) Next(c echo.Context) (*ProxyTarget, error) {
+func (p *testProvider) Next(c *echo.Context) (*ProxyTarget, error) {
 	return p.target, p.err
 }
 
@@ -486,13 +486,13 @@ func TestProxyRetries(t *testing.T) {
 		URL:  targetURL,
 	}
 
-	alwaysRetryFilter := func(c echo.Context, e error) bool { return true }
-	neverRetryFilter := func(c echo.Context, e error) bool { return false }
+	alwaysRetryFilter := func(c *echo.Context, e error) bool { return true }
+	neverRetryFilter := func(c *echo.Context, e error) bool { return false }
 
 	testCases := []struct {
 		name             string
 		retryCount       int
-		retryFilters     []func(c echo.Context, e error) bool
+		retryFilters     []func(c *echo.Context, e error) bool
 		targets          []*ProxyTarget
 		expectedResponse int
 	}{
@@ -515,7 +515,7 @@ func TestProxyRetries(t *testing.T) {
 		{
 			name:       "retry count 1 does retry on handler return true",
 			retryCount: 1,
-			retryFilters: []func(c echo.Context, e error) bool{
+			retryFilters: []func(c *echo.Context, e error) bool{
 				alwaysRetryFilter,
 			},
 			targets: []*ProxyTarget{
@@ -527,7 +527,7 @@ func TestProxyRetries(t *testing.T) {
 		{
 			name:       "retry count 1 does not retry on handler return false",
 			retryCount: 1,
-			retryFilters: []func(c echo.Context, e error) bool{
+			retryFilters: []func(c *echo.Context, e error) bool{
 				neverRetryFilter,
 			},
 			targets: []*ProxyTarget{
@@ -539,7 +539,7 @@ func TestProxyRetries(t *testing.T) {
 		{
 			name:       "retry count 2 returns error when no more retries left",
 			retryCount: 2,
-			retryFilters: []func(c echo.Context, e error) bool{
+			retryFilters: []func(c *echo.Context, e error) bool{
 				alwaysRetryFilter,
 				alwaysRetryFilter,
 			},
@@ -554,7 +554,7 @@ func TestProxyRetries(t *testing.T) {
 		{
 			name:       "retry count 2 returns error when retries left but handler returns false",
 			retryCount: 3,
-			retryFilters: []func(c echo.Context, e error) bool{
+			retryFilters: []func(c *echo.Context, e error) bool{
 				alwaysRetryFilter,
 				alwaysRetryFilter,
 				neverRetryFilter,
@@ -570,7 +570,7 @@ func TestProxyRetries(t *testing.T) {
 		{
 			name:       "retry count 3 succeeds",
 			retryCount: 3,
-			retryFilters: []func(c echo.Context, e error) bool{
+			retryFilters: []func(c *echo.Context, e error) bool{
 				alwaysRetryFilter,
 				alwaysRetryFilter,
 				alwaysRetryFilter,
@@ -598,7 +598,7 @@ func TestProxyRetries(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 
 			retryFilterCall := 0
-			retryFilter := func(c echo.Context, e error) bool {
+			retryFilter := func(c *echo.Context, e error) bool {
 				if len(tc.retryFilters) == 0 {
 					assert.FailNow(t, fmt.Sprintf("unexpected calls, %d, to retry handler", retryFilterCall))
 				}
@@ -713,13 +713,13 @@ func TestProxyErrorHandler(t *testing.T) {
 	testCases := []struct {
 		name             string
 		target           *ProxyTarget
-		errorHandler     func(c echo.Context, e error) error
+		errorHandler     func(c *echo.Context, e error) error
 		expectFinalError func(t *testing.T, err error)
 	}{
 		{
 			name:   "Error handler not invoked when request success",
 			target: goodTarget,
-			errorHandler: func(c echo.Context, e error) error {
+			errorHandler: func(c *echo.Context, e error) error {
 				assert.FailNow(t, "error handler should not be invoked")
 				return e
 			},
@@ -727,7 +727,7 @@ func TestProxyErrorHandler(t *testing.T) {
 		{
 			name:   "Error handler invoked when request fails",
 			target: badTarget,
-			errorHandler: func(c echo.Context, e error) error {
+			errorHandler: func(c *echo.Context, e error) error {
 				httpErr, ok := e.(*echo.HTTPError)
 				assert.True(t, ok, "expected http error to be passed to handler")
 				assert.Equal(t, http.StatusBadGateway, httpErr.Code, "expected http bad gateway error to be passed to handler")
@@ -751,7 +751,7 @@ func TestProxyErrorHandler(t *testing.T) {
 
 			errorHandlerCalled := false
 			dheh := echo.DefaultHTTPErrorHandler(false)
-			e.HTTPErrorHandler = func(c echo.Context, err error) {
+			e.HTTPErrorHandler = func(c *echo.Context, err error) {
 				errorHandlerCalled = true
 				tc.expectFinalError(t, err)
 				dheh(c, err)
@@ -782,7 +782,7 @@ func (b *customBalancer) RemoveTarget(name string) bool {
 	return false
 }
 
-func (b *customBalancer) Next(c echo.Context) (*ProxyTarget, error) {
+func (b *customBalancer) Next(c *echo.Context) (*ProxyTarget, error) {
 	ctx := context.WithValue(c.Request().Context(), testContextKey("FROM_BALANCER"), "CUSTOM_BALANCER")
 	c.SetRequest(c.Request().WithContext(ctx))
 	return b.target, nil

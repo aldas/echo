@@ -173,7 +173,7 @@ func (config StaticConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) (err error) {
+		return func(c *echo.Context) (err error) {
 			if config.Skipper(c) {
 				return next(c)
 			}
@@ -261,7 +261,7 @@ func (config StaticConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 	}, nil
 }
 
-func serveFile(c echo.Context, file fs.File, info os.FileInfo) error {
+func serveFile(c *echo.Context, file fs.File, info os.FileInfo) error {
 	ff, ok := file.(io.ReadSeeker)
 	if !ok {
 		return errors.New("file does not implement io.ReadSeeker")
@@ -275,7 +275,7 @@ func listDir(t *template.Template, name string, filesystem fs.FS, dir fs.File, r
 	res.Header().Set(echo.HeaderContentType, echo.MIMETextHTMLCharsetUTF8)
 	data := struct {
 		Name  string
-		Files []interface{}
+		Files []any
 	}{
 		Name: name,
 	}

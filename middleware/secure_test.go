@@ -17,7 +17,7 @@ func TestSecure(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	h := func(c echo.Context) error {
+	h := func(c *echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	}
 
@@ -35,7 +35,7 @@ func TestSecure(t *testing.T) {
 
 func TestSecureWithConfig(t *testing.T) {
 	e := echo.New()
-	h := func(c echo.Context) error {
+	h := func(c *echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	}
 
@@ -69,7 +69,7 @@ func TestSecureWithConfig(t *testing.T) {
 func TestSecureWithConfig_CSPReportOnly(t *testing.T) {
 	// Custom with CSPReportOnly flag
 	e := echo.New()
-	h := func(c echo.Context) error {
+	h := func(c *echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	}
 
@@ -101,7 +101,7 @@ func TestSecureWithConfig_CSPReportOnly(t *testing.T) {
 func TestSecureWithConfig_HSTSPreloadEnabled(t *testing.T) {
 	// Custom with CSPReportOnly flag
 	e := echo.New()
-	h := func(c echo.Context) error {
+	h := func(c *echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	}
 
@@ -124,7 +124,7 @@ func TestSecureWithConfig_HSTSPreloadEnabled(t *testing.T) {
 func TestSecureWithConfig_HSTSExcludeSubdomains(t *testing.T) {
 	// Custom with CSPReportOnly flag
 	e := echo.New()
-	h := func(c echo.Context) error {
+	h := func(c *echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	}
 

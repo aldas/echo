@@ -494,10 +494,10 @@ func TestDefaultBinder_bindDataToMap(t *testing.T) {
 	})
 
 	t.Run("ok, bind to map[string]interface", func(t *testing.T) {
-		dest := map[string]interface{}{}
+		dest := map[string]any{}
 		assert.NoError(t, bindData(&dest, exampleData, "param", nil))
 		assert.Equal(t,
-			map[string]interface{}{
+			map[string]any{
 				"multiple": "1",
 				"single":   "3",
 			},
@@ -506,10 +506,10 @@ func TestDefaultBinder_bindDataToMap(t *testing.T) {
 	})
 
 	t.Run("ok, bind to map[string]interface with nil map", func(t *testing.T) {
-		var dest map[string]interface{}
+		var dest map[string]any
 		assert.NoError(t, bindData(&dest, exampleData, "param", nil))
 		assert.Equal(t,
-			map[string]interface{}{
+			map[string]any{
 				"multiple": "1",
 				"single":   "3",
 			},
@@ -569,9 +569,8 @@ func TestBindParam(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	cc := c.(RoutableContext)
-	cc.SetRouteInfo(routeInfo{path: "/users/:id/:name"})
-	cc.SetRawPathParams(&PathParams{
+	c.SetRouteInfo(routeInfo{path: "/users/:id/:name"})
+	c.SetRawPathParams(&PathParams{
 		{Name: "id", Value: "1"},
 		{Name: "name", Value: "Jon Snow"},
 	})
@@ -585,9 +584,8 @@ func TestBindParam(t *testing.T) {
 
 	// Second test for the absence of a param
 	c2 := e.NewContext(req, rec)
-	cc2 := c2.(RoutableContext)
-	cc2.SetRouteInfo(routeInfo{path: "/users/:id"})
-	cc2.SetRawPathParams(&PathParams{
+	c2.SetRouteInfo(routeInfo{path: "/users/:id"})
+	c2.SetRawPathParams(&PathParams{
 		{Name: "id", Value: "1"},
 	})
 
@@ -607,9 +605,8 @@ func TestBindParam(t *testing.T) {
 	rec2 := httptest.NewRecorder()
 
 	c3 := e2.NewContext(req2, rec2)
-	cc3 := c3.(RoutableContext)
-	cc3.SetRouteInfo(routeInfo{path: "/users/:id"})
-	cc3.SetRawPathParams(&PathParams{
+	c3.SetRouteInfo(routeInfo{path: "/users/:id"})
+	c3.SetRawPathParams(&PathParams{
 		{Name: "id", Value: "1"},
 	})
 
@@ -770,8 +767,8 @@ func TestDefaultBinder_BindToStructFromMixedSources(t *testing.T) {
 
 	var testCases = []struct {
 		givenContent     io.Reader
-		whenBindTarget   interface{}
-		expect           interface{}
+		whenBindTarget   any
+		expect           any
 		name             string
 		givenURL         string
 		givenMethod      string
@@ -904,13 +901,12 @@ func TestDefaultBinder_BindToStructFromMixedSources(t *testing.T) {
 			c := e.NewContext(req, rec)
 
 			if !tc.whenNoPathParams {
-				cc := c.(RoutableContext)
-				cc.SetRawPathParams(&PathParams{
+				c.SetRawPathParams(&PathParams{
 					{Name: "node", Value: "node_from_path"},
 				})
 			}
 
-			var bindTarget interface{}
+			var bindTarget any
 			if tc.whenBindTarget != nil {
 				bindTarget = tc.whenBindTarget
 			} else {
@@ -944,8 +940,8 @@ func TestDefaultBinder_BindBody(t *testing.T) {
 
 	var testCases = []struct {
 		givenContent     io.Reader
-		whenBindTarget   interface{}
-		expect           interface{}
+		whenBindTarget   any
+		expect           any
 		name             string
 		givenURL         string
 		givenMethod      string
@@ -1118,13 +1114,12 @@ func TestDefaultBinder_BindBody(t *testing.T) {
 			c := e.NewContext(req, rec)
 
 			if !tc.whenNoPathParams {
-				cc := c.(RoutableContext)
-				cc.SetRawPathParams(&PathParams{
+				c.SetRawPathParams(&PathParams{
 					{Name: "node", Value: "real_node"},
 				})
 			}
 
-			var bindTarget interface{}
+			var bindTarget any
 			if tc.whenBindTarget != nil {
 				bindTarget = tc.whenBindTarget
 			} else {

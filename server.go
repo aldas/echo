@@ -71,7 +71,7 @@ func (sc StartConfig) Start(e *Echo) error {
 // StartTLS starts a HTTPS server.
 // If `certFile` or `keyFile` is `string` the values are treated as file paths.
 // If `certFile` or `keyFile` is `[]byte` the values are treated as the certificate or key as-is.
-func (sc StartConfig) StartTLS(e *Echo, certFile, keyFile interface{}) error {
+func (sc StartConfig) StartTLS(e *Echo, certFile, keyFile any) error {
 	logger := e.Logger
 	errLogger := slog.NewLogLogger(e.Logger.Handler(), slog.LevelError)
 	s := http.Server{
@@ -174,7 +174,7 @@ func startupGreetings(sc *StartConfig, logger *slog.Logger, listener net.Listene
 	}
 }
 
-func filepathOrContent(fileOrContent interface{}, certFilesystem fs.FS) (content []byte, err error) {
+func filepathOrContent(fileOrContent any, certFilesystem fs.FS) (content []byte, err error) {
 	switch v := fileOrContent.(type) {
 	case string:
 		return fs.ReadFile(certFilesystem, v)

@@ -21,7 +21,7 @@ func TestBodyDump(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(hw))
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	h := func(c echo.Context) error {
+	h := func(c *echo.Context) error {
 		body, err := io.ReadAll(c.Request().Body)
 		if err != nil {
 			return err
@@ -31,7 +31,7 @@ func TestBodyDump(t *testing.T) {
 
 	requestBody := ""
 	responseBody := ""
-	mw, err := BodyDumpConfig{Handler: func(c echo.Context, reqBody, resBody []byte) {
+	mw, err := BodyDumpConfig{Handler: func(c *echo.Context, reqBody, resBody []byte) {
 		requestBody = string(reqBody)
 		responseBody = string(resBody)
 	}}.ToMiddleware()
@@ -51,10 +51,10 @@ func TestBodyDump_skipper(t *testing.T) {
 
 	isCalled := false
 	mw, err := BodyDumpConfig{
-		Skipper: func(c echo.Context) bool {
+		Skipper: func(c *echo.Context) bool {
 			return true
 		},
-		Handler: func(c echo.Context, reqBody, resBody []byte) {
+		Handler: func(c *echo.Context, reqBody, resBody []byte) {
 			isCalled = true
 		},
 	}.ToMiddleware()
@@ -63,7 +63,7 @@ func TestBodyDump_skipper(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{}"))
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	h := func(c echo.Context) error {
+	h := func(c *echo.Context) error {
 		return errors.New("some error")
 	}
 
@@ -78,11 +78,11 @@ func TestBodyDump_fails(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(hw))
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	h := func(c echo.Context) error {
+	h := func(c *echo.Context) error {
 		return errors.New("some error")
 	}
 
-	mw, err := BodyDumpConfig{Handler: func(c echo.Context, reqBody, resBody []byte) {}}.ToMiddleware()
+	mw, err := BodyDumpConfig{Handler: func(c *echo.Context, reqBody, resBody []byte) {}}.ToMiddleware()
 	assert.NoError(t, err)
 
 	err = mw(h)(c)
@@ -101,7 +101,7 @@ func TestBodyDumpWithConfig_panic(t *testing.T) {
 	})
 
 	assert.NotPanics(t, func() {
-		mw := BodyDumpWithConfig(BodyDumpConfig{Handler: func(c echo.Context, reqBody, resBody []byte) {}})
+		mw := BodyDumpWithConfig(BodyDumpConfig{Handler: func(c *echo.Context, reqBody, resBody []byte) {}})
 		assert.NotNil(t, mw)
 	})
 }
@@ -113,7 +113,7 @@ func TestBodyDump_panic(t *testing.T) {
 	})
 
 	assert.NotPanics(t, func() {
-		BodyDump(func(c echo.Context, reqBody, resBody []byte) {})
+		BodyDump(func(c *echo.Context, reqBody, resBody []byte) {})
 	})
 }
 

@@ -20,7 +20,7 @@ import (
 func TestRateLimiter(t *testing.T) {
 	e := echo.New()
 
-	handler := func(c echo.Context) error {
+	handler := func(c *echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	}
 
@@ -75,22 +75,22 @@ func TestRateLimiterWithConfig(t *testing.T) {
 
 	e := echo.New()
 
-	handler := func(c echo.Context) error {
+	handler := func(c *echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	}
 
 	mw, err := RateLimiterConfig{
-		IdentifierExtractor: func(c echo.Context) (string, error) {
+		IdentifierExtractor: func(c *echo.Context) (string, error) {
 			id := c.Request().Header.Get(echo.HeaderXRealIP)
 			if id == "" {
 				return "", errors.New("invalid identifier")
 			}
 			return id, nil
 		},
-		DenyHandler: func(ctx echo.Context, identifier string, err error) error {
+		DenyHandler: func(ctx *echo.Context, identifier string, err error) error {
 			return ctx.JSON(http.StatusForbidden, nil)
 		},
-		ErrorHandler: func(ctx echo.Context, err error) error {
+		ErrorHandler: func(ctx *echo.Context, err error) error {
 			return ctx.JSON(http.StatusBadRequest, nil)
 		},
 		Store: inMemoryStore,
@@ -130,12 +130,12 @@ func TestRateLimiterWithConfig_defaultDenyHandler(t *testing.T) {
 
 	e := echo.New()
 
-	handler := func(c echo.Context) error {
+	handler := func(c *echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	}
 
 	mw, err := RateLimiterConfig{
-		IdentifierExtractor: func(c echo.Context) (string, error) {
+		IdentifierExtractor: func(c *echo.Context) (string, error) {
 			id := c.Request().Header.Get(echo.HeaderXRealIP)
 			if id == "" {
 				return "", errors.New("invalid identifier")
@@ -183,7 +183,7 @@ func TestRateLimiterWithConfig_defaultConfig(t *testing.T) {
 
 		e := echo.New()
 
-		handler := func(c echo.Context) error {
+		handler := func(c *echo.Context) error {
 			return c.String(http.StatusOK, "test")
 		}
 
@@ -228,7 +228,7 @@ func TestRateLimiterWithConfig_skipper(t *testing.T) {
 	e := echo.New()
 
 	var beforeFuncRan bool
-	handler := func(c echo.Context) error {
+	handler := func(c *echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	}
 	var inMemoryStore = NewRateLimiterMemoryStore(5)
@@ -241,14 +241,14 @@ func TestRateLimiterWithConfig_skipper(t *testing.T) {
 	c := e.NewContext(req, rec)
 
 	mw, err := RateLimiterConfig{
-		Skipper: func(c echo.Context) bool {
+		Skipper: func(c *echo.Context) bool {
 			return true
 		},
-		BeforeFunc: func(c echo.Context) {
+		BeforeFunc: func(c *echo.Context) {
 			beforeFuncRan = true
 		},
 		Store: inMemoryStore,
-		IdentifierExtractor: func(ctx echo.Context) (string, error) {
+		IdentifierExtractor: func(ctx *echo.Context) (string, error) {
 			return "127.0.0.1", nil
 		},
 	}.ToMiddleware()
@@ -264,7 +264,7 @@ func TestRateLimiterWithConfig_skipperNoSkip(t *testing.T) {
 	e := echo.New()
 
 	var beforeFuncRan bool
-	handler := func(c echo.Context) error {
+	handler := func(c *echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	}
 	var inMemoryStore = NewRateLimiterMemoryStore(5)
@@ -277,14 +277,14 @@ func TestRateLimiterWithConfig_skipperNoSkip(t *testing.T) {
 	c := e.NewContext(req, rec)
 
 	mw, err := RateLimiterConfig{
-		Skipper: func(c echo.Context) bool {
+		Skipper: func(c *echo.Context) bool {
 			return false
 		},
-		BeforeFunc: func(c echo.Context) {
+		BeforeFunc: func(c *echo.Context) {
 			beforeFuncRan = true
 		},
 		Store: inMemoryStore,
-		IdentifierExtractor: func(ctx echo.Context) (string, error) {
+		IdentifierExtractor: func(ctx *echo.Context) (string, error) {
 			return "127.0.0.1", nil
 		},
 	}.ToMiddleware()
@@ -298,7 +298,7 @@ func TestRateLimiterWithConfig_skipperNoSkip(t *testing.T) {
 func TestRateLimiterWithConfig_beforeFunc(t *testing.T) {
 	e := echo.New()
 
-	handler := func(c echo.Context) error {
+	handler := func(c *echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	}
 
@@ -313,11 +313,11 @@ func TestRateLimiterWithConfig_beforeFunc(t *testing.T) {
 	c := e.NewContext(req, rec)
 
 	mw, err := RateLimiterConfig{
-		BeforeFunc: func(c echo.Context) {
+		BeforeFunc: func(c *echo.Context) {
 			beforeRan = true
 		},
 		Store: inMemoryStore,
-		IdentifierExtractor: func(ctx echo.Context) (string, error) {
+		IdentifierExtractor: func(ctx *echo.Context) (string, error) {
 			return "127.0.0.1", nil
 		},
 	}.ToMiddleware()

@@ -16,7 +16,7 @@ Example:
 		)
 
 	  // Handler
-	  func hello(c echo.Context) error {
+	  func hello(c *echo.Context) error {
 	    return c.String(http.StatusOK, "Hello, World!")
 	  }
 
@@ -62,37 +62,37 @@ import (
 // fields from handlers/middlewares and changing field values at the same time leads to data-races.
 // Same rule applies to adding new routes after server has been started - Adding a route is not Goroutine safe action.
 type Echo struct {
-	contextPool               sync.Pool
-	Binder                    Binder
-	Filesystem                fs.FS
-	router                    Router
-	Renderer                  Renderer
-	Validator                 Validator
-	JSONSerializer            JSONSerializer
-	routerCreator             func(e *Echo) Router
-	HTTPErrorHandler          HTTPErrorHandler
-	NewContextFunc            func(e *Echo, pathParamAllocSize int) ServableContext
-	routers                   map[string]Router
-	Logger                    *slog.Logger
-	IPExtractor               IPExtractor
-	OnAddRoute                func(host string, route Routable) error
-	premiddleware             []MiddlewareFunc
+	contextPool      sync.Pool
+	Binder           Binder
+	Filesystem       fs.FS
+	router           Router
+	Renderer         Renderer
+	Validator        Validator
+	JSONSerializer   JSONSerializer
+	routerCreator    func(e *Echo) Router
+	HTTPErrorHandler HTTPErrorHandler
+	routers          map[string]Router
+	Logger           *slog.Logger
+	IPExtractor      IPExtractor
+	OnAddRoute       func(host string, route Routable) error
+	// premiddleware are middlewares that are called before routing is done
+	premiddleware []MiddlewareFunc
+	// middleware are middlewares that are called after routing is done and before handler is called
 	middleware                []MiddlewareFunc
 	contextPathParamAllocSize int
-	Debug                     bool
 }
 
 // JSONSerializer is the interface that encodes and decodes JSON to and from interfaces.
 type JSONSerializer interface {
-	Serialize(c Context, i interface{}, indent string) error
-	Deserialize(c Context, i interface{}) error
+	Serialize(c *Context, target any, indent string) error
+	Deserialize(c *Context, target any) error
 }
 
 // HTTPErrorHandler is a centralized HTTP error handler.
-type HTTPErrorHandler func(c Context, err error)
+type HTTPErrorHandler func(c *Context, err error)
 
 // HandlerFunc defines a function to serve HTTP requests.
-type HandlerFunc func(c Context) error
+type HandlerFunc func(c *Context) error
 
 // MiddlewareFunc defines a function to process middleware.
 type MiddlewareFunc func(next HandlerFunc) HandlerFunc
@@ -104,11 +104,11 @@ type MiddlewareConfigurator interface {
 
 // Validator is the interface that wraps the Validate function.
 type Validator interface {
-	Validate(i interface{}) error
+	Validate(i any) error
 }
 
-// Map defines a generic map of type `map[string]interface{}`.
-type Map map[string]interface{}
+// Map defines a generic map of type `map[string]any`.
+type Map map[string]any
 
 // MIME types
 const (
@@ -241,7 +241,7 @@ func New() *Echo {
 
 	e.router = NewRouter(RouterConfig{})
 	e.HTTPErrorHandler = DefaultHTTPErrorHandler(false)
-	e.contextPool.New = func() interface{} {
+	e.contextPool.New = func() any {
 		return e.NewContext(nil, nil)
 	}
 	return e
@@ -251,13 +251,8 @@ func New() *Echo {
 //
 // Note: both request and response can be left to nil as Echo.ServeHTTP will call c.Reset(req,resp) anyway
 // these arguments are useful when creating context for tests and cases like that.
-func (e *Echo) NewContext(r *http.Request, w http.ResponseWriter) Context {
-	var c Context
-	if e.NewContextFunc != nil {
-		c = e.NewContextFunc(e, e.contextPathParamAllocSize)
-	} else {
-		c = NewDefaultContext(e, e.contextPathParamAllocSize)
-	}
+func (e *Echo) NewContext(r *http.Request, w http.ResponseWriter) *Context {
+	c := NewContext(e, e.contextPathParamAllocSize)
 	c.SetRequest(r)
 	c.SetResponse(NewResponse(w, e))
 	return c
@@ -303,7 +298,7 @@ func (e *Echo) ResetRouterCreator(creator func(e *Echo) Router) {
 // handler. Then the error that global error handler received will be ignored because we have already "committed" the
 // response and status code header has been sent to the client.
 func DefaultHTTPErrorHandler(exposeError bool) HTTPErrorHandler {
-	return func(c Context, err error) {
+	return func(c *Context, err error) {
 		if c.Response().Committed {
 			return
 		}
@@ -417,7 +412,7 @@ func (e *Echo) TRACE(path string, h HandlerFunc, m ...MiddlewareFunc) RouteInfo 
 // Path supports static and named/any parameters just like other http method is defined. Generally path is ended with
 // wildcard/match-any character (`/*`, `/download/*` etc).
 //
-// Example: `e.RouteNotFound("/*", func(c echo.Context) error { return c.NoContent(http.StatusNotFound) })`
+// Example: `e.RouteNotFound("/*", func(c *echo.Context) error { return c.NoContent(http.StatusNotFound) })`
 func (e *Echo) RouteNotFound(path string, h HandlerFunc, m ...MiddlewareFunc) RouteInfo {
 	return e.Add(RouteNotFound, path, h, m...)
 }
@@ -499,7 +494,7 @@ func (e *Echo) StaticFS(pathPrefix string, filesystem fs.FS) RouteInfo {
 // StaticDirectoryHandler creates handler function to serve files from provided file system
 // When disablePathUnescaping is set then file name from path is not unescaped and is served as is.
 func StaticDirectoryHandler(fileSystem fs.FS, disablePathUnescaping bool) HandlerFunc {
-	return func(c Context) error {
+	return func(c *Context) error {
 		p := c.PathParam("*")
 		if !disablePathUnescaping { // when router is already unescaping we do not want to do is twice
 			tmpPath, err := url.PathUnescape(p)
@@ -533,14 +528,14 @@ func (e *Echo) FileFS(path, file string, filesystem fs.FS, m ...MiddlewareFunc) 
 
 // StaticFileHandler creates handler function to serve file from provided file system
 func StaticFileHandler(file string, filesystem fs.FS) HandlerFunc {
-	return func(c Context) error {
+	return func(c *Context) error {
 		return fsFile(c, file, filesystem)
 	}
 }
 
 // File registers a new route with path to serve a static file with optional route-level middleware. Panics on error.
 func (e *Echo) File(path, file string, middleware ...MiddlewareFunc) RouteInfo {
-	handler := func(c Context) error {
+	handler := func(c *Context) error {
 		return c.File(file)
 	}
 	return e.Add(http.MethodGet, path, handler, middleware...)
@@ -607,41 +602,26 @@ func (e *Echo) Group(prefix string, m ...MiddlewareFunc) (g *Group) {
 
 // AcquireContext returns an empty `Context` instance from the pool.
 // You must return the context by calling `ReleaseContext()`.
-func (e *Echo) AcquireContext() Context {
-	return e.contextPool.Get().(Context)
+func (e *Echo) AcquireContext() *Context {
+	return e.contextPool.Get().(*Context)
 }
 
 // ReleaseContext returns the `Context` instance back to the pool.
 // You must call it after `AcquireContext()`.
-func (e *Echo) ReleaseContext(c Context) {
+func (e *Echo) ReleaseContext(c *Context) {
 	e.contextPool.Put(c)
 }
 
 // ServeHTTP implements `http.Handler` interface, which serves HTTP requests.
 func (e *Echo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var c ServableContext
-	if e.NewContextFunc != nil {
-		// NOTE: we are not casting always context to RoutableContext because casting to interface vs pointer to struct is
-		// "significantly" slower. Echo Context interface has way to many methods so these checks take time.
-		// These are benchmarks with 1.16:
-		// * interface extending another interface = +24% slower (3233 ns/op vs 2605 ns/op)
-		// * interface (not extending any, just methods)= +14% slower
-		//
-		// Quote from https://stackoverflow.com/a/31584377
-		// "it's even worse with interface-to-interface assertion, because you also need to ensure that the type implements the interface."
-		//
-		// So most of the time we do not need custom context type and simple IF + cast to pointer to struct is fast enough.
-		c = e.contextPool.Get().(ServableContext)
-	} else {
-		c = e.contextPool.Get().(*DefaultContext)
-	}
+	c := e.contextPool.Get().(*Context)
 	c.Reset(r, w)
 	var h HandlerFunc
 
 	if e.premiddleware == nil {
 		h = applyMiddleware(e.findRouter(r.Host).Route(c), e.middleware...)
 	} else {
-		h = func(cc Context) error {
+		h = func(cc *Context) error {
 			// NOTE: router will be executed after pre middlewares have been run. We assume here that context we receive after pre middlewares
 			// is the same we began with. If not - this is use-case we do not support and is probably abuse from developer.
 			h1 := applyMiddleware(e.findRouter(r.Host).Route(c), e.middleware...)
@@ -688,7 +668,7 @@ func (e *Echo) Start(address string) error {
 
 // WrapHandler wraps `http.Handler` into `echo.HandlerFunc`.
 func WrapHandler(h http.Handler) HandlerFunc {
-	return func(c Context) error {
+	return func(c *Context) error {
 		h.ServeHTTP(c.Response(), c.Request())
 		return nil
 	}
@@ -697,7 +677,7 @@ func WrapHandler(h http.Handler) HandlerFunc {
 // WrapMiddleware wraps `func(http.Handler) http.Handler` into `echo.MiddlewareFunc`
 func WrapMiddleware(m func(http.Handler) http.Handler) MiddlewareFunc {
 	return func(next HandlerFunc) HandlerFunc {
-		return func(c Context) (err error) {
+		return func(c *Context) (err error) {
 			m(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				c.SetRequest(r)
 				c.SetResponse(NewResponse(w, c.Echo()))

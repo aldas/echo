@@ -408,7 +408,7 @@ func TestEchoMiddleware(t *testing.T) {
 	buf := new(bytes.Buffer)
 
 	e.Pre(func(next HandlerFunc) HandlerFunc {
-		return func(c Context) error {
+		return func(c *Context) error {
 			// before route match is found RouteInfo does not exist
 			assert.Equal(t, nil, c.RouteInfo())
 			buf.WriteString("-1")
@@ -417,28 +417,28 @@ func TestEchoMiddleware(t *testing.T) {
 	})
 
 	e.Use(func(next HandlerFunc) HandlerFunc {
-		return func(c Context) error {
+		return func(c *Context) error {
 			buf.WriteString("1")
 			return next(c)
 		}
 	})
 
 	e.Use(func(next HandlerFunc) HandlerFunc {
-		return func(c Context) error {
+		return func(c *Context) error {
 			buf.WriteString("2")
 			return next(c)
 		}
 	})
 
 	e.Use(func(next HandlerFunc) HandlerFunc {
-		return func(c Context) error {
+		return func(c *Context) error {
 			buf.WriteString("3")
 			return next(c)
 		}
 	})
 
 	// Route
-	e.GET("/", func(c Context) error {
+	e.GET("/", func(c *Context) error {
 		return c.String(http.StatusOK, "OK")
 	})
 
@@ -451,7 +451,7 @@ func TestEchoMiddleware(t *testing.T) {
 func TestEchoMiddlewareError(t *testing.T) {
 	e := New()
 	e.Use(func(next HandlerFunc) HandlerFunc {
-		return func(c Context) error {
+		return func(c *Context) error {
 			return errors.New("error")
 		}
 	})
@@ -464,7 +464,7 @@ func TestEchoHandler(t *testing.T) {
 	e := New()
 
 	// HandlerFunc
-	e.GET("/ok", func(c Context) error {
+	e.GET("/ok", func(c *Context) error {
 		return c.String(http.StatusOK, "OK")
 	})
 
@@ -500,7 +500,7 @@ func TestEchoWrapMiddleware(t *testing.T) {
 			h.ServeHTTP(w, r)
 		})
 	})
-	h := mw(func(c Context) error {
+	h := mw(func(c *Context) error {
 		return c.String(http.StatusOK, "OK")
 	})
 	if assert.NoError(t, h(c)) {
@@ -532,7 +532,7 @@ func TestEchoGet_routeInfoIsImmutable(t *testing.T) {
 func TestEchoConnect(t *testing.T) {
 	e := New()
 
-	ri := e.CONNECT("/", func(c Context) error {
+	ri := e.CONNECT("/", func(c *Context) error {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
@@ -549,7 +549,7 @@ func TestEchoConnect(t *testing.T) {
 func TestEchoDelete(t *testing.T) {
 	e := New()
 
-	ri := e.DELETE("/", func(c Context) error {
+	ri := e.DELETE("/", func(c *Context) error {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
@@ -566,7 +566,7 @@ func TestEchoDelete(t *testing.T) {
 func TestEchoGet(t *testing.T) {
 	e := New()
 
-	ri := e.GET("/", func(c Context) error {
+	ri := e.GET("/", func(c *Context) error {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
@@ -583,7 +583,7 @@ func TestEchoGet(t *testing.T) {
 func TestEchoHead(t *testing.T) {
 	e := New()
 
-	ri := e.HEAD("/", func(c Context) error {
+	ri := e.HEAD("/", func(c *Context) error {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
@@ -600,7 +600,7 @@ func TestEchoHead(t *testing.T) {
 func TestEchoOptions(t *testing.T) {
 	e := New()
 
-	ri := e.OPTIONS("/", func(c Context) error {
+	ri := e.OPTIONS("/", func(c *Context) error {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
@@ -617,7 +617,7 @@ func TestEchoOptions(t *testing.T) {
 func TestEchoPatch(t *testing.T) {
 	e := New()
 
-	ri := e.PATCH("/", func(c Context) error {
+	ri := e.PATCH("/", func(c *Context) error {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
@@ -634,7 +634,7 @@ func TestEchoPatch(t *testing.T) {
 func TestEchoPost(t *testing.T) {
 	e := New()
 
-	ri := e.POST("/", func(c Context) error {
+	ri := e.POST("/", func(c *Context) error {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
@@ -651,7 +651,7 @@ func TestEchoPost(t *testing.T) {
 func TestEchoPut(t *testing.T) {
 	e := New()
 
-	ri := e.PUT("/", func(c Context) error {
+	ri := e.PUT("/", func(c *Context) error {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
@@ -668,7 +668,7 @@ func TestEchoPut(t *testing.T) {
 func TestEchoTrace(t *testing.T) {
 	e := New()
 
-	ri := e.TRACE("/", func(c Context) error {
+	ri := e.TRACE("/", func(c *Context) error {
 		return c.String(http.StatusTeapot, "OK")
 	})
 
@@ -684,7 +684,7 @@ func TestEchoTrace(t *testing.T) {
 
 func TestEchoAny(t *testing.T) { // JFC
 	e := New()
-	ris := e.Any("/", func(c Context) error {
+	ris := e.Any("/", func(c *Context) error {
 		return c.String(http.StatusOK, "Any")
 	})
 	assert.Len(t, ris, 11)
@@ -692,7 +692,7 @@ func TestEchoAny(t *testing.T) { // JFC
 
 func TestEchoMatch(t *testing.T) { // JFC
 	e := New()
-	ris := e.Match([]string{http.MethodGet, http.MethodPost}, "/", func(c Context) error {
+	ris := e.Match([]string{http.MethodGet, http.MethodPost}, "/", func(c *Context) error {
 		return c.String(http.StatusOK, "Match")
 	})
 	assert.Len(t, ris, 2)
@@ -708,7 +708,7 @@ func TestEcho_Routers_HandleHostsProperly(t *testing.T) {
 		{Method: http.MethodPost, Path: "/repos/:owner/:repo/git/tags"},
 	}
 	for _, r := range routes {
-		h.Add(r.Method, r.Path, func(c Context) error {
+		h.Add(r.Method, r.Path, func(c *Context) error {
 			return c.String(http.StatusOK, "OK")
 		})
 	}
@@ -736,10 +736,10 @@ func TestEcho_Routers_HandleHostsProperly(t *testing.T) {
 
 func TestEchoServeHTTPPathEncoding(t *testing.T) {
 	e := New()
-	e.GET("/with/slash", func(c Context) error {
+	e.GET("/with/slash", func(c *Context) error {
 		return c.String(http.StatusOK, "/with/slash")
 	})
-	e.GET("/:id", func(c Context) error {
+	e.GET("/:id", func(c *Context) error {
 		return c.String(http.StatusOK, c.PathParam("id"))
 	})
 
@@ -777,9 +777,9 @@ func TestEchoServeHTTPPathEncoding(t *testing.T) {
 }
 
 func TestEchoHost(t *testing.T) {
-	okHandler := func(c Context) error { return c.String(http.StatusOK, http.StatusText(http.StatusOK)) }
-	teapotHandler := func(c Context) error { return c.String(http.StatusTeapot, http.StatusText(http.StatusTeapot)) }
-	acceptHandler := func(c Context) error { return c.String(http.StatusAccepted, http.StatusText(http.StatusAccepted)) }
+	okHandler := func(c *Context) error { return c.String(http.StatusOK, http.StatusText(http.StatusOK)) }
+	teapotHandler := func(c *Context) error { return c.String(http.StatusTeapot, http.StatusText(http.StatusTeapot)) }
+	acceptHandler := func(c *Context) error { return c.String(http.StatusAccepted, http.StatusText(http.StatusAccepted)) }
 	teapotMiddleware := MiddlewareFunc(func(next HandlerFunc) HandlerFunc { return teapotHandler })
 
 	e := New()
@@ -881,12 +881,12 @@ func TestEchoGroup(t *testing.T) {
 	e := New()
 	buf := new(bytes.Buffer)
 	e.Use(MiddlewareFunc(func(next HandlerFunc) HandlerFunc {
-		return func(c Context) error {
+		return func(c *Context) error {
 			buf.WriteString("0")
 			return next(c)
 		}
 	}))
-	h := func(c Context) error {
+	h := func(c *Context) error {
 		return c.NoContent(http.StatusOK)
 	}
 
@@ -899,7 +899,7 @@ func TestEchoGroup(t *testing.T) {
 	// Group
 	g1 := e.Group("/group1")
 	g1.Use(func(next HandlerFunc) HandlerFunc {
-		return func(c Context) error {
+		return func(c *Context) error {
 			buf.WriteString("1")
 			return next(c)
 		}
@@ -909,14 +909,14 @@ func TestEchoGroup(t *testing.T) {
 	// Nested groups with middleware
 	g2 := e.Group("/group2")
 	g2.Use(func(next HandlerFunc) HandlerFunc {
-		return func(c Context) error {
+		return func(c *Context) error {
 			buf.WriteString("2")
 			return next(c)
 		}
 	})
 	g3 := g2.Group("/group3")
 	g3.Use(func(next HandlerFunc) HandlerFunc {
-		return func(c Context) error {
+		return func(c *Context) error {
 			buf.WriteString("3")
 			return next(c)
 		}
@@ -937,7 +937,7 @@ func TestEchoGroup(t *testing.T) {
 
 func TestEcho_RouteNotFound(t *testing.T) {
 	var testCases = []struct {
-		expectRoute interface{}
+		expectRoute any
 		name        string
 		whenURL     string
 		expectCode  int
@@ -972,10 +972,10 @@ func TestEcho_RouteNotFound(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			e := New()
 
-			okHandler := func(c Context) error {
+			okHandler := func(c *Context) error {
 				return c.String(http.StatusOK, c.Request().Method+" "+c.Path())
 			}
-			notFoundHandler := func(c Context) error {
+			notFoundHandler := func(c *Context) error {
 				return c.String(http.StatusNotFound, c.Request().Method+" "+c.Path())
 			}
 
@@ -1010,7 +1010,7 @@ func TestEchoNotFound(t *testing.T) {
 func TestEchoMethodNotAllowed(t *testing.T) {
 	e := New()
 
-	e.GET("/", func(c Context) error {
+	e.GET("/", func(c *Context) error {
 		return c.String(http.StatusOK, "Echo!")
 	})
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
@@ -1168,13 +1168,13 @@ func TestEcho_RouterFor(t *testing.T) {
 func TestEchoContext(t *testing.T) {
 	e := New()
 	c := e.AcquireContext()
-	assert.IsType(t, new(DefaultContext), c)
+	assert.IsType(t, new(Context), c)
 	e.ReleaseContext(c)
 }
 
 func TestEcho_Start(t *testing.T) {
 	e := New()
-	e.GET("/", func(c Context) error {
+	e.GET("/", func(c *Context) error {
 		return c.String(http.StatusTeapot, "OK")
 	})
 	rndPort, err := net.Listen("tcp", ":0")
@@ -1303,7 +1303,7 @@ func TestDefaultHTTPErrorHandler(t *testing.T) {
 			buf := new(bytes.Buffer)
 			e := New()
 			e.Logger = slog.New(&discardHandler{})
-			e.Any("/path", func(c Context) error {
+			e.Any("/path", func(c *Context) error {
 				return tc.whenError
 			})
 
@@ -1322,31 +1322,6 @@ func TestDefaultHTTPErrorHandler(t *testing.T) {
 	}
 }
 
-type myCustomContext struct {
-	DefaultContext
-}
-
-func (c *myCustomContext) QueryParam(name string) string {
-	return "prefix_" + c.DefaultContext.QueryParam(name)
-}
-
-func TestEcho_customContext(t *testing.T) {
-	e := New()
-	e.NewContextFunc = func(ec *Echo, pathParamAllocSize int) ServableContext {
-		return &myCustomContext{
-			DefaultContext: *NewDefaultContext(ec, pathParamAllocSize),
-		}
-	}
-
-	e.GET("/info/:id/:file", func(c Context) error {
-		return c.String(http.StatusTeapot, c.QueryParam("param"))
-	})
-
-	status, body := request(http.MethodGet, "/info/1/a.csv?param=123", e)
-	assert.Equal(t, http.StatusTeapot, status)
-	assert.Equal(t, "prefix_123", body)
-}
-
 func benchmarkEchoRoutes(b *testing.B, routes []testRoute) {
 	e := New()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -1357,7 +1332,7 @@ func benchmarkEchoRoutes(b *testing.B, routes []testRoute) {
 
 	// Add routes
 	for _, route := range routes {
-		e.Add(route.Method, route.Path, func(c Context) error {
+		e.Add(route.Method, route.Path, func(c *Context) error {
 			return nil
 		})
 	}

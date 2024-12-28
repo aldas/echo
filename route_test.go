@@ -10,19 +10,19 @@ import (
 	"testing"
 )
 
-var myNamedHandler = func(c Context) error {
+var myNamedHandler = func(c *Context) error {
 	return nil
 }
 
 type NameStruct struct {
 }
 
-func (n *NameStruct) getUsers(c Context) error {
+func (n *NameStruct) getUsers(c *Context) error {
 	return nil
 }
 
 func TestHandlerName(t *testing.T) {
-	myNameFuncVar := func(c Context) error {
+	myNameFuncVar := func(c *Context) error {
 		return nil
 	}
 
@@ -35,7 +35,7 @@ func TestHandlerName(t *testing.T) {
 	}{
 		{
 			name: "ok, func as anonymous func",
-			whenHandlerFunc: func(c Context) error {
+			whenHandlerFunc: func(c *Context) error {
 				return nil
 			},
 			expect: "github.com/labstack/echo/v5.TestHandlerName.func2",
@@ -67,7 +67,7 @@ func TestHandlerName(t *testing.T) {
 
 func TestHandlerName_differentFuncSameName(t *testing.T) {
 	handlerCreator := func(name string) HandlerFunc {
-		return func(c Context) error {
+		return func(c *Context) error {
 			return c.String(http.StatusTeapot, name)
 		}
 	}
@@ -90,7 +90,7 @@ func TestRoute_ToRouteInfo(t *testing.T) {
 			given: Route{
 				Method: http.MethodGet,
 				Path:   "/test",
-				Handler: func(c Context) error {
+				Handler: func(c *Context) error {
 					return c.String(http.StatusTeapot, "OK")
 				},
 				Middlewares: nil,
@@ -108,7 +108,7 @@ func TestRoute_ToRouteInfo(t *testing.T) {
 			given: Route{
 				Method: http.MethodGet,
 				Path:   "users/:id/:file", // no slash prefix
-				Handler: func(c Context) error {
+				Handler: func(c *Context) error {
 					return c.String(http.StatusTeapot, "OK")
 				},
 				Middlewares: nil,
@@ -136,7 +136,7 @@ func TestRoute_ToRoute(t *testing.T) {
 	route := Route{
 		Method: http.MethodGet,
 		Path:   "/test",
-		Handler: func(c Context) error {
+		Handler: func(c *Context) error {
 			return c.String(http.StatusTeapot, "OK")
 		},
 		Middlewares: nil,
@@ -155,7 +155,7 @@ func TestRoute_ForGroup(t *testing.T) {
 	route := Route{
 		Method: http.MethodGet,
 		Path:   "/test",
-		Handler: func(c Context) error {
+		Handler: func(c *Context) error {
 			return c.String(http.StatusTeapot, "OK")
 		},
 		Middlewares: nil,
@@ -163,7 +163,7 @@ func TestRoute_ForGroup(t *testing.T) {
 	}
 
 	mw := func(next HandlerFunc) HandlerFunc {
-		return func(c Context) error {
+		return func(c *Context) error {
 			return next(c)
 		}
 	}
@@ -431,7 +431,7 @@ func TestRouteInfo_Reverse(t *testing.T) {
 		givenPath   string
 		expect      string
 		givenParams []string
-		whenParams  []interface{}
+		whenParams  []any
 	}{
 		{
 			name:      "ok,static with no params",
@@ -442,7 +442,7 @@ func TestRouteInfo_Reverse(t *testing.T) {
 			name:        "ok,static with non existent param",
 			givenParams: []string{"missing param"},
 			givenPath:   "/static",
-			whenParams:  []interface{}{"missing param"},
+			whenParams:  []any{"missing param"},
 			expect:      "/static",
 		},
 		{
@@ -454,7 +454,7 @@ func TestRouteInfo_Reverse(t *testing.T) {
 			name:        "ok, wildcard with params",
 			givenParams: []string{"foo.txt"},
 			givenPath:   "/static/*",
-			whenParams:  []interface{}{"foo.txt"},
+			whenParams:  []any{"foo.txt"},
 			expect:      "/static/foo.txt",
 		},
 		{
@@ -466,7 +466,7 @@ func TestRouteInfo_Reverse(t *testing.T) {
 			name:        "ok, single param with param",
 			givenParams: []string{"one"},
 			givenPath:   "/params/:foo",
-			whenParams:  []interface{}{"one"},
+			whenParams:  []any{"one"},
 			expect:      "/params/one",
 		},
 		{
@@ -478,35 +478,35 @@ func TestRouteInfo_Reverse(t *testing.T) {
 			name:        "ok, multi param with one param",
 			givenParams: []string{"one"},
 			givenPath:   "/params/:foo/bar/:qux",
-			whenParams:  []interface{}{"one"},
+			whenParams:  []any{"one"},
 			expect:      "/params/one/bar/:qux",
 		},
 		{
 			name:        "ok, multi param with all params",
 			givenParams: []string{"one", "two"},
 			givenPath:   "/params/:foo/bar/:qux",
-			whenParams:  []interface{}{"one", "two"},
+			whenParams:  []any{"one", "two"},
 			expect:      "/params/one/bar/two",
 		},
 		{
 			name:        "ok, multi param + wildcard with all params",
 			givenParams: []string{"one", "two", "three"},
 			givenPath:   "/params/:foo/bar/:qux/*",
-			whenParams:  []interface{}{"one", "two", "three"},
+			whenParams:  []any{"one", "two", "three"},
 			expect:      "/params/one/bar/two/three",
 		},
 		{
 			name:        "ok, backslash is not escaped",
 			givenParams: []string{"test"},
 			givenPath:   "/a\\b/:x",
-			whenParams:  []interface{}{"test"},
+			whenParams:  []any{"test"},
 			expect:      `/a\b/test`,
 		},
 		{
 			name:        "ok, escaped colon verbs",
 			givenParams: []string{"PATCH"},
 			givenPath:   "/params\\::customVerb",
-			whenParams:  []interface{}{"PATCH"},
+			whenParams:  []any{"PATCH"},
 			expect:      `/params:PATCH`,
 		},
 	}

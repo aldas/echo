@@ -98,7 +98,7 @@ func TestCreateExtractors(t *testing.T) {
 				req = tc.givenRequest()
 			}
 			rec := httptest.NewRecorder()
-			c := e.NewContext(req, rec).(echo.ServableContext)
+			c := e.NewContext(req, rec)
 			if tc.givenPathParams != nil {
 				c.SetRawPathParams(&tc.givenPathParams)
 			}
@@ -373,7 +373,7 @@ func TestValuesFromParam(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			rec := httptest.NewRecorder()
-			c := e.NewContext(req, rec).(echo.ServableContext)
+			c := e.NewContext(req, rec)
 			if tc.givenPathParams != nil {
 				c.SetRawPathParams(&tc.givenPathParams)
 			}

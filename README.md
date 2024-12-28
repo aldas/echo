@@ -74,6 +74,7 @@ func main() {
   e := echo.New()
 
   // Middleware
+  e.Use(middleware.RequestLogger())
   e.Use(middleware.Recover())
 
   // Routes
@@ -86,7 +87,7 @@ func main() {
 }
 
 // Handler
-func hello(c echo.Context) error {
+func hello(c *echo.Context) error {
   return c.String(http.StatusOK, "Hello, World!")
 }
 ```

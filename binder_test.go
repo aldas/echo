@@ -18,7 +18,7 @@ import (
 	"time"
 )
 
-func createTestContext(URL string, body io.Reader, pathParams map[string]string) Context {
+func createTestContext(URL string, body io.Reader, pathParams map[string]string) *Context {
 	e := New()
 	req := httptest.NewRequest(http.MethodGet, URL, body)
 	if body != nil {
@@ -35,8 +35,7 @@ func createTestContext(URL string, body io.Reader, pathParams map[string]string)
 				Value: value,
 			})
 		}
-		cc := c.(RoutableContext)
-		cc.SetRawPathParams(&params)
+		c.SetRawPathParams(&params)
 	}
 
 	return c
@@ -267,7 +266,7 @@ func TestValueBinder_CustomFuncWithError(t *testing.T) {
 
 func TestValueBinder_CustomFunc(t *testing.T) {
 	var testCases = []struct {
-		expectValue       interface{}
+		expectValue       any
 		name              string
 		whenURL           string
 		givenFuncErrors   []error
@@ -342,7 +341,7 @@ func TestValueBinder_CustomFunc(t *testing.T) {
 
 func TestValueBinder_MustCustomFunc(t *testing.T) {
 	var testCases = []struct {
-		expectValue       interface{}
+		expectValue       any
 		name              string
 		whenURL           string
 		givenFuncErrors   []error
@@ -2375,7 +2374,7 @@ func TestValueBinder_TextUnmarshaler(t *testing.T) {
 
 func TestValueBinder_BindWithDelimiter_types(t *testing.T) {
 	var testCases = []struct {
-		expect  interface{}
+		expect  any
 		name    string
 		whenURL string
 	}{

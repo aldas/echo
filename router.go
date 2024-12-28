@@ -31,31 +31,7 @@ type Router interface {
 	// Route searches Router for matching route and applies it to the given context. In case when no matching method
 	// was not found (405) or no matching route exists for path (404), router will return its implementation of 405/404
 	// handler function.
-	Route(c RoutableContext) HandlerFunc
-}
-
-// RoutableContext is additional interface that structures implementing Context must implement. Methods inside this
-// interface are meant for request routing purposes and should not be used in middlewares.
-type RoutableContext interface {
-	// Request returns `*http.Request`.
-	Request() *http.Request
-
-	// RawPathParams returns raw path pathParams value. Allocation of PathParams is handled by Context.
-	RawPathParams() *PathParams
-
-	// SetRawPathParams replaces any existing param values with new values for this context lifetime (request).
-	// Do not set any other value than what you got from RawPathParams as allocation of PathParams is handled by Context.
-	SetRawPathParams(params *PathParams)
-
-	// SetPath sets the registered path for the handler.
-	SetPath(p string)
-
-	// SetRouteInfo sets the route info of this request to the context.
-	SetRouteInfo(ri RouteInfo)
-
-	// Set saves data in the context. Allows router to store arbitrary (that only router has access to) data in context
-	// for later use in middlewares/handler.
-	Set(key string, val interface{})
+	Route(c *Context) HandlerFunc
 }
 
 // Routable is interface for registering Route with Router. During route registration process the Router will
@@ -100,7 +76,7 @@ type RouteInfo interface {
 
 	Params() []string
 	// Reverse reverses route to URL string by replacing path parameters with given params values.
-	Reverse(params ...interface{}) string
+	Reverse(params ...any) string
 
 	// NOTE: handler and middlewares are not exposed because handler could be already wrapping middlewares and therefore
 	// it is not always 100% known if handler function already wraps middlewares or not. In Echo handler could be one
@@ -782,13 +758,13 @@ var methodNotAllowedRouteInfo = &routeInfo{
 
 // notFoundHandler is handler for 404 cases
 // Handle returned ErrNotFound errors in Echo.HTTPErrorHandler
-var notFoundHandler = func(c Context) error {
+var notFoundHandler = func(c *Context) error {
 	return ErrNotFound
 }
 
 // methodNotAllowedHandler is handler for case when route for path+method match was not found (http code 405)
 // Handle returned ErrMethodNotAllowed errors in Echo.HTTPErrorHandler
-var methodNotAllowedHandler = func(c Context) error {
+var methodNotAllowedHandler = func(c *Context) error {
 	// See RFC 7231 section 7.4.1: An origin server MUST generate an Allow field in a 405 (Method Not Allowed)
 	// response and MAY do so in any other response. For disabled resources an empty Allow header may be returned
 	routerAllowMethods, ok := c.Get(ContextKeyHeaderAllow).(string)
@@ -801,7 +777,7 @@ var methodNotAllowedHandler = func(c Context) error {
 // optionsMethodHandler is default handler for OPTIONS method.
 // Use `middleware.CORS` if you need support for preflighted requests in CORS
 // See https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/OPTIONS
-var optionsMethodHandler = func(c Context) error {
+var optionsMethodHandler = func(c *Context) error {
 	// See RFC 7231 section 7.4.1: An origin server MUST generate an Allow field in a 405 (Method Not Allowed)
 	// response and MAY do so in any other response. For disabled resources an empty Allow header may be returned
 	routerAllowMethods, ok := c.Get(ContextKeyHeaderAllow).(string)
@@ -819,7 +795,7 @@ var optionsMethodHandler = func(c Context) error {
 // - Get context from `Echo#AcquireContext()`
 // - Reset it `Context#Reset()`
 // - Return it `Echo#ReleaseContext()`.
-func (r *DefaultRouter) Route(c RoutableContext) HandlerFunc {
+func (r *DefaultRouter) Route(c *Context) HandlerFunc {
 	pathParams := c.RawPathParams()
 	*pathParams = (*pathParams)[0:cap(*pathParams)]
 

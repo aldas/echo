@@ -25,7 +25,7 @@ type BodyDumpConfig struct {
 }
 
 // BodyDumpHandler receives the request and response payload.
-type BodyDumpHandler func(c echo.Context, reqBody []byte, resBody []byte)
+type BodyDumpHandler func(c *echo.Context, reqBody []byte, resBody []byte)
 
 type bodyDumpResponseWriter struct {
 	io.Writer
@@ -56,7 +56,7 @@ func (config BodyDumpConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if config.Skipper(c) {
 				return next(c)
 			}

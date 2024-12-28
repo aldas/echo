@@ -100,7 +100,7 @@ func TestCORS(t *testing.T) {
 			givenMW: CORSWithConfig(CORSConfig{
 				AllowOrigins:     []string{"localhost"},
 				AllowCredentials: true,
-				Skipper: func(c echo.Context) bool {
+				Skipper: func(c *echo.Context) bool {
 					return true
 				},
 			}),
@@ -220,7 +220,7 @@ func TestCORS(t *testing.T) {
 			if tc.givenMW != nil {
 				mw = tc.givenMW
 			}
-			h := mw(func(c echo.Context) error {
+			h := mw(func(c *echo.Context) error {
 				return nil
 			})
 
@@ -299,7 +299,7 @@ func Test_allowOriginScheme(t *testing.T) {
 		cors := CORSWithConfig(CORSConfig{
 			AllowOrigins: []string{tt.pattern},
 		})
-		h := cors(func(c echo.Context) error { return echo.ErrNotFound })
+		h := cors(func(c *echo.Context) error { return echo.ErrNotFound })
 		h(c)
 
 		if tt.expected {
@@ -390,7 +390,7 @@ func Test_allowOriginSubdomain(t *testing.T) {
 		cors := CORSWithConfig(CORSConfig{
 			AllowOrigins: []string{tt.pattern},
 		})
-		h := cors(func(c echo.Context) error { return echo.ErrNotFound })
+		h := cors(func(c *echo.Context) error { return echo.ErrNotFound })
 		h(c)
 
 		if tt.expected {
@@ -456,7 +456,7 @@ func TestCORSWithConfig_AllowMethods(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			e := echo.New()
-			e.GET("/test", func(c echo.Context) error {
+			e.GET("/test", func(c *echo.Context) error {
 				return c.String(http.StatusOK, "OK")
 			})
 
@@ -474,7 +474,7 @@ func TestCORSWithConfig_AllowMethods(t *testing.T) {
 				c.Set(echo.ContextKeyHeaderAllow, tc.allowContextKey)
 			}
 
-			h := cors(func(c echo.Context) error {
+			h := cors(func(c *echo.Context) error {
 				return c.String(http.StatusOK, "OK")
 			})
 			h(c)
@@ -592,10 +592,10 @@ func TestCorsHeaders(t *testing.T) {
 				//MaxAge:           3600,
 			}))
 
-			e.GET("/", func(c echo.Context) error {
+			e.GET("/", func(c *echo.Context) error {
 				return c.String(http.StatusOK, "OK")
 			})
-			e.POST("/", func(c echo.Context) error {
+			e.POST("/", func(c *echo.Context) error {
 				return c.String(http.StatusCreated, "OK")
 			})
 
@@ -666,7 +666,7 @@ func Test_allowOriginFunc(t *testing.T) {
 		cors, err := CORSConfig{AllowOriginFunc: allowOriginFunc}.ToMiddleware()
 		assert.NoError(t, err)
 
-		h := cors(func(c echo.Context) error { return echo.ErrNotFound })
+		h := cors(func(c *echo.Context) error { return echo.ErrNotFound })
 		err = h(c)
 
 		expected, expectedErr := allowOriginFunc(origin)

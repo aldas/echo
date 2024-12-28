@@ -14,17 +14,17 @@ type DefaultJSONSerializer struct{}
 
 // Serialize converts an interface into a json and writes it to the response.
 // You can optionally use the indent parameter to produce pretty JSONs.
-func (d DefaultJSONSerializer) Serialize(c Context, i interface{}, indent string) error {
+func (d DefaultJSONSerializer) Serialize(c *Context, target any, indent string) error {
 	enc := json.NewEncoder(c.Response())
 	if indent != "" {
 		enc.SetIndent("", indent)
 	}
-	return enc.Encode(i)
+	return enc.Encode(target)
 }
 
 // Deserialize reads a JSON from a request body and converts it into an interface.
-func (d DefaultJSONSerializer) Deserialize(c Context, i interface{}) error {
-	err := json.NewDecoder(c.Request().Body).Decode(i)
+func (d DefaultJSONSerializer) Deserialize(c *Context, target any) error {
+	err := json.NewDecoder(c.Request().Body).Decode(target)
 	if ute, ok := err.(*json.UnmarshalTypeError); ok {
 		return NewHTTPErrorWithInternal(
 			http.StatusBadRequest,

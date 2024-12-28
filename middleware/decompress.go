@@ -34,7 +34,7 @@ type DefaultGzipDecompressPool struct {
 }
 
 func (d *DefaultGzipDecompressPool) gzipDecompressPool() sync.Pool {
-	return sync.Pool{New: func() interface{} { return new(gzip.Reader) }}
+	return sync.Pool{New: func() any { return new(gzip.Reader) }}
 }
 
 // Decompress decompresses request body based if content encoding type is set to "gzip" with default config
@@ -59,7 +59,7 @@ func (config DecompressConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		pool := config.GzipDecompressPool.gzipDecompressPool()
 
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if config.Skipper(c) {
 				return next(c)
 			}

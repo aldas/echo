@@ -48,13 +48,13 @@ func (config BodyLimitConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 		config.Skipper = DefaultSkipper
 	}
 	pool := sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return &limitedReader{BodyLimitConfig: config}
 		},
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if config.Skipper(c) {
 				return next(c)
 			}

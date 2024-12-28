@@ -16,7 +16,7 @@ type ContextTimeoutConfig struct {
 	Skipper Skipper
 
 	// ErrorHandler is a function when error aries in middeware execution.
-	ErrorHandler func(c echo.Context, err error) error
+	ErrorHandler func(c *echo.Context, err error) error
 
 	// Timeout configures a timeout for the middleware
 	Timeout time.Duration
@@ -42,7 +42,7 @@ func (config ContextTimeoutConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 		config.Skipper = DefaultSkipper
 	}
 	if config.ErrorHandler == nil {
-		config.ErrorHandler = func(c echo.Context, err error) error {
+		config.ErrorHandler = func(c *echo.Context, err error) error {
 			if err != nil && errors.Is(err, context.DeadlineExceeded) {
 				return echo.ErrServiceUnavailable.WithInternal(err)
 			}
@@ -51,7 +51,7 @@ func (config ContextTimeoutConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if config.Skipper(c) {
 				return next(c)
 			}

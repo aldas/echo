@@ -33,13 +33,13 @@ var (
 
 // HTTPError represents an error that occurred while handling a request.
 type HTTPError struct {
-	Message  interface{} `json:"message"`
-	Internal error       `json:"-"`
-	Code     int         `json:"-"`
+	Message  any   `json:"message"`
+	Internal error `json:"-"`
+	Code     int   `json:"-"`
 }
 
 // NewHTTPError creates a new HTTPError instance.
-func NewHTTPError(code int, message ...interface{}) *HTTPError { // FIXME: this need cleanup - why vararg if [0] is only used?
+func NewHTTPError(code int, message ...any) *HTTPError { // FIXME: this need cleanup - why vararg if [0] is only used?
 	he := &HTTPError{Code: code, Message: http.StatusText(code)}
 	if len(message) > 0 {
 		he.Message = message[0]
@@ -48,7 +48,7 @@ func NewHTTPError(code int, message ...interface{}) *HTTPError { // FIXME: this 
 }
 
 // NewHTTPErrorWithInternal creates a new HTTPError instance with internal error set.
-func NewHTTPErrorWithInternal(code int, internalError error, message ...interface{}) *HTTPError {
+func NewHTTPErrorWithInternal(code int, internalError error, message ...any) *HTTPError {
 	he := NewHTTPError(code, message...)
 	he.Internal = internalError
 	return he

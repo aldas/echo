@@ -78,7 +78,7 @@ func (r routeInfo) Name() string {
 }
 
 // Reverse reverses route to URL string by replacing path parameters with given params values.
-func (r routeInfo) Reverse(params ...interface{}) string {
+func (r routeInfo) Reverse(params ...any) string {
 	uri := new(bytes.Buffer)
 	ln := len(params)
 	n := 0
@@ -111,10 +111,10 @@ func HandlerName(h HandlerFunc) string {
 }
 
 // Reverse reverses route to URL string by replacing path parameters with given params values.
-func (r Routes) Reverse(name string, params ...interface{}) (string, error) {
+func (r Routes) Reverse(routeName string, pathParams ...any) (string, error) {
 	for _, rr := range r {
-		if rr.Name() == name {
-			return rr.Reverse(params...), nil
+		if rr.Name() == routeName {
+			return rr.Reverse(pathParams...), nil
 		}
 	}
 	return "", errors.New("route not found")

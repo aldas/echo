@@ -29,7 +29,7 @@ func TestStatic_useCaseForApiAndSPAs(t *testing.T) {
 	// all requests to `/api/*` will end up in echo handlers (assuming there is not `api` folder and files)
 	api := e.Group("/api")
 	users := api.Group("/users")
-	users.GET("/info", func(c echo.Context) error {
+	users.GET("/info", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "users info")
 	})
 
@@ -141,7 +141,7 @@ func TestStatic(t *testing.T) {
 			name: "ok, skip middleware and serve handler",
 			givenConfig: &StaticConfig{
 				Root: "_fixture/images/",
-				Skipper: func(c echo.Context) bool {
+				Skipper: func(c *echo.Context) bool {
 					return true
 				},
 			},
@@ -186,15 +186,15 @@ func TestStatic(t *testing.T) {
 				subGroup := e.Group(tc.givenAttachedToGroup, middlewareFunc)
 				// group without http handlers (routes) does not do anything.
 				// Request is matched against http handlers (routes) that have group middleware attached to them
-				subGroup.GET("", func(c echo.Context) error { return echo.ErrNotFound })
-				subGroup.GET("/*", func(c echo.Context) error { return echo.ErrNotFound })
+				subGroup.GET("", func(c *echo.Context) error { return echo.ErrNotFound })
+				subGroup.GET("/*", func(c *echo.Context) error { return echo.ErrNotFound })
 			} else {
 				// middleware is on root level
 				e.Use(middlewareFunc)
-				e.GET("/regular-handler", func(c echo.Context) error {
+				e.GET("/regular-handler", func(c *echo.Context) error {
 					return c.String(http.StatusOK, "ok")
 				})
-				e.GET("/walle.png", func(c echo.Context) error {
+				e.GET("/walle.png", func(c *echo.Context) error {
 					return c.String(http.StatusTeapot, "walle")
 				})
 			}
