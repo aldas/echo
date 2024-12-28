@@ -611,60 +611,89 @@ func TestContext_PathParamDefault(t *testing.T) {
 	}
 }
 
-func TestContextGetAndSetParam(t *testing.T) {
-	e := New()
-	r := e.Router()
-	_, err := r.Add(Route{
-		Method:      http.MethodGet,
-		Path:        "/:foo",
-		Name:        "",
-		Handler:     func(*Context) error { return nil },
-		Middlewares: nil,
+func TestContextGetAndSetPathParamsMutability(t *testing.T) {
+	t.Run("c.PathParams() does not return copy and modifying raw slice mutates value in context", func(t *testing.T) {
+		e := New()
+		e.contextPathParamAllocSize.Store(1)
+
+		req := httptest.NewRequest(http.MethodGet, "/:foo", nil)
+		c := e.NewContext(req, nil)
+
+		params := PathParams{{Name: "foo", Value: "101"}}
+		c.SetPathParams(params)
+
+		// round-trip param values with modification
+		paramVals := c.PathParams()
+		assert.Equal(t, params, c.PathParams())
+
+		// PathParams() does not return copy and modifying raw slice mutates value in context
+		paramVals[0] = PathParam{Name: "xxx", Value: "yyy"}
+		assert.Equal(t, PathParams{PathParam{Name: "xxx", Value: "yyy"}}, c.PathParams())
 	})
-	assert.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodGet, "/:foo", nil)
-	c := e.NewContext(req, nil)
+	t.Run("calling SetPathParams with bigger size changes capacity in context", func(t *testing.T) {
+		e := New()
+		e.contextPathParamAllocSize.Store(1)
 
-	params := &PathParams{{Name: "foo", Value: "101"}}
-	// ParamNames
-	c.pathParams = params
+		req := httptest.NewRequest(http.MethodGet, "/:foo", nil)
+		c := e.NewContext(req, nil)
+		// increase path param capacity in context
+		pathParams := PathParams{
+			{Name: "aaa", Value: "bbb"},
+			{Name: "ccc", Value: "ddd"},
+		}
+		c.SetPathParams(pathParams)
+		assert.Equal(t, pathParams, c.PathParams())
 
-	// round-trip param values with modification
-	paramVals := c.PathParams()
-	assert.Equal(t, *params, c.PathParams())
-
-	paramVals[0] = PathParam{Name: "xxx", Value: "yyy"} // PathParams() returns copy and modifying it does nothing to context
-	assert.Equal(t, PathParams{{Name: "foo", Value: "101"}}, c.PathParams())
-
-	pathParams := PathParams{
-		{Name: "aaa", Value: "bbb"},
-		{Name: "ccc", Value: "ddd"},
-	}
-	c.SetPathParams(pathParams)
-	assert.Equal(t, pathParams, c.PathParams())
-
-	// shouldn't explode during Reset() afterwards!
-	assert.NotPanics(t, func() {
-		c.Reset(nil, nil)
+		// shouldn't explode during Reset() afterwards!
+		assert.NotPanics(t, func() {
+			c.Reset(nil, nil)
+		})
+		assert.Equal(t, PathParams{}, c.PathParams())
+		assert.Len(t, *c.pathParams, 0)
+		assert.Equal(t, 2, cap(*c.pathParams))
 	})
-	assert.Equal(t, PathParams{}, c.PathParams())
-	assert.Len(t, *c.pathParams, 0)
-	assert.Equal(t, cap(*c.pathParams), 1)
+
+	t.Run("calling SetPathParams with smaller size slice does not change capacity in context", func(t *testing.T) {
+		e := New()
+
+		req := httptest.NewRequest(http.MethodGet, "/:foo", nil)
+		c := e.NewContext(req, nil)
+		c.pathParams = &PathParams{
+			{Name: "aaa", Value: "bbb"},
+			{Name: "ccc", Value: "ddd"},
+		}
+
+		pathParams := PathParams{
+			{Name: "aaa", Value: "bbb"},
+		}
+		// given pathParams slice is smaller. this should not decrease c.pathParams capacity
+		c.SetPathParams(pathParams)
+		assert.Equal(t, pathParams, c.PathParams())
+
+		// shouldn't explode during Reset() afterwards!
+		assert.NotPanics(t, func() {
+			c.Reset(nil, nil)
+		})
+		assert.Equal(t, PathParams{}, c.PathParams())
+		assert.Len(t, *c.pathParams, 0)
+		assert.Equal(t, 2, cap(*c.pathParams))
+	})
+
 }
 
 // Issue #1655
-func TestContext_SetParamNamesShouldNotModifyPathParams(t *testing.T) {
+func TestContext_SetParamNamesShouldNotModifyPathParamsCapacity(t *testing.T) {
 	e := New()
 	c := e.NewContext(nil, nil)
 
-	assert.Equal(t, 0, e.contextPathParamAllocSize)
+	assert.Equal(t, int32(0), e.contextPathParamAllocSize.Load())
 	expectedTwoParams := PathParams{
 		{Name: "1", Value: "one"},
 		{Name: "2", Value: "two"},
 	}
 	c.SetPathParams(expectedTwoParams)
-	assert.Equal(t, 0, e.contextPathParamAllocSize)
+	assert.Equal(t, int32(0), e.contextPathParamAllocSize.Load())
 	assert.Equal(t, expectedTwoParams, c.PathParams())
 
 	expectedThreeParams := PathParams{
@@ -673,7 +702,7 @@ func TestContext_SetParamNamesShouldNotModifyPathParams(t *testing.T) {
 		{Name: "3", Value: "three"},
 	}
 	c.SetPathParams(expectedThreeParams)
-	assert.Equal(t, 0, e.contextPathParamAllocSize)
+	assert.Equal(t, int32(0), e.contextPathParamAllocSize.Load())
 	assert.Equal(t, expectedThreeParams, c.PathParams())
 }
 

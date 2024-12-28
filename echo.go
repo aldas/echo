@@ -54,6 +54,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 // Echo is the top-level framework instance.
@@ -62,24 +63,29 @@ import (
 // fields from handlers/middlewares and changing field values at the same time leads to data-races.
 // Same rule applies to adding new routes after server has been started - Adding a route is not Goroutine safe action.
 type Echo struct {
-	contextPool      sync.Pool
 	Binder           Binder
 	Filesystem       fs.FS
-	router           Router
 	Renderer         Renderer
 	Validator        Validator
 	JSONSerializer   JSONSerializer
-	routerCreator    func(e *Echo) Router
-	HTTPErrorHandler HTTPErrorHandler
-	routers          map[string]Router
-	Logger           *slog.Logger
 	IPExtractor      IPExtractor
 	OnAddRoute       func(host string, route Route) error
+	HTTPErrorHandler HTTPErrorHandler
+	Logger           *slog.Logger
+
+	contextPool sync.Pool
+
+	router        Router
+	routerCreator func(e *Echo) Router
+	routers       map[string]Router
+
 	// premiddleware are middlewares that are called before routing is done
 	premiddleware []MiddlewareFunc
+
 	// middleware are middlewares that are called after routing is done and before handler is called
-	middleware                []MiddlewareFunc
-	contextPathParamAllocSize int
+	middleware []MiddlewareFunc
+
+	contextPathParamAllocSize atomic.Int32
 }
 
 // JSONSerializer is the interface that encodes and decodes JSON to and from interfaces.
@@ -252,7 +258,7 @@ func New() *Echo {
 // Note: both request and response can be left to nil as Echo.ServeHTTP will call c.Reset(req,resp) anyway
 // these arguments are useful when creating context for tests and cases like that.
 func (e *Echo) NewContext(r *http.Request, w http.ResponseWriter) *Context {
-	c := NewContext(e, e.contextPathParamAllocSize)
+	c := NewContext(e, e.contextPathParamAllocSize.Load())
 	c.SetRequest(r)
 	c.SetResponse(NewResponse(w, e))
 	return c
@@ -559,9 +565,9 @@ func (e *Echo) add(host string, route Route) (RouteInfo, error) {
 		return RouteInfo{}, err
 	}
 
-	paramsCount := len(ri.Parameters)
-	if paramsCount > e.contextPathParamAllocSize {
-		e.contextPathParamAllocSize = paramsCount
+	paramsCount := int32(len(ri.Parameters))
+	if paramsCount > e.contextPathParamAllocSize.Load() {
+		e.contextPathParamAllocSize.Store(paramsCount)
 	}
 	return ri, nil
 }

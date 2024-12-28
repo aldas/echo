@@ -35,28 +35,31 @@ const (
 // Context represents the context of the current HTTP request. It holds request and
 // response objects, path, path parameters, data and registered handler.
 type Context struct {
-	route         *RouteInfo
-	request       *http.Request
-	response      *Response
-	pathParams    *PathParams
-	query         url.Values
-	store         Map
-	echo          *Echo
-	logger        *slog.Logger
-	path          string
-	currentParams PathParams
-	lock          sync.RWMutex
+	request  *http.Request
+	response *Response
+	query    url.Values
+
+	route      *RouteInfo
+	pathParams *PathParams
+
+	store  Map
+	echo   *Echo
+	logger *slog.Logger
+
+	path string
+	lock sync.RWMutex
 }
 
 // NewContext creates new instance of Context.
 // Argument pathParamAllocSize must be value that is stored in *echo.ContextPathParamAllocSize field and is used
 // to preallocate PathParams slice.
-func NewContext(e *Echo, pathParamAllocSize int) *Context {
+func NewContext(e *Echo, pathParamAllocSize int32) *Context {
 	p := make(PathParams, pathParamAllocSize)
 	return &Context{
 		pathParams: &p,
 		store:      make(Map),
 		echo:       e,
+		logger:     e.Logger,
 	}
 }
 
@@ -68,12 +71,12 @@ func (c *Context) Reset(r *http.Request, w http.ResponseWriter) {
 	c.response.reset(w)
 	c.query = nil
 	c.store = nil
+	c.logger = nil
 
 	c.route = nil
 	c.path = ""
 	// NOTE: Don't reset because it has to have length of c.echo.contextPathParamAllocSize at all times
 	*c.pathParams = (*c.pathParams)[:0]
-	c.currentParams = nil
 }
 
 func (c *Context) writeContentType(value string) {
@@ -191,19 +194,8 @@ func (c *Context) SetRouteInfo(ri RouteInfo) {
 	c.route = &ri
 }
 
-// InitializeRoute sets the route related variables of this request to the context.
-func (c *Context) InitializeRoute(ri *RouteInfo, params *PathParams) {
-	c.route = ri
-	c.path = ri.Path
-	c.pathParams = params
-}
-
 // PathParam returns path parameter by name.
 func (c *Context) PathParam(name string) string {
-	if c.currentParams != nil {
-		return c.currentParams.Get(name, "")
-	}
-
 	return c.pathParams.Get(name, "")
 }
 
@@ -216,26 +208,46 @@ func (c *Context) PathParam(name string) string {
 // but not when path parameter is last part of route path
 // * route `/download/file.:ext` will not match request `/download/file.`
 func (c *Context) PathParamDefault(name, defaultValue string) string {
-	if c.currentParams != nil {
-		return c.currentParams.Get(name, defaultValue)
-	}
 	return c.pathParams.Get(name, defaultValue)
 }
 
 // PathParams returns path parameter values.
 func (c *Context) PathParams() PathParams {
-	if c.currentParams != nil {
-		return c.currentParams
-	}
-
-	result := make(PathParams, len(*c.pathParams))
-	copy(result, *c.pathParams)
-	return result
+	return *c.pathParams
 }
 
 // SetPathParams sets path parameters for current request.
 func (c *Context) SetPathParams(params PathParams) {
-	c.currentParams = params
+	if params == nil {
+		panic("context SetPathParams called with nil PathParams")
+	}
+	// Router accesses c.pathParams by index and may resize it to full capacity during routing
+	// for that to work without going out-of-bounds we must make sure that c.pathParams slice is not replaced with smaller
+	// slice than Router can set when routing Route with maximum amount of parameters.
+	if cap(*c.pathParams) > cap(params) {
+		pathParams := c.pathParams
+		*pathParams = (*pathParams)[0:len(params)] // resize slice to given params length for copy to work
+		copy(*pathParams, params)
+	} else { // slice with bigger capacity is fine
+		c.pathParams = &params
+	}
+}
+
+// InitializeRoute sets the route related variables of this request to the context.
+func (c *Context) InitializeRoute(ri *RouteInfo, params *PathParams) {
+	c.route = ri
+	c.path = ri.Path
+
+	// Router accesses c.pathParams by index and may resize it to full capacity during routing
+	// for that to work without going out-of-bounds we must make sure that c.pathParams slice is not replaced with smaller
+	// slice than Router can set when routing Route with maximum amount of parameters.
+	if cap(*c.pathParams) > cap(*params) {
+		pathParams := c.pathParams
+		*pathParams = (*pathParams)[0:len(*params)] // resize slice to given params length for copy to work
+		copy(*pathParams, *params)
+	} else { // slice with bigger capacity is fine
+		c.pathParams = params
+	}
 }
 
 // QueryParam returns the query param for the provided name.

@@ -908,7 +908,7 @@ func TestRouterOptionsMethodHandler(t *testing.T) {
 
 func TestRouterHandleMethodOptions(t *testing.T) {
 	e := New()
-	e.contextPathParamAllocSize = 1
+	e.contextPathParamAllocSize.Store(1)
 	r := e.router
 
 	r.Add(Route{Method: http.MethodGet, Path: "/users", Handler: handlerFunc})
@@ -2500,6 +2500,33 @@ func TestRouterParam1466(t *testing.T) {
 	}
 }
 
+func TestXXXX(t *testing.T) {
+	e := New()
+	e.GET("/test/:id/:action", handlerFunc) // max params is 2
+
+	req := httptest.NewRequest(http.MethodGet, "/test/1/a", nil)
+	rec := httptest.NewRecorder()
+
+	c := e.AcquireContext()
+	c.Reset(req, rec)
+	assert.Equal(t, 0, len(*c.pathParams))
+	assert.Equal(t, 2, cap(*c.pathParams))
+
+	// imitate some (pre)middleware changing/replacing pathparams to smaller size
+	c.SetPathParams(PathParams{
+		{Name: "id", Value: "1"},
+	})
+	assert.Equal(t, 1, len(*c.pathParams))
+	assert.Equal(t, 2, cap(*c.pathParams))
+
+	handler := e.router.Route(c)
+	e.ReleaseContext(c)
+
+	assert.NoError(t, handler(c))
+	assert.Equal(t, "1", c.PathParam("id"))
+	assert.Equal(t, "a", c.PathParam("action"))
+}
+
 // Issue #1655
 func TestRouterFindNotPanicOrLoopsWhenContextSetParamValuesIsCalledWithLessValuesThanEchoMaxParam(t *testing.T) {
 	e := New()
@@ -3106,7 +3133,7 @@ func TestDefaultRouter_UnescapePathParamValues(t *testing.T) {
 			e := New()
 			router := NewRouter(RouterConfig{UnescapePathParamValues: tc.givenUnescapePathParamValues})
 			e.router = router
-			e.contextPathParamAllocSize = 2
+			e.contextPathParamAllocSize.Store(2)
 
 			_, err := router.Add(Route{Method: http.MethodGet, Path: "/first/:raw", Handler: handlerFunc})
 			assert.NoError(t, err)
@@ -3208,7 +3235,7 @@ func TestDefaultRouter_UseEscapedPathForRouting(t *testing.T) {
 			e := New()
 			router := NewRouter(RouterConfig{UseEscapedPathForMatching: !tc.givenDoNotUseEscapedPathForRouting})
 			e.router = router
-			e.contextPathParamAllocSize = 1
+			e.contextPathParamAllocSize.Store(1)
 
 			ri, err := router.Add(Route{
 				Method: http.MethodGet,
@@ -3362,7 +3389,7 @@ func TestRouter_RouteWhenNotFoundRouteAnyKind(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			e := New()
-			e.contextPathParamAllocSize = 1
+			e.contextPathParamAllocSize.Store(1)
 			r := e.router
 
 			r.Add(Route{Method: http.MethodGet, Path: "/", Handler: handlerHelper("ID", 0), Name: "0"})
@@ -3431,7 +3458,7 @@ func TestRouter_RouteWhenNotFoundRouteParamKind(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			e := New()
-			e.contextPathParamAllocSize = 1
+			e.contextPathParamAllocSize.Store(1)
 			r := e.router
 
 			r.Add(Route{Method: http.MethodGet, Path: "/", Handler: handlerHelper("ID", 0), Name: "0"})
@@ -3487,7 +3514,7 @@ func TestRouter_RouteWhenNotFoundRouteStaticKind(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			e := New()
-			e.contextPathParamAllocSize = 1
+			e.contextPathParamAllocSize.Store(1)
 			r := e.router
 
 			r.Add(Route{Method: http.MethodPut, Path: "/", Handler: handlerHelper("ID", 0), Name: "0"})

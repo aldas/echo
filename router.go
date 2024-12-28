@@ -16,10 +16,8 @@ import (
 //   - all routes must be added through methods on echo.Echo instance.
 //     Reason: Echo instance uses RouteInfo.Params() length to allocate slice for paths parameters (see `Echo.contextPathParamAllocSize`).
 //   - Router must populate Context during Router.Route call with:
-//   - RoutableContext.SetPath
-//   - RoutableContext.SetRawPathParams (IMPORTANT! with same slice pointer that c.RawPathParams() returns)
-//   - RoutableContext.SetRouteInfo
-//     And optionally can set additional information to Context with RoutableContext.Set
+//   - Context.InitializeRoute (IMPORTANT! with same slice pointer that c.RawPathParams() returns)
+//   - Optionally can set additional information to Context with Context.Set
 type Router interface {
 	// Add registers Routable with the Router and returns registered RouteInfo.
 	//
@@ -41,10 +39,8 @@ type Router interface {
 	// handler function.
 	//
 	// Router must populate Context during Router.Route call with:
-	// - Context.SetPath()
-	// - Context.SetRawPathParams() (IMPORTANT! with the same slice pointer that c.RawPathParams() returns)
-	// - Context.SetRouteInfo()
-	// - And optionally can set additional information to Context with Context.Set()
+	// - Context.InitializeRoute() (IMPORTANT! with the same slice pointer that c.PathParams() returns)
+	// - optionally can set additional information to Context with Context.Set()
 	Route(c *Context) HandlerFunc
 }
 
@@ -771,7 +767,7 @@ var optionsMethodHandler = func(c *Context) error {
 // - Return it `Echo#ReleaseContext()`.
 func (r *DefaultRouter) Route(c *Context) HandlerFunc {
 	pathParams := c.pathParams
-	*pathParams = (*pathParams)[0:cap(*pathParams)]
+	*pathParams = (*pathParams)[0:cap(*pathParams)] // resize slice to maximum capacity so we can index set values
 
 	req := c.Request()
 	path := req.URL.Path
@@ -844,11 +840,11 @@ func (r *DefaultRouter) Route(c *Context) HandlerFunc {
 			prefixLen = len(currentNode.prefix)
 
 			// LCP - Longest Common Prefix (https://en.wikipedia.org/wiki/LCP_array)
-			max := prefixLen
-			if searchLen < max {
-				max = searchLen
+			lMax := prefixLen
+			if searchLen < lMax {
+				lMax = searchLen
 			}
-			for ; lcpLen < max && search[lcpLen] == currentNode.prefix[lcpLen]; lcpLen++ {
+			for ; lcpLen < lMax && search[lcpLen] == currentNode.prefix[lcpLen]; lcpLen++ {
 			}
 		}
 
@@ -1016,7 +1012,7 @@ func (r *DefaultRouter) Route(c *Context) HandlerFunc {
 	}
 
 	c.InitializeRoute(rInfo, pathParams)
-	c.SetPath(rPath)
+	c.SetPath(rPath) // after InitializeRoute so we would not accidentally change `notFoundRouteInfo` or `methodNotAllowedRouteInfo` Path
 
 	return rHandler
 }
