@@ -4,8 +4,10 @@
 package middleware
 
 import (
+	"bytes"
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -366,6 +368,80 @@ func TestRequestLogger_allFields(t *testing.T) {
 	assert.Len(t, expect.FormValues, 2)
 	assert.Equal(t, []string{"token"}, expect.FormValues["csrf"])
 	assert.Equal(t, []string{"1", "2"}, expect.FormValues["multiple"])
+}
+
+func TestTestRequestLogger(t *testing.T) {
+	var testCases = []struct {
+		name         string
+		whenStatus   int
+		whenError    error
+		expectStatus string
+		expectError  string
+	}{
+		{
+			name:         "ok",
+			whenStatus:   http.StatusTeapot,
+			expectStatus: "418",
+		},
+		{
+			name:         "error",
+			whenError:    echo.NewHTTPError(http.StatusBadGateway, "bad gw"),
+			expectStatus: "502",
+			expectError:  `"err":"code=502, message=bad gw"`,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := echo.New()
+			buf := new(bytes.Buffer)
+			e.Logger = slog.New(slog.NewJSONHandler(buf, nil))
+
+			e.Use(RequestLogger())
+			e.POST("/test", func(c *echo.Context) error {
+				if tc.whenError != nil {
+					return tc.whenError
+				}
+				return c.String(tc.whenStatus, "OK")
+			})
+
+			f := make(url.Values)
+			f.Set("csrf", "token")
+			f.Set("multiple", "1")
+			f.Add("multiple", "2")
+			reader := strings.NewReader(f.Encode())
+			req := httptest.NewRequest(http.MethodPost, "/test?lang=en&checked=1&checked=2", reader)
+			req.Header.Set("Referer", "https://echo.labstack.com/")
+			req.Header.Set("User-Agent", "curl/7.68.0")
+			req.Header.Set(echo.HeaderContentLength, strconv.Itoa(int(reader.Size())))
+			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationForm)
+			req.Header.Set(echo.HeaderXRealIP, "8.8.8.8")
+			req.Header.Set(echo.HeaderXRequestID, "MY_ID")
+
+			rec := httptest.NewRecorder()
+
+			e.ServeHTTP(rec, req)
+
+			rawlog := buf.Bytes()
+			if tc.expectError != "" {
+				assert.Contains(t, string(rawlog), `"level":"ERROR"`)
+				assert.Contains(t, string(rawlog), `"msg":"REQUEST_ERROR"`)
+				assert.Contains(t, string(rawlog), tc.expectError)
+			} else {
+				assert.Contains(t, string(rawlog), `"level":"INFO"`)
+				assert.Contains(t, string(rawlog), `"msg":"REQUEST"`)
+			}
+			assert.Contains(t, string(rawlog), `"status":`+tc.expectStatus)
+			assert.Contains(t, string(rawlog), `"method":"POST"`)
+			assert.Contains(t, string(rawlog), `"uri":"/test?lang=en&checked=1&checked=2"`)
+			assert.Contains(t, string(rawlog), `"latency":`) // this value varies
+			assert.Contains(t, string(rawlog), `"request_id":"MY_ID"`)
+			assert.Contains(t, string(rawlog), `"request_ip":"8.8.8.8"`)
+			assert.Contains(t, string(rawlog), `"host":"example.com"`)
+			assert.Contains(t, string(rawlog), `"user_agent":"curl/7.68.0"`)
+			assert.Contains(t, string(rawlog), `"req_size":"32"`)
+			assert.Contains(t, string(rawlog), `"req_size":2`)
+		})
+	}
 }
 
 func BenchmarkRequestLogger_withoutMapFields(b *testing.B) {
