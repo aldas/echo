@@ -16,7 +16,7 @@ import (
 /**
 	Following functions provide handful of methods for binding to Go native types from request query or path parameters.
     * QueryParamsBinder(c) - binds query parameters (source URL)
-    * PathParamsBinder(c) - binds path parameters (source URL)
+    * PathValuesBinder(c) - binds path parameters (source URL)
     * FormFieldBinder(c) - binds form fields (source URL + body)
 
 	Example:
@@ -121,14 +121,14 @@ func QueryParamsBinder(c *Context) *ValueBinder {
 	}
 }
 
-// PathParamsBinder creates path parameter value binder
-func PathParamsBinder(c *Context) *ValueBinder {
+// PathValuesBinder creates path parameter value binder
+func PathValuesBinder(c *Context) *ValueBinder {
 	return &ValueBinder{
 		failFast:  true,
-		ValueFunc: c.PathParam,
+		ValueFunc: c.Param,
 		ValuesFunc: func(sourceParam string) []string {
 			// path parameter should not have multiple values so getting values does not make sense but lets not error out here
-			value := c.PathParam(sourceParam)
+			value := c.Param(sourceParam)
 			if value == "" {
 				return nil
 			}

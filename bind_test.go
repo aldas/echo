@@ -571,7 +571,7 @@ func TestBindParam(t *testing.T) {
 	c := e.NewContext(req, rec)
 	c.InitializeRoute(
 		&RouteInfo{Path: "/users/:id/:name"},
-		&PathParams{
+		&PathValues{
 			{Name: "id", Value: "1"},
 			{Name: "name", Value: "Jon Snow"},
 		},
@@ -588,7 +588,7 @@ func TestBindParam(t *testing.T) {
 	c2 := e.NewContext(req, rec)
 	c2.InitializeRoute(
 		&RouteInfo{Path: "/users/:id"},
-		&PathParams{
+		&PathValues{
 			{Name: "id", Value: "1"},
 		},
 	)
@@ -611,7 +611,7 @@ func TestBindParam(t *testing.T) {
 	c3 := e2.NewContext(req2, rec2)
 	c3.InitializeRoute(
 		&RouteInfo{Path: "/users/:id"},
-		&PathParams{
+		&PathValues{
 			{Name: "id", Value: "1"},
 		},
 	)
@@ -779,7 +779,7 @@ func TestDefaultBinder_BindToStructFromMixedSources(t *testing.T) {
 		givenURL         string
 		givenMethod      string
 		expectError      string
-		whenNoPathParams bool
+		whenNoPathValues bool
 	}{
 		{
 			name:         "ok, POST bind to struct with: path param + query param + body",
@@ -859,7 +859,7 @@ func TestDefaultBinder_BindToStructFromMixedSources(t *testing.T) {
 			givenMethod:      http.MethodGet,
 			givenURL:         "/api/real_node/endpoint?node=xxx",
 			givenContent:     strings.NewReader(`[{"id": 1}]`),
-			whenNoPathParams: true,
+			whenNoPathValues: true,
 			whenBindTarget:   &[]Opts{},
 			expect: &[]Opts{
 				{ID: 1, Node: ""},
@@ -870,7 +870,7 @@ func TestDefaultBinder_BindToStructFromMixedSources(t *testing.T) {
 			givenMethod:      http.MethodPost,
 			givenURL:         "/api/real_node/endpoint?id=nope&node=xxx",
 			givenContent:     strings.NewReader(`[{"id": 1}]`),
-			whenNoPathParams: true,
+			whenNoPathValues: true,
 			whenBindTarget:   &[]Opts{},
 			expect:           &[]Opts{{ID: 1}},
 			expectError:      "",
@@ -890,7 +890,7 @@ func TestDefaultBinder_BindToStructFromMixedSources(t *testing.T) {
 			givenMethod:      http.MethodGet,
 			givenURL:         "/api/real_node/endpoint",
 			givenContent:     strings.NewReader(`[{"id": 1}]`),
-			whenNoPathParams: true,
+			whenNoPathValues: true,
 			whenBindTarget:   &[]Opts{},
 			expect:           &[]Opts{{ID: 1, Node: ""}},
 			expectError:      "",
@@ -906,8 +906,8 @@ func TestDefaultBinder_BindToStructFromMixedSources(t *testing.T) {
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
 
-			if !tc.whenNoPathParams {
-				c.SetPathParams(PathParams{
+			if !tc.whenNoPathValues {
+				c.SetPathValues(PathValues{
 					{Name: "node", Value: "node_from_path"},
 				})
 			}
@@ -953,7 +953,7 @@ func TestDefaultBinder_BindBody(t *testing.T) {
 		givenMethod      string
 		givenContentType string
 		expectError      string
-		whenNoPathParams bool
+		whenNoPathValues bool
 		whenChunkedBody  bool
 	}{
 		{
@@ -978,7 +978,7 @@ func TestDefaultBinder_BindBody(t *testing.T) {
 			givenMethod:      http.MethodPost,
 			givenContentType: MIMEApplicationJSON,
 			givenContent:     strings.NewReader(`[{"id": 1}]`),
-			whenNoPathParams: true,
+			whenNoPathValues: true,
 			whenBindTarget:   &[]Node{},
 			expect:           &[]Node{{ID: 1, Node: ""}},
 			expectError:      "",
@@ -1119,8 +1119,8 @@ func TestDefaultBinder_BindBody(t *testing.T) {
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
 
-			if !tc.whenNoPathParams {
-				c.SetPathParams(PathParams{
+			if !tc.whenNoPathValues {
+				c.SetPathValues(PathValues{
 					{Name: "node", Value: "real_node"},
 				})
 			}

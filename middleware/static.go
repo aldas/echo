@@ -181,7 +181,7 @@ func (config StaticConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 			p := c.Request().URL.Path
 			pathUnescape := true
 			if strings.HasSuffix(c.Path(), "*") { // When serving from a group, e.g. `/static*`.
-				p = c.PathParam("*")
+				p = c.Param("*")
 				pathUnescape = !config.DisablePathUnescaping // because router could already do PathUnescape
 			}
 			if pathUnescape {

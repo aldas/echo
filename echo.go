@@ -25,6 +25,7 @@ Example:
 	    e := echo.New()
 
 	    // Middleware
+	    e.Use(middleware.RequestLogger())
 	    e.Use(middleware.Recover())
 
 	    // Routes
@@ -216,7 +217,7 @@ const (
 	Version = "5.0.0-alpha"
 )
 
-var methods = [...]string{ // FIXME remove this
+var methods = [...]string{ // TODO refactor: maybe `routeMethod` could have `any` as method.
 	http.MethodConnect,
 	http.MethodDelete,
 	http.MethodGet,
@@ -258,9 +259,9 @@ func New() *Echo {
 // Note: both request and response can be left to nil as Echo.ServeHTTP will call c.Reset(req,resp) anyway
 // these arguments are useful when creating context for tests and cases like that.
 func (e *Echo) NewContext(r *http.Request, w http.ResponseWriter) *Context {
-	p := make(PathParams, e.contextPathParamAllocSize.Load())
+	p := make(PathValues, e.contextPathParamAllocSize.Load())
 	c := &Context{
-		pathParams: &p,
+		pathValues: &p,
 		store:      make(Map),
 		echo:       e,
 		logger:     e.Logger,
@@ -507,7 +508,7 @@ func (e *Echo) StaticFS(pathPrefix string, filesystem fs.FS) RouteInfo {
 // When disablePathUnescaping is set then file name from path is not unescaped and is served as is.
 func StaticDirectoryHandler(fileSystem fs.FS, disablePathUnescaping bool) HandlerFunc {
 	return func(c *Context) error {
-		p := c.PathParam("*")
+		p := c.Param("*")
 		if !disablePathUnescaping { // when router is already unescaping we do not want to do is twice
 			tmpPath, err := url.PathUnescape(p)
 			if err != nil {
@@ -683,7 +684,7 @@ func WrapHandler(h http.Handler) HandlerFunc {
 	return func(c *Context) error {
 		req := c.Request()
 		req.Pattern = c.Path()
-		for _, p := range c.PathParams() {
+		for _, p := range c.PathValues() {
 			req.SetPathValue(p.Name, p.Value)
 		}
 
@@ -698,7 +699,7 @@ func WrapMiddleware(m func(http.Handler) http.Handler) MiddlewareFunc {
 		return func(c *Context) (err error) {
 			req := c.Request()
 			req.Pattern = c.Path()
-			for _, p := range c.PathParams() {
+			for _, p := range c.PathValues() {
 				req.SetPathValue(p.Name, p.Value)
 			}
 

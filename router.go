@@ -16,7 +16,7 @@ import (
 //   - all routes must be added through methods on echo.Echo instance.
 //     Reason: Echo instance uses RouteInfo.Params() length to allocate slice for paths parameters (see `Echo.contextPathParamAllocSize`).
 //   - Router must populate Context during Router.Route call with:
-//   - Context.InitializeRoute (IMPORTANT! with same slice pointer that c.RawPathParams() returns)
+//   - Context.InitializeRoute (IMPORTANT! to reduce allocations use same slice that c.PathValues() returns)
 //   - Optionally can set additional information to Context with Context.Set
 type Router interface {
 	// Add registers Routable with the Router and returns registered RouteInfo.
@@ -39,7 +39,7 @@ type Router interface {
 	// handler function.
 	//
 	// Router must populate Context during Router.Route call with:
-	// - Context.InitializeRoute() (IMPORTANT! with the same slice pointer that c.PathParams() returns)
+	// - Context.InitializeRoute() (IMPORTANT! to reduce allocations use same slice that c.PathValues() returns)
 	// - optionally can set additional information to Context with Context.Set()
 	Route(c *Context) HandlerFunc
 }
@@ -54,11 +54,11 @@ const (
 // Routes is collection of RouteInfo instances with various helper methods.
 type Routes []RouteInfo
 
-// PathParams is collections of PathParam instances with various helper methods
-type PathParams []PathParam
+// PathValues is collections of PathValue instances with various helper methods
+type PathValues []PathValue
 
-// PathParam is tuple pf path parameter name and its value in request path
-type PathParam struct {
+// PathValue is tuple pf path parameter name and its value in request path
+type PathValue struct {
 	Name  string
 	Value string
 }
@@ -766,8 +766,8 @@ var optionsMethodHandler = func(c *Context) error {
 // - Reset it `Context#Reset()`
 // - Return it `Echo#ReleaseContext()`.
 func (r *DefaultRouter) Route(c *Context) HandlerFunc {
-	pathParams := c.PathParams()
-	pathParams = pathParams[0:cap(pathParams)] // resize slice to maximum capacity so we can index set values
+	pathValues := c.PathValues()
+	pathValues = pathValues[0:cap(pathValues)] // resize slice to maximum capacity so we can index set values
 
 	req := c.Request()
 	path := req.URL.Path
@@ -817,8 +817,8 @@ func (r *DefaultRouter) Route(c *Context) HandlerFunc {
 			paramIndex--
 			// for param/any node.prefix value is always `:` so we can not deduce searchIndex from that and must use pValue
 			// for that index as it would also contain part of path we cut off before moving into node we are backtracking from
-			searchIndex -= len(pathParams[paramIndex].Value)
-			pathParams[paramIndex].Value = ""
+			searchIndex -= len(pathValues[paramIndex].Value)
+			pathValues[paramIndex].Value = ""
 		}
 		search = path[searchIndex:]
 		return
@@ -910,7 +910,7 @@ func (r *DefaultRouter) Route(c *Context) HandlerFunc {
 				}
 			}
 
-			pathParams[paramIndex].Value = search[:i]
+			pathValues[paramIndex].Value = search[:i]
 			paramIndex++
 			search = search[i:]
 			searchIndex = searchIndex + i
@@ -922,7 +922,7 @@ func (r *DefaultRouter) Route(c *Context) HandlerFunc {
 		if child := currentNode.anyChild; child != nil {
 			// If any node is found, use remaining path for paramValues
 			currentNode = child
-			pathParams[currentNode.paramsCount-1].Value = search
+			pathValues[currentNode.paramsCount-1].Value = search
 			// update indexes/search in case we need to backtrack when no handler match is found
 			paramIndex++
 			searchIndex += +len(search)
@@ -957,9 +957,9 @@ func (r *DefaultRouter) Route(c *Context) HandlerFunc {
 	}
 
 	if currentNode == nil && previousBestMatchNode == nil {
-		pathParams = pathParams[0:0]
+		pathValues = pathValues[0:0]
 
-		c.InitializeRoute(notFoundRouteInfo, &pathParams)
+		c.InitializeRoute(notFoundRouteInfo, &pathValues)
 		return r.notFoundHandler // nothing matched at all with given path
 	}
 
@@ -994,31 +994,31 @@ func (r *DefaultRouter) Route(c *Context) HandlerFunc {
 		}
 	}
 
-	pathParams = pathParams[0:currentNode.paramsCount]
+	pathValues = pathValues[0:currentNode.paramsCount]
 	if matchedRouteMethod != nil {
 		for i, name := range matchedRouteMethod.Parameters {
-			pathParams[i].Name = name
+			pathValues[i].Name = name
 		}
 	}
 
 	if r.unescapePathParamValues {
 		// See issue #1531, #1258 - there are cases when path parameter need to be unescaped
-		for i, p := range pathParams {
+		for i, p := range pathValues {
 			tmpVal, err := url.PathUnescape(p.Value)
 			if err == nil { // handle problems by ignoring them.
-				pathParams[i].Value = tmpVal
+				pathValues[i].Value = tmpVal
 			}
 		}
 	}
 
-	c.InitializeRoute(rInfo, &pathParams)
+	c.InitializeRoute(rInfo, &pathValues)
 	c.SetPath(rPath) // after InitializeRoute so we would not accidentally change `notFoundRouteInfo` or `methodNotAllowedRouteInfo` Path
 
 	return rHandler
 }
 
 // Get returns path parameter value for given name or default value.
-func (p PathParams) Get(name string, defaultValue string) string {
+func (p PathValues) Get(name string, defaultValue string) string {
 	for _, param := range p {
 		if param.Name == name {
 			return param.Value

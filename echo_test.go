@@ -733,7 +733,7 @@ func TestEchoServeHTTPPathEncoding(t *testing.T) {
 		return c.String(http.StatusOK, "/with/slash")
 	})
 	e.GET("/:id", func(c *Context) error {
-		return c.String(http.StatusOK, c.PathParam("id"))
+		return c.String(http.StatusOK, c.Param("id"))
 	})
 
 	var testCases = []struct {

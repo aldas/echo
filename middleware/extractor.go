@@ -164,7 +164,7 @@ func valuesFromQuery(param string) ValuesExtractor {
 func valuesFromParam(param string) ValuesExtractor {
 	return func(c *echo.Context) ([]string, ExtractorSource, error) {
 		result := make([]string, 0)
-		for i, p := range c.PathParams() {
+		for i, p := range c.PathValues() {
 			if param == p.Name {
 				result = append(result, p.Value)
 				if i >= extractorLimit-1 {

@@ -38,10 +38,10 @@ type bindMultipleUnmarshaler interface {
 	UnmarshalParams(params []string) error
 }
 
-// BindPathParams binds path params to bindable object
-func BindPathParams(c *Context, target any) error {
+// BindPathValues binds path parameter values to bindable object
+func BindPathValues(c *Context, target any) error {
 	params := map[string][]string{}
-	for _, param := range c.PathParams() {
+	for _, param := range c.PathValues() {
 		params[param.Name] = []string{param.Value}
 	}
 	if err := bindData(target, params, "param", nil); err != nil {
@@ -124,9 +124,9 @@ func BindHeaders(c *Context, target any) error {
 
 // Bind implements the `Binder#Bind` function.
 // Binding is done in following order: 1) path params; 2) query params; 3) request body. Each step COULD override previous
-// step bound values. For single source binding use their own methods BindBody, BindQueryParams, BindPathParams.
+// step bound values. For single source binding use their own methods BindBody, BindQueryParams, BindPathValues.
 func (b *DefaultBinder) Bind(c *Context, target any) error {
-	if err := BindPathParams(c, target); err != nil {
+	if err := BindPathValues(c, target); err != nil {
 		return err
 	}
 	// Only bind query parameters for GET/DELETE/HEAD to avoid unexpected behavior with destination struct binding from body.

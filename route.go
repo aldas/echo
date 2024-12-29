@@ -72,9 +72,9 @@ func (r RouteInfo) Clone() RouteInfo {
 }
 
 // Reverse reverses route to URL string by replacing path parameters with given params values.
-func (r RouteInfo) Reverse(params ...any) string {
+func (r RouteInfo) Reverse(pathValues ...any) string {
 	uri := new(bytes.Buffer)
-	ln := len(params)
+	ln := len(pathValues)
 	n := 0
 	for i, l := 0, len(r.Path); i < l; i++ {
 		hasBackslash := r.Path[i] == '\\'
@@ -85,7 +85,7 @@ func (r RouteInfo) Reverse(params ...any) string {
 			// in case of `*` wildcard or `:` (unescaped colon) param we replace everything till next slash or end of path
 			for ; i < l && r.Path[i] != '/'; i++ {
 			}
-			uri.WriteString(fmt.Sprintf("%v", params[n]))
+			uri.WriteString(fmt.Sprintf("%v", pathValues[n]))
 			n++
 		}
 		if i < l {
@@ -105,10 +105,10 @@ func HandlerName(h HandlerFunc) string {
 }
 
 // Reverse reverses route to URL string by replacing path parameters with given params values.
-func (r Routes) Reverse(routeName string, pathParams ...any) (string, error) {
+func (r Routes) Reverse(routeName string, pathValues ...any) (string, error) {
 	for _, rr := range r {
 		if rr.Name == routeName {
-			return rr.Reverse(pathParams...), nil
+			return rr.Reverse(pathValues...), nil
 		}
 	}
 	return "", errors.New("route not found")

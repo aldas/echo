@@ -20,7 +20,7 @@ func TestCreateExtractors(t *testing.T) {
 	var testCases = []struct {
 		name              string
 		givenRequest      func() *http.Request
-		givenPathParams   echo.PathParams
+		givenPathValues   echo.PathValues
 		whenLoopups       string
 		expectValues      []string
 		expectSource      ExtractorSource
@@ -65,7 +65,7 @@ func TestCreateExtractors(t *testing.T) {
 		},
 		{
 			name: "ok, param",
-			givenPathParams: echo.PathParams{
+			givenPathValues: echo.PathValues{
 				{Name: "id", Value: "123"},
 			},
 			whenLoopups:  "param:id",
@@ -99,8 +99,8 @@ func TestCreateExtractors(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
-			if tc.givenPathParams != nil {
-				c.SetPathParams(tc.givenPathParams)
+			if tc.givenPathValues != nil {
+				c.SetPathValues(tc.givenPathValues)
 			}
 
 			extractors, err := CreateExtractors(tc.whenLoopups)
@@ -313,52 +313,52 @@ func TestValuesFromQuery(t *testing.T) {
 }
 
 func TestValuesFromParam(t *testing.T) {
-	examplePathParams := echo.PathParams{
+	examplePathValues := echo.PathValues{
 		{Name: "id", Value: "123"},
 		{Name: "gid", Value: "456"},
 		{Name: "gid", Value: "789"},
 	}
-	examplePathParams20 := make(echo.PathParams, 0)
+	examplePathValues20 := make(echo.PathValues, 0)
 	for i := 1; i < 25; i++ {
-		examplePathParams20 = append(examplePathParams20, echo.PathParam{Name: "id", Value: fmt.Sprintf("%v", i)})
+		examplePathValues20 = append(examplePathValues20, echo.PathValue{Name: "id", Value: fmt.Sprintf("%v", i)})
 	}
 
 	var testCases = []struct {
 		name            string
-		givenPathParams echo.PathParams
+		givenPathValues echo.PathValues
 		whenName        string
 		expectValues    []string
 		expectError     string
 	}{
 		{
 			name:            "ok, single value",
-			givenPathParams: examplePathParams,
+			givenPathValues: examplePathValues,
 			whenName:        "id",
 			expectValues:    []string{"123"},
 		},
 		{
 			name:            "ok, multiple value",
-			givenPathParams: examplePathParams,
+			givenPathValues: examplePathValues,
 			whenName:        "gid",
 			expectValues:    []string{"456", "789"},
 		},
 		{
 			name:            "nok, no values",
-			givenPathParams: nil,
+			givenPathValues: nil,
 			whenName:        "nope",
 			expectValues:    nil,
 			expectError:     errParamExtractorValueMissing.Error(),
 		},
 		{
 			name:            "nok, no matching value",
-			givenPathParams: examplePathParams,
+			givenPathValues: examplePathValues,
 			whenName:        "nope",
 			expectValues:    nil,
 			expectError:     errParamExtractorValueMissing.Error(),
 		},
 		{
 			name:            "ok, cut values over extractorLimit",
-			givenPathParams: examplePathParams20,
+			givenPathValues: examplePathValues20,
 			whenName:        "id",
 			expectValues: []string{
 				"1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
@@ -374,8 +374,8 @@ func TestValuesFromParam(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
-			if tc.givenPathParams != nil {
-				c.SetPathParams(tc.givenPathParams)
+			if tc.givenPathValues != nil {
+				c.SetPathValues(tc.givenPathValues)
 			}
 
 			extractor := valuesFromParam(tc.whenName)

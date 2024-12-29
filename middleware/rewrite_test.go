@@ -27,10 +27,10 @@ func TestRewriteAfterRouting(t *testing.T) {
 		},
 	}))
 	e.GET("/public/*", func(c *echo.Context) error {
-		return c.String(http.StatusOK, c.PathParam("*"))
+		return c.String(http.StatusOK, c.Param("*"))
 	})
 	e.GET("/*", func(c *echo.Context) error {
-		return c.String(http.StatusOK, c.PathParam("*"))
+		return c.String(http.StatusOK, c.Param("*"))
 	})
 
 	var testCases = []struct {

@@ -18,7 +18,7 @@ import (
 	"time"
 )
 
-func createTestContext(URL string, body io.Reader, pathParams map[string]string) *Context {
+func createTestContext(URL string, body io.Reader, pathValues map[string]string) *Context {
 	e := New()
 	req := httptest.NewRequest(http.MethodGet, URL, body)
 	if body != nil {
@@ -27,15 +27,15 @@ func createTestContext(URL string, body io.Reader, pathParams map[string]string)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	if len(pathParams) > 0 {
-		params := make(PathParams, 0)
-		for name, value := range pathParams {
-			params = append(params, PathParam{
+	if len(pathValues) > 0 {
+		params := make(PathValues, 0)
+		for name, value := range pathValues {
+			params = append(params, PathValue{
 				Name:  name,
 				Value: value,
 			})
 		}
-		c.SetPathParams(params)
+		c.SetPathValues(params)
 	}
 
 	return c
@@ -62,13 +62,13 @@ func TestBindingError_ErrorJSON(t *testing.T) {
 	assert.Equal(t, `{"field":"id","message":"bind failed"}`, string(resp))
 }
 
-func TestPathParamsBinder(t *testing.T) {
+func TestPathValuesBinder(t *testing.T) {
 	c := createTestContext("/api/user/999", nil, map[string]string{
 		"id":    "1",
 		"nr":    "2",
 		"slice": "3",
 	})
-	b := PathParamsBinder(c)
+	b := PathValuesBinder(c)
 
 	id := int64(99)
 	nr := int64(88)
