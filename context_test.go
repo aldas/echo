@@ -150,6 +150,57 @@ func TestContextRenderErrorsOnNoRenderer(t *testing.T) {
 	assert.Error(t, c.Render(http.StatusOK, "hello", "Jon Snow"))
 }
 
+func TestContextStream(t *testing.T) {
+	e := New()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	c := e.NewContext(req, rec)
+
+	r, w := io.Pipe()
+	go func() {
+		defer w.Close()
+		for i := 0; i < 3; i++ {
+			fmt.Fprintf(w, "data: index %v\n\n", i)
+			time.Sleep(5 * time.Millisecond)
+		}
+	}()
+
+	err := c.Stream(http.StatusOK, "text/event-stream", r)
+	if assert.NoError(t, err) {
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "text/event-stream", rec.Header().Get(HeaderContentType))
+		assert.Equal(t, "data: index 0\n\ndata: index 1\n\ndata: index 2\n\n", rec.Body.String())
+	}
+}
+
+func TestContextHTML(t *testing.T) {
+	e := New()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	c := e.NewContext(req, rec)
+
+	err := c.HTML(http.StatusOK, "Hi, Jon Snow")
+	if assert.NoError(t, err) {
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, MIMETextHTMLCharsetUTF8, rec.Header().Get(HeaderContentType))
+		assert.Equal(t, "Hi, Jon Snow", rec.Body.String())
+	}
+}
+
+func TestContextHTMLBlob(t *testing.T) {
+	e := New()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	c := e.NewContext(req, rec)
+
+	err := c.HTMLBlob(http.StatusOK, []byte("Hi, Jon Snow"))
+	if assert.NoError(t, err) {
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, MIMETextHTMLCharsetUTF8, rec.Header().Get(HeaderContentType))
+		assert.Equal(t, "Hi, Jon Snow", rec.Body.String())
+	}
+}
+
 func TestContextJSON(t *testing.T) {
 	e := New()
 	rec := httptest.NewRecorder()
@@ -1307,4 +1358,50 @@ func TestContext_FileFS(t *testing.T) {
 			assert.Equal(t, tc.expectStartsWith, body)
 		})
 	}
+}
+
+func TestLogger(t *testing.T) {
+	e := New()
+	c := e.NewContext(nil, nil)
+
+	log1 := c.Logger()
+	assert.NotNil(t, log1)
+	assert.Equal(t, e.Logger, log1)
+
+	customLogger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	c.SetLogger(customLogger)
+	assert.Equal(t, customLogger, c.Logger())
+
+	// Resetting the context returns the initial Echo logger
+	c.Reset(nil, nil)
+	assert.Equal(t, e.Logger, c.Logger())
+}
+
+func TestRouteInfo(t *testing.T) {
+	e := New()
+	c := e.NewContext(nil, nil)
+
+	orgRI := RouteInfo{
+		Name:       "root",
+		Method:     http.MethodGet,
+		Path:       "/*",
+		Parameters: []string{"*"},
+	}
+	c.SetRouteInfo(orgRI)
+	ri := c.RouteInfo()
+	assert.Equal(t, orgRI, ri)
+
+	// Test mutability when middlewares start to change things
+
+	// RouteInfo inside context will not be affected when original instance is changed
+	expect := ri.Clone()
+	ri.Path = "changed"
+	ri.Parameters[0] = "changed"
+
+	orgRI.Name = "changed"
+	orgRI.Parameters[0] = "id" // mutating original instance slice affects RI inside Context
+	assert.NotEqual(t, expect, c.RouteInfo())
+
+	expect.Parameters[0] = "id" // only then is equal
+	assert.Equal(t, expect, c.RouteInfo())
 }

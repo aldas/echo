@@ -50,19 +50,6 @@ type Context struct {
 	lock sync.RWMutex
 }
 
-// NewContext creates new instance of Context.
-// Argument pathParamAllocSize must be value that is stored in *echo.ContextPathParamAllocSize field and is used
-// to preallocate PathParams slice.
-func NewContext(e *Echo, pathParamAllocSize int32) *Context {
-	p := make(PathParams, pathParamAllocSize)
-	return &Context{
-		pathParams: &p,
-		store:      make(Map),
-		echo:       e,
-		logger:     e.Logger,
-	}
-}
-
 // Reset resets the context after request completes. It must be called along
 // with `Echo#AcquireContext()` and `Echo#ReleaseContext()`.
 // See `Echo#ServeHTTP()`
@@ -191,7 +178,7 @@ func (c *Context) RouteInfo() RouteInfo {
 
 // SetRouteInfo sets the route info of this request to the context.
 func (c *Context) SetRouteInfo(ri RouteInfo) {
-	c.route = &ri
+	c.route = &ri // FIXME check if this mutates ri in router
 }
 
 // PathParam returns path parameter by name.
@@ -584,7 +571,10 @@ func (c *Context) Redirect(code int, url string) error {
 
 // Logger returns logger in Context
 func (c *Context) Logger() *slog.Logger {
-	return c.logger
+	if c.logger != nil {
+		return c.logger
+	}
+	return c.echo.Logger
 }
 
 // SetLogger sets logger in Context

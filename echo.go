@@ -76,8 +76,8 @@ type Echo struct {
 	contextPool sync.Pool
 
 	router        Router
-	routerCreator func(e *Echo) Router
-	routers       map[string]Router
+	routerCreator func(e *Echo) Router // FIXME refactor domain/vhost logic to as separate thing
+	routers       map[string]Router    // FIXME refactor domain/vhost logic to as separate thing
 
 	// premiddleware are middlewares that are called before routing is done
 	premiddleware []MiddlewareFunc
@@ -216,7 +216,7 @@ const (
 	Version = "5.0.0-alpha"
 )
 
-var methods = [...]string{
+var methods = [...]string{ // FIXME remove this
 	http.MethodConnect,
 	http.MethodDelete,
 	http.MethodGet,
@@ -258,7 +258,13 @@ func New() *Echo {
 // Note: both request and response can be left to nil as Echo.ServeHTTP will call c.Reset(req,resp) anyway
 // these arguments are useful when creating context for tests and cases like that.
 func (e *Echo) NewContext(r *http.Request, w http.ResponseWriter) *Context {
-	c := NewContext(e, e.contextPathParamAllocSize.Load())
+	p := make(PathParams, e.contextPathParamAllocSize.Load())
+	c := &Context{
+		pathParams: &p,
+		store:      make(Map),
+		echo:       e,
+		logger:     e.Logger,
+	}
 	c.SetRequest(r)
 	c.SetResponse(NewResponse(w, e))
 	return c
@@ -675,7 +681,13 @@ func (e *Echo) Start(address string) error {
 // WrapHandler wraps `http.Handler` into `echo.HandlerFunc`.
 func WrapHandler(h http.Handler) HandlerFunc {
 	return func(c *Context) error {
-		h.ServeHTTP(c.Response(), c.Request())
+		req := c.Request()
+		req.Pattern = c.Path()
+		for _, p := range c.PathParams() {
+			req.SetPathValue(p.Name, p.Value)
+		}
+
+		h.ServeHTTP(c.Response(), req)
 		return nil
 	}
 }
@@ -684,11 +696,17 @@ func WrapHandler(h http.Handler) HandlerFunc {
 func WrapMiddleware(m func(http.Handler) http.Handler) MiddlewareFunc {
 	return func(next HandlerFunc) HandlerFunc {
 		return func(c *Context) (err error) {
+			req := c.Request()
+			req.Pattern = c.Path()
+			for _, p := range c.PathParams() {
+				req.SetPathValue(p.Name, p.Value)
+			}
+
 			m(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				c.SetRequest(r)
 				c.SetResponse(NewResponse(w, c.Echo()))
 				err = next(c)
-			})).ServeHTTP(c.Response(), c.Request())
+			})).ServeHTTP(c.Response(), req)
 			return
 		}
 	}

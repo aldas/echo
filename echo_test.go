@@ -475,39 +475,51 @@ func TestEchoHandler(t *testing.T) {
 
 func TestEchoWrapHandler(t *testing.T) {
 	e := New()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	h := WrapHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+	var actualID string
+	var actualPattern string
+	e.GET("/:id", WrapHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("test"))
-	}))
-	if assert.NoError(t, h(c)) {
-		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Equal(t, "test", rec.Body.String())
-	}
+		actualID = r.PathValue("id")
+		actualPattern = r.Pattern
+	})))
+
+	req := httptest.NewRequest(http.MethodGet, "/123", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "test", rec.Body.String())
+	assert.Equal(t, "123", actualID)
+	assert.Equal(t, "/:id", actualPattern)
 }
 
 func TestEchoWrapMiddleware(t *testing.T) {
 	e := New()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	buf := new(bytes.Buffer)
-	mw := WrapMiddleware(func(h http.Handler) http.Handler {
+
+	var actualID string
+	var actualPattern string
+	e.Use(WrapMiddleware(func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			buf.Write([]byte("mw"))
+			actualID = r.PathValue("id")
+			actualPattern = r.Pattern
 			h.ServeHTTP(w, r)
 		})
+	}))
+
+	e.GET("/:id", func(c *Context) error {
+		return c.String(http.StatusTeapot, "OK")
 	})
-	h := mw(func(c *Context) error {
-		return c.String(http.StatusOK, "OK")
-	})
-	if assert.NoError(t, h(c)) {
-		assert.Equal(t, "mw", buf.String())
-		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Equal(t, "OK", rec.Body.String())
-	}
+
+	req := httptest.NewRequest(http.MethodGet, "/123", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusTeapot, rec.Code)
+	assert.Equal(t, "OK", rec.Body.String())
+	assert.Equal(t, "123", actualID)
+	assert.Equal(t, "/:id", actualPattern)
 }
 
 func TestEchoConnect(t *testing.T) {
