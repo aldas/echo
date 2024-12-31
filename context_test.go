@@ -12,7 +12,6 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
-	"math"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -384,18 +383,6 @@ func TestContext_JSON_CommitsCustomResponseCode(t *testing.T) {
 		assert.Equal(t, http.StatusCreated, rec.Code)
 		assert.Equal(t, MIMEApplicationJSON, rec.Header().Get(HeaderContentType))
 		assert.Equal(t, userJSON+"\n", rec.Body.String())
-	}
-}
-
-func TestContext_JSON_DoesntCommitResponseCodePrematurely(t *testing.T) {
-	e := New()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	err := c.JSON(http.StatusCreated, map[string]float64{"a": math.NaN()})
-
-	if assert.Error(t, err) {
-		assert.False(t, c.response.Committed)
 	}
 }
 

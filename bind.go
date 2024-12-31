@@ -76,12 +76,11 @@ func BindBody(c *Context, target any) (err error) {
 	switch mediatype {
 	case MIMEApplicationJSON:
 		if err = c.Echo().JSONSerializer.Deserialize(c, target); err != nil {
-			switch err.(type) {
-			case *HTTPError:
+			var hErr *HTTPError
+			if errors.As(err, &hErr) {
 				return err
-			default:
-				return NewHTTPError(http.StatusBadRequest, err.Error()).WithInternal(err)
 			}
+			return NewHTTPError(http.StatusBadRequest, err.Error()).WithInternal(err)
 		}
 	case MIMEApplicationXML, MIMETextXML:
 		if err = xml.NewDecoder(req.Body).Decode(target); err != nil {

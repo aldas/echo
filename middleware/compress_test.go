@@ -78,19 +78,20 @@ func TestGzip_chunked(t *testing.T) {
 	chunkChan := make(chan struct{})
 	waitChan := make(chan struct{})
 	h := Gzip()(func(c *echo.Context) error {
+		rc := http.NewResponseController(c.Response())
 		c.Response().Header().Set("Content-Type", "text/event-stream")
 		c.Response().Header().Set("Transfer-Encoding", "chunked")
 
 		// Write and flush the first part of the data
 		c.Response().Write([]byte("first\n"))
-		c.Response().Flush()
+		rc.Flush()
 
 		chunkChan <- struct{}{}
 		<-waitChan
 
 		// Write and flush the second part of the data
 		c.Response().Write([]byte("second\n"))
-		c.Response().Flush()
+		rc.Flush()
 
 		chunkChan <- struct{}{}
 		<-waitChan
@@ -286,12 +287,13 @@ func TestGzipWithMinLengthChunked(t *testing.T) {
 
 	c := e.NewContext(req, rec)
 	next := func(c *echo.Context) error {
+		rc := http.NewResponseController(c.Response())
 		c.Response().Header().Set("Content-Type", "text/event-stream")
 		c.Response().Header().Set("Transfer-Encoding", "chunked")
 
 		// Write and flush the first part of the data
 		c.Response().Write([]byte("test\n"))
-		c.Response().Flush()
+		rc.Flush()
 
 		// Read the first part of the data
 		assert.True(t, rec.Flushed)
@@ -307,7 +309,7 @@ func TestGzipWithMinLengthChunked(t *testing.T) {
 
 		// Write and flush the second part of the data
 		c.Response().Write([]byte("test\n"))
-		c.Response().Flush()
+		rc.Flush()
 
 		_, err = io.ReadFull(r, chunkBuf)
 		assert.NoError(t, err)

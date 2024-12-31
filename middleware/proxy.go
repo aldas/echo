@@ -127,7 +127,7 @@ var DefaultProxyConfig = ProxyConfig{
 
 func proxyRaw(c *echo.Context, t *ProxyTarget) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		in, _, err := c.Response().Hijack()
+		in, _, err := http.NewResponseController(w).Hijack()
 		if err != nil {
 			c.Set("_error", fmt.Errorf("proxy raw, hijack error=%w, url=%s", err, t.URL))
 			return

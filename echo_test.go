@@ -1239,9 +1239,9 @@ func TestDefaultHTTPErrorHandler(t *testing.T) {
 		{
 			name:             "ok, expose error = true, HTTPError + internal HTTPError",
 			givenExposeError: true,
-			whenError:        NewHTTPError(http.StatusTeapot, "my_error").WithInternal(NewHTTPError(http.StatusTooEarly, "early_error")),
+			whenError:        NewHTTPError(http.StatusTooEarly, "my_error").WithInternal(NewHTTPError(http.StatusTeapot, "early_error")),
 			expectStatus:     http.StatusTooEarly,
-			expectBody:       `{"error":"code=418, message=my_error, internal=code=425, message=early_error","message":"early_error"}` + "\n",
+			expectBody:       `{"error":"code=425, message=my_error, internal=code=418, message=early_error","message":"my_error"}` + "\n",
 		},
 		{
 			name:         "ok, expose error = false, HTTPError",
@@ -1251,9 +1251,9 @@ func TestDefaultHTTPErrorHandler(t *testing.T) {
 		},
 		{
 			name:         "ok, expose error = false, HTTPError + internal HTTPError",
-			whenError:    NewHTTPError(http.StatusTeapot, "my_error").WithInternal(NewHTTPError(http.StatusTooEarly, "early_error")),
+			whenError:    NewHTTPError(http.StatusTooEarly, "my_error").WithInternal(NewHTTPError(http.StatusTeapot, "early_error")),
 			expectStatus: http.StatusTooEarly,
-			expectBody:   `{"message":"early_error"}` + "\n",
+			expectBody:   `{"message":"my_error"}` + "\n",
 		},
 		{
 			name:             "ok, expose error = true, Error",

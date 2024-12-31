@@ -70,9 +70,9 @@ func (config BodyDumpConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 
 			// Response
 			resBody := new(bytes.Buffer)
-			mw := io.MultiWriter(c.Response().Writer, resBody)
-			writer := &bodyDumpResponseWriter{Writer: mw, ResponseWriter: c.Response().Writer}
-			c.Response().Writer = writer
+			mw := io.MultiWriter(c.Response(), resBody)
+			writer := &bodyDumpResponseWriter{Writer: mw, ResponseWriter: c.Response()}
+			c.SetResponse(writer)
 
 			err := next(c)
 

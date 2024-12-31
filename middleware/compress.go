@@ -95,14 +95,20 @@ func (config GzipConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 				i := pool.Get()
 				w, ok := i.(*gzip.Writer)
 				if !ok {
-					return echo.NewHTTPErrorWithInternal(http.StatusInternalServerError, i.(error))
+					return echo.NewHTTPError(http.StatusInternalServerError, "could not create gzip writer")
 				}
-				rw := res.Writer
+				rw := res
 				w.Reset(rw)
 				buf := bpool.Get().(*bytes.Buffer)
 				buf.Reset()
 
-				grw := &gzipResponseWriter{Writer: w, ResponseWriter: rw, minLength: config.MinLength, buffer: buf}
+				grw := &gzipResponseWriter{
+					Writer:         w,
+					ResponseWriter: rw,
+					minLength:      config.MinLength,
+					buffer:         buf,
+				}
+				c.SetResponse(grw)
 				defer func() {
 					// There are different reasons for cases when we have not yet written response to the client and now need to do so.
 					// a) handler response had only response code and no response body (ala 404 or redirects etc). Response code need to be written now.
@@ -117,11 +123,11 @@ func (config GzipConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 						// We have to reset response to it's pristine state when
 						// nothing is written to body or error is returned.
 						// See issue #424, #407.
-						res.Writer = rw
+						c.SetResponse(rw)
 						w.Reset(io.Discard)
 					} else if !grw.minLengthExceeded {
 						// Write uncompressed response
-						res.Writer = rw
+						c.SetResponse(rw)
 						if grw.wroteHeader {
 							grw.ResponseWriter.WriteHeader(grw.code)
 						}
@@ -132,7 +138,6 @@ func (config GzipConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 					bpool.Put(buf)
 					pool.Put(w)
 				}()
-				res.Writer = grw
 			}
 			return next(c)
 		}

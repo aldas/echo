@@ -35,9 +35,10 @@ const (
 // Context represents the context of the current HTTP request. It holds request and
 // response objects, path, path parameters, data and registered handler.
 type Context struct {
-	request  *http.Request
-	response *Response
-	query    url.Values
+	request     *http.Request
+	orgResponse *Response
+	response    http.ResponseWriter
+	query       url.Values
 
 	route      *RouteInfo
 	pathValues *PathValues
@@ -55,10 +56,11 @@ type Context struct {
 // See `Echo#ServeHTTP()`
 func (c *Context) Reset(r *http.Request, w http.ResponseWriter) {
 	c.request = r
-	c.response.reset(w)
+	c.orgResponse.reset(w)
+	c.response = c.orgResponse
 	c.query = nil
 	c.store = nil
-	c.logger = nil
+	c.logger = c.echo.Logger
 
 	c.route = nil
 	c.path = ""
@@ -67,7 +69,7 @@ func (c *Context) Reset(r *http.Request, w http.ResponseWriter) {
 }
 
 func (c *Context) writeContentType(value string) {
-	header := c.Response().Header()
+	header := c.response.Header()
 	if header.Get(HeaderContentType) == "" {
 		header.Set(HeaderContentType, value)
 	}
@@ -84,12 +86,13 @@ func (c *Context) SetRequest(r *http.Request) {
 }
 
 // Response returns `*Response`.
-func (c *Context) Response() *Response {
+func (c *Context) Response() http.ResponseWriter {
 	return c.response
 }
 
-// SetResponse sets `*Response`.
-func (c *Context) SetResponse(r *Response) {
+// SetResponse sets `*http.ResponseWriter`. Some middleware require that given ResponseWriter implements following
+// method `Unwrap() http.ResponseWriter` which eventually should return echo.Response instance.
+func (c *Context) SetResponse(r http.ResponseWriter) {
 	c.response = r
 }
 
@@ -405,7 +408,7 @@ func (c *Context) jsonPBlob(code int, callback string, i any) (err error) {
 
 func (c *Context) json(code int, i any, indent string) error {
 	c.writeContentType(MIMEApplicationJSON)
-	c.response.Status = code
+	c.response.WriteHeader(code)
 	return c.echo.JSONSerializer.Serialize(c, i, indent)
 }
 

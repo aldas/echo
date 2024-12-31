@@ -240,7 +240,7 @@ func (config StaticConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 				index, err := currentFS.Open(path.Join(name, config.Index))
 				if err != nil {
 					if config.Browse {
-						return listDir(dirListTemplate, name, currentFS, file, c.Response())
+						return listDir(dirListTemplate, name, currentFS, c.Response())
 					}
 
 					return next(c)
@@ -270,7 +270,7 @@ func serveFile(c *echo.Context, file fs.File, info os.FileInfo) error {
 	return nil
 }
 
-func listDir(t *template.Template, name string, filesystem fs.FS, dir fs.File, res *echo.Response) error {
+func listDir(t *template.Template, name string, filesystem fs.FS, res http.ResponseWriter) error {
 	// Create directory index
 	res.Header().Set(echo.HeaderContentType, echo.MIMETextHTMLCharsetUTF8)
 	data := struct {

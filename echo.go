@@ -267,7 +267,8 @@ func (e *Echo) NewContext(r *http.Request, w http.ResponseWriter) *Context {
 		logger:     e.Logger,
 	}
 	c.SetRequest(r)
-	c.SetResponse(NewResponse(w, e))
+	c.orgResponse = NewResponse(w, e.Logger)
+	c.response = c.orgResponse
 	return c
 }
 
@@ -312,17 +313,17 @@ func (e *Echo) ResetRouterCreator(creator func(e *Echo) Router) {
 // response and status code header has been sent to the client.
 func DefaultHTTPErrorHandler(exposeError bool) HTTPErrorHandler {
 	return func(c *Context, err error) {
-		if c.Response().Committed {
+		if r, _ := UnwrapResponse(c.response); r != nil && r.Committed {
 			return
 		}
 
-		he := &HTTPError{
-			Code:    http.StatusInternalServerError,
-			Message: http.StatusText(http.StatusInternalServerError),
-		}
-		if errors.As(err, &he) {
-			if he.Internal != nil { // max 2 levels of checks even if internal could have also internal
-				errors.As(he.Internal, &he)
+		// in-case we have errors wrapping each other first HTTPError we see in this chain, will be the one used as
+		// error we send to the client
+		var he *HTTPError
+		if !errors.As(err, &he) {
+			he = &HTTPError{
+				Code:    http.StatusInternalServerError,
+				Message: http.StatusText(http.StatusInternalServerError),
 			}
 		}
 
@@ -350,7 +351,7 @@ func DefaultHTTPErrorHandler(exposeError bool) HTTPErrorHandler {
 			cErr = c.JSON(code, message)
 		}
 		if cErr != nil {
-			c.Echo().Logger.Error("echo default error handler failed to send error to client", "error", cErr) // truly rare case. ala client already disconnected
+			c.Logger().Error("echo default error handler failed to send error to client", "error", cErr) // truly rare case. ala client already disconnected
 		}
 	}
 }
@@ -705,7 +706,7 @@ func WrapMiddleware(m func(http.Handler) http.Handler) MiddlewareFunc {
 
 			m(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				c.SetRequest(r)
-				c.SetResponse(NewResponse(w, c.Echo()))
+				c.SetResponse(NewResponse(w, c.echo.Logger))
 				err = next(c)
 			})).ServeHTTP(c.Response(), req)
 			return

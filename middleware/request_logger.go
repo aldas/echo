@@ -328,8 +328,21 @@ func (config RequestLoggerConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 			if config.LogUserAgent {
 				v.UserAgent = req.UserAgent()
 			}
+
+			var resp *echo.Response
+			if config.LogStatus || config.LogResponseSize {
+				if r, err := echo.UnwrapResponse(res); err != nil {
+					c.Logger().Error("can not determine response status and/or size. ResponseWriter in context does not implement unwrapper interface")
+				} else {
+					resp = r
+				}
+			}
+
 			if config.LogStatus {
-				v.Status = res.Status
+				v.Status = -1
+				if resp != nil {
+					v.Status = resp.Status
+				}
 				if err != nil && !config.HandleError {
 					//  this block should not be executed in case of HandleError=true as the global error handler will decide
 					//  the status code. In that case status code could be different from what err contains.
@@ -346,7 +359,10 @@ func (config RequestLoggerConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 				v.ContentLength = req.Header.Get(echo.HeaderContentLength)
 			}
 			if config.LogResponseSize {
-				v.ResponseSize = res.Size
+				v.ResponseSize = -1
+				if resp != nil {
+					v.ResponseSize = resp.Size
+				}
 			}
 			if logHeaders {
 				v.Headers = map[string][]string{}

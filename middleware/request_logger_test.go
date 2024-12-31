@@ -149,7 +149,7 @@ func TestRequestLogger_HandleError(t *testing.T) {
 
 	// to see if "HandleError" works we create custom error handler that uses its own status codes
 	e.HTTPErrorHandler = func(c *echo.Context, err error) {
-		if c.Response().Committed {
+		if r, _ := echo.UnwrapResponse(c.Response()); r != nil && r.Committed {
 			return
 		}
 		c.JSON(http.StatusTeapot, "custom error handler")
