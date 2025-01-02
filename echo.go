@@ -64,21 +64,21 @@ import (
 // fields from handlers/middlewares and changing field values at the same time leads to data-races.
 // Same rule applies to adding new routes after server has been started - Adding a route is not Goroutine safe action.
 type Echo struct {
+	serveHTTPFunc func(http.ResponseWriter, *http.Request)
+
 	Binder           Binder
 	Filesystem       fs.FS
 	Renderer         Renderer
 	Validator        Validator
 	JSONSerializer   JSONSerializer
 	IPExtractor      IPExtractor
-	OnAddRoute       func(host string, route Route) error
+	OnAddRoute       func(route Route) error
 	HTTPErrorHandler HTTPErrorHandler
 	Logger           *slog.Logger
 
 	contextPool sync.Pool
 
-	router        Router
-	routerCreator func(e *Echo) Router // FIXME refactor domain/vhost logic to as separate thing
-	routers       map[string]Router    // FIXME refactor domain/vhost logic to as separate thing
+	router Router
 
 	// premiddleware are middlewares that are called before routing is done
 	premiddleware []MiddlewareFunc
@@ -212,11 +212,6 @@ const (
 	HeaderReferrerPolicy                  = "Referrer-Policy"
 )
 
-const (
-	// Version of Echo
-	Version = "5.0.0-alpha"
-)
-
 var methods = [...]string{ // TODO refactor: maybe `routeMethod` could have `any` as method.
 	http.MethodConnect,
 	http.MethodDelete,
@@ -239,13 +234,9 @@ func New() *Echo {
 		Filesystem:     newDefaultFS(),
 		Binder:         &DefaultBinder{},
 		JSONSerializer: &DefaultJSONSerializer{},
-
-		routers: make(map[string]Router),
-		routerCreator: func(ec *Echo) Router {
-			return NewRouter(RouterConfig{})
-		},
 	}
 
+	e.serveHTTPFunc = e.serveHTTP
 	e.router = NewRouter(RouterConfig{})
 	e.HTTPErrorHandler = DefaultHTTPErrorHandler(false)
 	e.contextPool.New = func() any {
@@ -275,32 +266,6 @@ func (e *Echo) NewContext(r *http.Request, w http.ResponseWriter) *Context {
 // Router returns the default router.
 func (e *Echo) Router() Router {
 	return e.router
-}
-
-// Routers returns the new map of host => router.
-func (e *Echo) Routers() map[string]Router {
-	result := make(map[string]Router)
-	for host, r := range e.routers {
-		result[host] = r
-	}
-	return result
-}
-
-// RouterFor returns Router for given host. When host is left empty the default router is returned.
-func (e *Echo) RouterFor(host string) (Router, bool) {
-	if host == "" {
-		return e.router, true
-	}
-	router, ok := e.routers[host]
-	return router, ok
-}
-
-// ResetRouterCreator resets callback for creating new router instances.
-// Note: current (default) router is immediately replaced with router created with creator func and vhost routers are cleared.
-func (e *Echo) ResetRouterCreator(creator func(e *Echo) Router) {
-	e.routerCreator = creator
-	e.router = creator(e)
-	e.routers = make(map[string]Router)
 }
 
 // DefaultHTTPErrorHandler creates new default HTTP error handler implementation. It sends a JSON response
@@ -439,7 +404,7 @@ func (e *Echo) RouteNotFound(path string, h HandlerFunc, m ...MiddlewareFunc) Ro
 func (e *Echo) Any(path string, handler HandlerFunc, middleware ...MiddlewareFunc) Routes {
 	errs := make([]error, 0)
 	ris := make(Routes, 0)
-	for _, m := range methods {
+	for _, m := range methods { // could we just register RouteNotFound here?
 		ri, err := e.AddRoute(Route{
 			Method:      m,
 			Path:        path,
@@ -562,13 +527,12 @@ func (e *Echo) AddRoute(route Route) (RouteInfo, error) {
 
 func (e *Echo) add(host string, route Route) (RouteInfo, error) {
 	if e.OnAddRoute != nil {
-		if err := e.OnAddRoute(host, route); err != nil {
+		if err := e.OnAddRoute(route); err != nil {
 			return RouteInfo{}, err
 		}
 	}
 
-	router := e.findRouter(host)
-	ri, err := router.Add(route)
+	ri, err := e.router.Add(route)
 	if err != nil {
 		return RouteInfo{}, err
 	}
@@ -599,14 +563,6 @@ func (e *Echo) Add(method, path string, handler HandlerFunc, middleware ...Middl
 	return ri
 }
 
-// Host creates a new router group for the provided host and optional host-level middleware.
-func (e *Echo) Host(name string, m ...MiddlewareFunc) (g *Group) {
-	e.routers[name] = e.routerCreator(e)
-	g = &Group{host: name, echo: e}
-	g.Use(m...)
-	return
-}
-
 // Group creates a new router group with prefix and optional group-level middleware.
 func (e *Echo) Group(prefix string, m ...MiddlewareFunc) (g *Group) {
 	g = &Group{prefix: prefix, echo: e}
@@ -628,17 +584,20 @@ func (e *Echo) ReleaseContext(c *Context) {
 
 // ServeHTTP implements `http.Handler` interface, which serves HTTP requests.
 func (e *Echo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	e.serveHTTPFunc(w, r)
+}
+
+// serveHTTP implements `http.Handler` interface, which serves HTTP requests.
+func (e *Echo) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	c := e.contextPool.Get().(*Context)
 	c.Reset(r, w)
 	var h HandlerFunc
 
 	if e.premiddleware == nil {
-		h = applyMiddleware(e.findRouter(r.Host).Route(c), e.middleware...)
+		h = applyMiddleware(e.router.Route(c), e.middleware...)
 	} else {
 		h = func(cc *Context) error {
-			// NOTE: router will be executed after pre middlewares have been run. We assume here that context we receive after pre middlewares
-			// is the same we began with. If not - this is use-case we do not support and is probably abuse from developer.
-			h1 := applyMiddleware(e.findRouter(r.Host).Route(c), e.middleware...)
+			h1 := applyMiddleware(e.router.Route(cc), e.middleware...)
 			return h1(cc)
 		}
 		h = applyMiddleware(h, e.premiddleware...)
@@ -712,15 +671,6 @@ func WrapMiddleware(m func(http.Handler) http.Handler) MiddlewareFunc {
 			return
 		}
 	}
-}
-
-func (e *Echo) findRouter(host string) Router {
-	if len(e.routers) > 0 {
-		if r, ok := e.routers[host]; ok {
-			return r
-		}
-	}
-	return e.router
 }
 
 func applyMiddleware(h HandlerFunc, middleware ...MiddlewareFunc) HandlerFunc {

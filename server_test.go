@@ -227,40 +227,18 @@ func TestStartConfig_GracefulShutdown(t *testing.T) {
 	}
 }
 
-func TestStartConfig_Start_withTLSConfigFunc(t *testing.T) {
-	e := New()
-
-	tlsConfigCalled := false
-	s := &StartConfig{
-		Address: ":0",
-		TLSConfigFunc: func(tlsConfig *tls.Config) {
-			tlsConfig.GetCertificate = func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				return nil, errors.New("not_implemented")
-			}
-			tlsConfigCalled = true
-		},
-		BeforeServeFunc: func(s *http.Server) error {
-			return errors.New("stop_now")
-		},
-	}
-	err := s.Start(e)
-	assert.EqualError(t, err, "stop_now")
-	assert.True(t, tlsConfigCalled)
-}
-
 func TestStartConfig_Start_createListenerError(t *testing.T) {
 	e := New()
 
 	s := &StartConfig{
-		Address: ":0",
-		TLSConfigFunc: func(tlsConfig *tls.Config) {
-		},
+		Address:         ":0",
+		ListenerNetwork: "unknown",
 		BeforeServeFunc: func(s *http.Server) error {
 			return errors.New("stop_now")
 		},
 	}
 	err := s.Start(e)
-	assert.EqualError(t, err, "tls: neither Certificates, GetCertificate, nor GetConfigForClient set in Config")
+	assert.EqualError(t, err, "listen unknown: unknown network unknown")
 }
 
 func TestStartConfig_StartTLS(t *testing.T) {
@@ -343,26 +321,6 @@ func TestStartConfig_StartTLS(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestStartConfig_StartTLS_withTLSConfigFunc(t *testing.T) {
-	e := New()
-
-	tlsConfigCalled := false
-	s := &StartConfig{
-		Address: ":0",
-		TLSConfigFunc: func(tlsConfig *tls.Config) {
-			assert.Len(t, tlsConfig.Certificates, 1)
-			tlsConfigCalled = true
-		},
-		BeforeServeFunc: func(s *http.Server) error {
-			return errors.New("stop_now")
-		},
-	}
-	err := s.StartTLS(e, "_fixture/certs/cert.pem", "_fixture/certs/key.pem")
-
-	assert.EqualError(t, err, "stop_now")
-	assert.True(t, tlsConfigCalled)
 }
 
 func TestStartConfig_StartTLSAndStart(t *testing.T) {
@@ -726,13 +684,13 @@ func TestStartConfig_WithBeforeServeFunc(t *testing.T) {
 	assert.EqualError(t, err, "is called before serve")
 }
 
-func TestWithDisableHTTP2(t *testing.T) {
+func TestStartConfig_WithHTTP2WithCustomTlsConfig(t *testing.T) {
 	var testCases = []struct {
 		name         string
 		disableHTTP2 bool
 	}{
 		{
-			name:         "HTTP2 enabled",
+			name:         "HTTP2 enabled default",
 			disableHTTP2: false,
 		},
 		{
@@ -761,19 +719,22 @@ func TestWithDisableHTTP2(t *testing.T) {
 
 				s := &StartConfig{
 					Address:         ":0",
-					DisableHTTP2:    tc.disableHTTP2,
 					GracefulContext: ctx,
 					GracefulTimeout: 100 * time.Millisecond,
 					ListenerAddrFunc: func(addr net.Addr) {
 						addrChan <- addr.String()
 					},
 				}
+				if tc.disableHTTP2 {
+					s.TLSConfig = &tls.Config{
+						NextProtos: []string{"http/1.1"},
+					}
+				}
 				errCh <- s.StartTLS(e, certFile, keyFile)
 			}()
 
 			addr, err := waitForServerStart(addrChan, errCh)
 			assert.NoError(t, err)
-
 			url := fmt.Sprintf("https://%v/ok", addr)
 
 			// do ordinary http(s) request
@@ -791,7 +752,7 @@ func TestWithDisableHTTP2(t *testing.T) {
 			resp, err := client.Get(url)
 			if err != nil {
 				if tc.disableHTTP2 {
-					assert.True(t, strings.Contains(err.Error(), `http2: unexpected ALPN protocol ""; want "h2"`))
+					assert.True(t, strings.Contains(err.Error(), `remote error: tls: no application protocol`))
 					return
 				}
 				log.Fatalf("Failed get: %s", err)

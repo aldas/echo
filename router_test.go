@@ -3542,64 +3542,6 @@ func TestRouter_RouteWhenNotFoundRouteStaticKind(t *testing.T) {
 	}
 }
 
-type mySimpleRouter struct {
-	route Route
-}
-
-func (m *mySimpleRouter) Add(route Route) (RouteInfo, error) {
-	h := route.Handler
-	route.Handler = func(c *Context) error {
-		c.Set("router", "mySimpleRouter")
-		return h(c)
-	}
-	m.route = route
-	return route.ToRouteInfo([]string{ /* no values */ }), nil
-}
-
-func (m *mySimpleRouter) Remove(method string, path string) error {
-	return nil
-}
-
-func (m *mySimpleRouter) Routes() Routes {
-	return Routes{m.route.ToRouteInfo(nil)}
-}
-
-func (m *mySimpleRouter) Route(c *Context) HandlerFunc {
-	c.SetPath(m.route.Path)
-	return m.route.Handler
-}
-
-func TestCustomRouter_defaultAndVHostRouting(t *testing.T) {
-	e := New()
-	e.ResetRouterCreator(func(e *Echo) Router {
-		return &mySimpleRouter{}
-	})
-
-	e.GET("/info", func(c *Context) error {
-		return c.String(http.StatusTeapot, "default from "+c.Get("router").(string))
-	})
-
-	g := e.Host("my.vhost.test")
-	g.GET("/info", func(c *Context) error {
-		return c.String(http.StatusTeapot, "my.vhost.test default from "+c.Get("router").(string))
-	})
-
-	// see if default router was our mySimpleRouter
-	req := httptest.NewRequest(http.MethodGet, "/info", nil)
-	rec := httptest.NewRecorder()
-	e.ServeHTTP(rec, req)
-	assert.Equal(t, http.StatusTeapot, rec.Code)
-	assert.Equal(t, "default from mySimpleRouter", rec.Body.String())
-
-	// see if vhost router was our mySimpleRouter
-	req = httptest.NewRequest(http.MethodGet, "/info", nil)
-	req.Host = "my.vhost.test"
-	rec = httptest.NewRecorder()
-	e.ServeHTTP(rec, req)
-	assert.Equal(t, http.StatusTeapot, rec.Code)
-	assert.Equal(t, "my.vhost.test default from mySimpleRouter", rec.Body.String())
-}
-
 func BenchmarkRouterStaticRoutes(b *testing.B) {
 	benchmarkRouterRoutes(b, staticRoutes, staticRoutes)
 }

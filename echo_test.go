@@ -691,42 +691,6 @@ func TestEchoMatch(t *testing.T) { // JFC
 	assert.Len(t, ris, 2)
 }
 
-func TestEcho_Routers_HandleHostsProperly(t *testing.T) {
-	e := New()
-	h := e.Host("route.com")
-	routes := []*Route{
-		{Method: http.MethodGet, Path: "/users/:user/events"},
-		{Method: http.MethodGet, Path: "/users/:user/events/public"},
-		{Method: http.MethodPost, Path: "/repos/:owner/:repo/git/refs"},
-		{Method: http.MethodPost, Path: "/repos/:owner/:repo/git/tags"},
-	}
-	for _, r := range routes {
-		h.Add(r.Method, r.Path, func(c *Context) error {
-			return c.String(http.StatusOK, "OK")
-		})
-	}
-
-	routers := e.Routers()
-
-	routeCom, ok := routers["route.com"]
-	assert.True(t, ok)
-
-	if assert.Equal(t, len(routes), len(routeCom.Routes())) {
-		for _, r := range routeCom.Routes() {
-			found := false
-			for _, rr := range routes {
-				if r.Method == rr.Method && r.Path == rr.Path {
-					found = true
-					break
-				}
-			}
-			if !found {
-				t.Errorf("Route %s %s not found", r.Method, r.Path)
-			}
-		}
-	}
-}
-
 func TestEchoServeHTTPPathEncoding(t *testing.T) {
 	e := New()
 	e.GET("/with/slash", func(c *Context) error {
@@ -765,107 +729,6 @@ func TestEchoServeHTTPPathEncoding(t *testing.T) {
 
 			assert.Equal(t, tc.expectStatus, rec.Code)
 			assert.Equal(t, tc.expectURL, rec.Body.String())
-		})
-	}
-}
-
-func TestEchoHost(t *testing.T) {
-	okHandler := func(c *Context) error { return c.String(http.StatusOK, http.StatusText(http.StatusOK)) }
-	teapotHandler := func(c *Context) error { return c.String(http.StatusTeapot, http.StatusText(http.StatusTeapot)) }
-	acceptHandler := func(c *Context) error { return c.String(http.StatusAccepted, http.StatusText(http.StatusAccepted)) }
-	teapotMiddleware := MiddlewareFunc(func(next HandlerFunc) HandlerFunc { return teapotHandler })
-
-	e := New()
-	e.GET("/", acceptHandler)
-	e.GET("/foo", acceptHandler)
-
-	ok := e.Host("ok.com")
-	ok.GET("/", okHandler)
-	ok.GET("/foo", okHandler)
-
-	teapot := e.Host("teapot.com")
-	teapot.GET("/", teapotHandler)
-	teapot.GET("/foo", teapotHandler)
-
-	middle := e.Host("middleware.com", teapotMiddleware)
-	middle.GET("/", okHandler)
-	middle.GET("/foo", okHandler)
-
-	var testCases = []struct {
-		name         string
-		whenHost     string
-		whenPath     string
-		expectBody   string
-		expectStatus int
-	}{
-		{
-			name:         "No Host Root",
-			whenHost:     "",
-			whenPath:     "/",
-			expectBody:   http.StatusText(http.StatusAccepted),
-			expectStatus: http.StatusAccepted,
-		},
-		{
-			name:         "No Host Foo",
-			whenHost:     "",
-			whenPath:     "/foo",
-			expectBody:   http.StatusText(http.StatusAccepted),
-			expectStatus: http.StatusAccepted,
-		},
-		{
-			name:         "OK Host Root",
-			whenHost:     "ok.com",
-			whenPath:     "/",
-			expectBody:   http.StatusText(http.StatusOK),
-			expectStatus: http.StatusOK,
-		},
-		{
-			name:         "OK Host Foo",
-			whenHost:     "ok.com",
-			whenPath:     "/foo",
-			expectBody:   http.StatusText(http.StatusOK),
-			expectStatus: http.StatusOK,
-		},
-		{
-			name:         "Teapot Host Root",
-			whenHost:     "teapot.com",
-			whenPath:     "/",
-			expectBody:   http.StatusText(http.StatusTeapot),
-			expectStatus: http.StatusTeapot,
-		},
-		{
-			name:         "Teapot Host Foo",
-			whenHost:     "teapot.com",
-			whenPath:     "/foo",
-			expectBody:   http.StatusText(http.StatusTeapot),
-			expectStatus: http.StatusTeapot,
-		},
-		{
-			name:         "Middleware Host",
-			whenHost:     "middleware.com",
-			whenPath:     "/",
-			expectBody:   http.StatusText(http.StatusTeapot),
-			expectStatus: http.StatusTeapot,
-		},
-		{
-			name:         "Middleware Host Foo",
-			whenHost:     "middleware.com",
-			whenPath:     "/foo",
-			expectBody:   http.StatusText(http.StatusTeapot),
-			expectStatus: http.StatusTeapot,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, tc.whenPath, nil)
-			req.Host = tc.whenHost
-			rec := httptest.NewRecorder()
-
-			e.ServeHTTP(rec, req)
-
-			assert.Equal(t, tc.expectStatus, rec.Code)
-			assert.Equal(t, tc.expectBody, rec.Body.String())
 		})
 	}
 }
@@ -1015,10 +878,6 @@ func TestEchoMethodNotAllowed(t *testing.T) {
 }
 
 func TestEcho_OnAddRoute(t *testing.T) {
-	type rr struct {
-		host string
-		path string
-	}
 	exampleRoute := Route{
 		Method:      http.MethodGet,
 		Path:        "/api/files/:id",
@@ -1031,45 +890,25 @@ func TestEcho_OnAddRoute(t *testing.T) {
 		whenRoute   Route
 		whenError   error
 		name        string
-		whenHost    string
 		expectError string
-		expectAdded []rr
+		expectAdded []string
 		expectLen   int
 	}{
 		{
-			name:      "ok, for default host",
-			whenHost:  "",
-			whenRoute: exampleRoute,
-			whenError: nil,
-			expectAdded: []rr{
-				{host: "", path: "/static"},
-				{host: "", path: "/api/files/:id"},
-			},
+			name:        "ok",
+			whenRoute:   exampleRoute,
+			whenError:   nil,
+			expectAdded: []string{"/static", "/api/files/:id"},
 			expectError: "",
 			expectLen:   2,
 		},
 		{
-			name:      "ok, for specific host",
-			whenHost:  "test.com",
-			whenRoute: exampleRoute,
-			whenError: nil,
-			expectAdded: []rr{
-				{host: "", path: "/static"},
-				{host: "test.com", path: "/api/files/:id"},
-			},
-			expectError: "",
-			expectLen:   1,
-		},
-		{
-			name:      "nok, error is returned",
-			whenHost:  "test.com",
-			whenRoute: exampleRoute,
-			whenError: errors.New("nope"),
-			expectAdded: []rr{
-				{host: "", path: "/static"},
-			},
+			name:        "nok, error is returned",
+			whenRoute:   exampleRoute,
+			whenError:   errors.New("nope"),
+			expectAdded: []string{"/static"},
 			expectError: "nope",
-			expectLen:   0,
+			expectLen:   1,
 		},
 	}
 	for _, tc := range testCases {
@@ -1077,28 +916,21 @@ func TestEcho_OnAddRoute(t *testing.T) {
 
 			e := New()
 
-			added := make([]rr, 0)
+			added := make([]string, 0)
 			cnt := 0
-			e.OnAddRoute = func(host string, route Route) error {
+			e.OnAddRoute = func(route Route) error {
 				if cnt > 0 && tc.whenError != nil { // we want to GET /static to succeed for nok tests
 					return tc.whenError
 				}
 				cnt++
-				added = append(added, rr{
-					host: host,
-					path: route.Path,
-				})
+				added = append(added, route.Path)
 				return nil
 			}
 
 			e.GET("/static", notFoundHandler)
 
 			var err error
-			if tc.whenHost != "" {
-				_, err = e.Host(tc.whenHost).AddRoute(tc.whenRoute)
-			} else {
-				_, err = e.AddRoute(tc.whenRoute)
-			}
+			_, err = e.AddRoute(tc.whenRoute)
 
 			if tc.expectError != "" {
 				assert.EqualError(t, err, tc.expectError)
@@ -1106,54 +938,8 @@ func TestEcho_OnAddRoute(t *testing.T) {
 				assert.NoError(t, err)
 			}
 
-			r, _ := e.RouterFor(tc.whenHost)
-			assert.Len(t, r.Routes(), tc.expectLen)
+			assert.Len(t, e.Router().Routes(), tc.expectLen)
 			assert.Equal(t, tc.expectAdded, added)
-		})
-	}
-}
-
-func TestEcho_RouterFor(t *testing.T) {
-	var testCases = []struct {
-		name      string
-		whenHost  string
-		expectLen int
-		expectOk  bool
-	}{
-		{
-			name:      "ok, default host",
-			whenHost:  "",
-			expectLen: 2,
-			expectOk:  true,
-		},
-		{
-			name:      "ok, specific host with routes",
-			whenHost:  "test.com",
-			expectLen: 1,
-			expectOk:  true,
-		},
-		{
-			name:      "ok, non-existent host",
-			whenHost:  "oups.com",
-			expectLen: 0,
-			expectOk:  false,
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			e := New()
-
-			e.GET("/1", notFoundHandler)
-			e.GET("/2", notFoundHandler)
-			e.Host("test.com").GET("/3", notFoundHandler)
-
-			r, ok := e.RouterFor(tc.whenHost)
-			assert.Equal(t, tc.expectOk, ok)
-			if tc.expectLen > 0 {
-				assert.Len(t, r.Routes(), tc.expectLen)
-			} else {
-				assert.Nil(t, r)
-			}
 		})
 	}
 }
