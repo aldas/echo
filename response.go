@@ -88,7 +88,7 @@ func (r *Response) reset(w http.ResponseWriter) {
 	r.Committed = false
 }
 
-// UnwrapResponse unwraps given ResponseWriter to return contexts original Response. rw has to implement
+// UnwrapResponse unwraps given ResponseWriter to return contexts original Echo Response. rw has to implement
 // following method `Unwrap() http.ResponseWriter`
 func UnwrapResponse(rw http.ResponseWriter) (*Response, error) {
 	for {

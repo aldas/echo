@@ -41,8 +41,8 @@ func TestBodyLimitConfig_ToMiddleware(t *testing.T) {
 	// Based on content read (overlimit)
 	mw, err = BodyLimitConfig{LimitBytes: 2}.ToMiddleware()
 	assert.NoError(t, err)
-	he := mw(h)(c).(*echo.HTTPError)
-	assert.Equal(t, http.StatusRequestEntityTooLarge, he.Code)
+	he := mw(h)(c).(echo.HTTPStatusCoder)
+	assert.Equal(t, http.StatusRequestEntityTooLarge, he.StatusCode())
 
 	// Based on content read (within limit)
 	req = httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(hw))
@@ -64,8 +64,8 @@ func TestBodyLimitConfig_ToMiddleware(t *testing.T) {
 	c = e.NewContext(req, rec)
 	mw, err = BodyLimitConfig{LimitBytes: 2}.ToMiddleware()
 	assert.NoError(t, err)
-	he = mw(h)(c).(*echo.HTTPError)
-	assert.Equal(t, http.StatusRequestEntityTooLarge, he.Code)
+	he = mw(h)(c).(echo.HTTPStatusCoder)
+	assert.Equal(t, http.StatusRequestEntityTooLarge, he.StatusCode())
 }
 
 func TestBodyLimitReader(t *testing.T) {
@@ -82,8 +82,8 @@ func TestBodyLimitReader(t *testing.T) {
 
 	// read all should return ErrStatusRequestEntityTooLarge
 	_, err := io.ReadAll(reader)
-	he := err.(*echo.HTTPError)
-	assert.Equal(t, http.StatusRequestEntityTooLarge, he.Code)
+	he := err.(echo.HTTPStatusCoder)
+	assert.Equal(t, http.StatusRequestEntityTooLarge, he.StatusCode())
 
 	// reset reader and read two bytes must succeed
 	bt := make([]byte, 2)

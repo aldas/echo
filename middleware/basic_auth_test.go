@@ -53,19 +53,19 @@ func TestBasicAuth(t *testing.T) {
 			givenConfig:  defaultConfig,
 			whenAuth:     []string{strings.ToUpper(basic) + " " + base64.StdEncoding.EncodeToString([]byte("invalid"))},
 			expectHeader: basic + ` realm=Restricted`,
-			expectErr:    "code=401, message=Unauthorized",
+			expectErr:    "Unauthorized",
 		},
 		{
 			name:        "nok, not base64 Authorization header",
 			givenConfig: defaultConfig,
 			whenAuth:    []string{strings.ToUpper(basic) + " NOT_BASE64"},
-			expectErr:   "code=400, message=Bad Request, internal=illegal base64 data at input byte 3",
+			expectErr:   "code=400, message=Bad Request, err=illegal base64 data at input byte 3",
 		},
 		{
 			name:         "nok, missing Authorization header",
 			givenConfig:  defaultConfig,
 			expectHeader: basic + ` realm=Restricted`,
-			expectErr:    "code=401, message=Unauthorized",
+			expectErr:    "Unauthorized",
 		},
 		{
 			name:        "ok, realm",
@@ -82,7 +82,7 @@ func TestBasicAuth(t *testing.T) {
 			givenConfig:  BasicAuthConfig{Validator: validatorFunc, Realm: "someRealm"},
 			whenAuth:     []string{strings.ToUpper(basic) + " " + base64.StdEncoding.EncodeToString([]byte("invalid"))},
 			expectHeader: basic + ` realm="someRealm"`,
-			expectErr:    "code=401, message=Unauthorized",
+			expectErr:    "Unauthorized",
 		},
 		{
 			name:        "nok, validator func returns an error",

@@ -5,8 +5,6 @@ package echo
 
 import (
 	"encoding/json"
-	"fmt"
-	"net/http"
 )
 
 // DefaultJSONSerializer implements JSON encoding using encoding/json.
@@ -24,18 +22,8 @@ func (d DefaultJSONSerializer) Serialize(c *Context, target any, indent string) 
 
 // Deserialize reads a JSON from a request body and converts it into an interface.
 func (d DefaultJSONSerializer) Deserialize(c *Context, target any) error {
-	err := json.NewDecoder(c.Request().Body).Decode(target)
-	if ute, ok := err.(*json.UnmarshalTypeError); ok {
-		return NewHTTPErrorWithInternal(
-			http.StatusBadRequest,
-			err,
-			fmt.Sprintf("Unmarshal type error: expected=%v, got=%v, field=%v, offset=%v", ute.Type, ute.Value, ute.Field, ute.Offset),
-		)
-	} else if se, ok := err.(*json.SyntaxError); ok {
-		return NewHTTPErrorWithInternal(http.StatusBadRequest,
-			err,
-			fmt.Sprintf("Syntax error: offset=%v, error=%v", se.Offset, se.Error()),
-		)
+	if err := json.NewDecoder(c.Request().Body).Decode(target); err != nil {
+		return ErrBadRequest.Wrap(err)
 	}
-	return err
+	return nil
 }

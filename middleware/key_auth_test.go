@@ -79,7 +79,7 @@ func TestKeyAuthWithConfig(t *testing.T) {
 				req.Header.Set(echo.HeaderAuthorization, "Bearer invalid-key")
 			},
 			expectHandlerCalled: false,
-			expectError:         "code=401, message=Unauthorized, internal=code=401, message=invalid key",
+			expectError:         "code=401, message=Unauthorized, err=code=401, message=invalid key",
 		},
 		{
 			name: "nok, defaults, invalid scheme in header",
@@ -87,13 +87,13 @@ func TestKeyAuthWithConfig(t *testing.T) {
 				req.Header.Set(echo.HeaderAuthorization, "Bear valid-key")
 			},
 			expectHandlerCalled: false,
-			expectError:         "code=401, message=missing key, internal=invalid value in request header",
+			expectError:         "code=401, message=missing key, err=invalid value in request header",
 		},
 		{
 			name:                "nok, defaults, missing header",
 			givenRequest:        func(req *http.Request) {},
 			expectHandlerCalled: false,
-			expectError:         "code=401, message=missing key, internal=missing value in request header",
+			expectError:         "code=401, message=missing key, err=missing value in request header",
 		},
 		{
 			name: "ok, custom key lookup, header",
@@ -113,7 +113,7 @@ func TestKeyAuthWithConfig(t *testing.T) {
 				conf.KeyLookup = "header:API-Key"
 			},
 			expectHandlerCalled: false,
-			expectError:         "code=401, message=missing key, internal=missing value in request header",
+			expectError:         "code=401, message=missing key, err=missing value in request header",
 		},
 		{
 			name: "ok, custom key lookup, query",
@@ -133,7 +133,7 @@ func TestKeyAuthWithConfig(t *testing.T) {
 				conf.KeyLookup = "query:key"
 			},
 			expectHandlerCalled: false,
-			expectError:         "code=401, message=missing key, internal=missing value in the query string",
+			expectError:         "code=401, message=missing key, err=missing value in the query string",
 		},
 		{
 			name: "ok, custom key lookup, form",
@@ -158,7 +158,7 @@ func TestKeyAuthWithConfig(t *testing.T) {
 				conf.KeyLookup = "form:key"
 			},
 			expectHandlerCalled: false,
-			expectError:         "code=401, message=missing key, internal=missing value in the form",
+			expectError:         "code=401, message=missing key, err=missing value in the form",
 		},
 		{
 			name: "ok, custom key lookup, cookie",
@@ -182,20 +182,18 @@ func TestKeyAuthWithConfig(t *testing.T) {
 				conf.KeyLookup = "cookie:key"
 			},
 			expectHandlerCalled: false,
-			expectError:         "code=401, message=missing key, internal=missing value in cookies",
+			expectError:         "code=401, message=missing key, err=missing value in cookies",
 		},
 		{
 			name: "nok, custom errorHandler, error from extractor",
 			whenConfig: func(conf *KeyAuthConfig) {
 				conf.KeyLookup = "header:token"
 				conf.ErrorHandler = func(c *echo.Context, err error) error {
-					httpError := echo.NewHTTPError(http.StatusTeapot, "custom")
-					httpError.Internal = err
-					return httpError
+					return echo.NewHTTPError(http.StatusTeapot, "custom").Wrap(err)
 				}
 			},
 			expectHandlerCalled: false,
-			expectError:         "code=418, message=custom, internal=missing value in request header",
+			expectError:         "code=418, message=custom, err=missing value in request header",
 		},
 		{
 			name: "nok, custom errorHandler, error from validator",
@@ -204,13 +202,11 @@ func TestKeyAuthWithConfig(t *testing.T) {
 			},
 			whenConfig: func(conf *KeyAuthConfig) {
 				conf.ErrorHandler = func(c *echo.Context, err error) error {
-					httpError := echo.NewHTTPError(http.StatusTeapot, "custom")
-					httpError.Internal = err
-					return httpError
+					return echo.NewHTTPError(http.StatusTeapot, "custom").Wrap(err)
 				}
 			},
 			expectHandlerCalled: false,
-			expectError:         "code=418, message=custom, internal=some user defined error",
+			expectError:         "code=418, message=custom, err=some user defined error",
 		},
 		{
 			name: "nok, defaults, error from validator",
@@ -219,7 +215,7 @@ func TestKeyAuthWithConfig(t *testing.T) {
 			},
 			whenConfig:          func(conf *KeyAuthConfig) {},
 			expectHandlerCalled: false,
-			expectError:         "code=401, message=Unauthorized, internal=some user defined error",
+			expectError:         "code=401, message=Unauthorized, err=some user defined error",
 		},
 		{
 			name: "ok, custom validator checks source",

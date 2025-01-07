@@ -73,7 +73,7 @@ func TestCSRF_tokenExtractors(t *testing.T) {
 			givenCSRFCookie: "token",
 			givenMethod:     http.MethodPost,
 			givenFormTokens: map[string][]string{},
-			expectError:     "code=400, message=Bad Request, internal=missing value in the form",
+			expectError:     "code=400, message=Bad Request, err=missing value in the form",
 		},
 		{
 			name:            "ok, token from POST header",
@@ -109,7 +109,7 @@ func TestCSRF_tokenExtractors(t *testing.T) {
 			givenCSRFCookie:   "token",
 			givenMethod:       http.MethodPost,
 			givenHeaderTokens: map[string][]string{},
-			expectError:       "code=400, message=Bad Request, internal=missing value in request header",
+			expectError:       "code=400, message=Bad Request, err=missing value in request header",
 		},
 		{
 			name:            "ok, token from PUT query param",
@@ -145,7 +145,7 @@ func TestCSRF_tokenExtractors(t *testing.T) {
 			givenCSRFCookie:  "token",
 			givenMethod:      http.MethodPut,
 			givenQueryTokens: map[string][]string{},
-			expectError:      "code=400, message=Bad Request, internal=missing value in the query string",
+			expectError:      "code=400, message=Bad Request, err=missing value in the query string",
 		},
 		{
 			name:                    "nok, invalid TokenLookup",

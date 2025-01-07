@@ -346,9 +346,9 @@ func (config RequestLoggerConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 				if err != nil && !config.HandleError {
 					//  this block should not be executed in case of HandleError=true as the global error handler will decide
 					//  the status code. In that case status code could be different from what err contains.
-					var httpErr *echo.HTTPError
-					if errors.As(err, &httpErr) {
-						v.Status = httpErr.Code
+					var hsc echo.HTTPStatusCoder
+					if errors.As(err, &hsc) {
+						v.Status = hsc.StatusCode()
 					}
 				}
 			}
@@ -396,7 +396,11 @@ func (config RequestLoggerConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 			// in case of HandleError=true we are returning the error that we already have handled with global error handler
 			// this is deliberate as this error could be useful for upstream middlewares and default global error handler
 			// will ignore that error when it bubbles up in middleware chain.
-			// Committed response can be checked in custom error handler with `c.Response().Committed` field
+			// Committed response can be checked in custom error handler with following logic
+			//
+			// if r, _ := echo.UnwrapResponse(c.Response()); r != nil && r.Committed {
+			//	 return
+			// }
 			return err
 		}
 	}, nil

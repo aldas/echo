@@ -151,9 +151,9 @@ func (config KeyAuthConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 				return tmpErr
 			}
 			if lastValidatorErr == nil {
-				return ErrKeyMissing.WithInternal(err)
+				return ErrKeyMissing.Wrap(err)
 			}
-			return echo.ErrUnauthorized.WithInternal(err)
+			return echo.ErrUnauthorized.Wrap(err)
 		}
 	}, nil
 }

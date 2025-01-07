@@ -83,7 +83,7 @@ func TestDefaultJSONCodec_Decode(t *testing.T) {
 	c = e.NewContext(req, rec)
 	err = enc.Deserialize(c, &userUnmarshalSyntaxError)
 	assert.IsType(t, &HTTPError{}, err)
-	assert.EqualError(t, err, "code=400, message=Syntax error: offset=1, error=invalid character 'i' looking for beginning of value, internal=invalid character 'i' looking for beginning of value")
+	assert.EqualError(t, err, "code=400, message=Bad Request, err=invalid character 'i' looking for beginning of value")
 
 	var userUnmarshalTypeError = struct {
 		ID   string `json:"id"`
@@ -95,6 +95,6 @@ func TestDefaultJSONCodec_Decode(t *testing.T) {
 	c = e.NewContext(req, rec)
 	err = enc.Deserialize(c, &userUnmarshalTypeError)
 	assert.IsType(t, &HTTPError{}, err)
-	assert.EqualError(t, err, "code=400, message=Unmarshal type error: expected=string, got=number, field=id, offset=7, internal=json: cannot unmarshal number into Go struct field .id of type string")
+	assert.EqualError(t, err, "code=400, message=Bad Request, err=json: cannot unmarshal number into Go struct field .id of type string")
 
 }

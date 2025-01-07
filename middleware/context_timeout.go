@@ -44,7 +44,7 @@ func (config ContextTimeoutConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 	if config.ErrorHandler == nil {
 		config.ErrorHandler = func(c *echo.Context, err error) error {
 			if err != nil && errors.Is(err, context.DeadlineExceeded) {
-				return echo.ErrServiceUnavailable.WithInternal(err)
+				return echo.ErrServiceUnavailable.Wrap(err)
 			}
 			return err
 		}

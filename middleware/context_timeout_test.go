@@ -157,10 +157,11 @@ func TestContextTimeoutWithDefaultErrorMessage(t *testing.T) {
 		return c.String(http.StatusOK, "Hello, World!")
 	})(c)
 
-	assert.IsType(t, &echo.HTTPError{}, err)
 	assert.Error(t, err)
-	assert.Equal(t, http.StatusServiceUnavailable, err.(*echo.HTTPError).Code)
-	assert.Equal(t, "Service Unavailable", err.(*echo.HTTPError).Message)
+	if assert.IsType(t, &echo.HTTPError{}, err) {
+		assert.Equal(t, http.StatusServiceUnavailable, err.(*echo.HTTPError).Code)
+		assert.Equal(t, "Service Unavailable", err.(*echo.HTTPError).Message)
+	}
 }
 
 func TestContextTimeoutCanHandleContextDeadlineOnNextHandler(t *testing.T) {

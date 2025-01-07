@@ -10,46 +10,58 @@ import (
 	"testing"
 )
 
-func TestHTTPError(t *testing.T) {
-	t.Run("non-internal", func(t *testing.T) {
-		err := NewHTTPError(http.StatusBadRequest, map[string]any{
-			"code": 12,
-		})
+func TestHTTPError_StatusCode(t *testing.T) {
+	var err error = &HTTPError{Code: http.StatusBadRequest, Message: "my error message"}
 
-		assert.Equal(t, "code=400, message=map[code:12]", err.Error())
-	})
-	t.Run("internal", func(t *testing.T) {
-		err := NewHTTPError(http.StatusBadRequest, map[string]any{
-			"code": 12,
-		})
-		err = err.WithInternal(errors.New("internal error"))
-		assert.Equal(t, "code=400, message=map[code:12], internal=internal error", err.Error())
-	})
+	code := 0
+	var sc HTTPStatusCoder
+	if errors.As(err, &sc) {
+		code = sc.StatusCode()
+	}
+	assert.Equal(t, http.StatusBadRequest, code)
 }
 
-func TestNewHTTPErrorWithInternal(t *testing.T) {
-	he := NewHTTPErrorWithInternal(http.StatusBadRequest, errors.New("test"), "test message")
-	assert.Equal(t, "code=400, message=test message, internal=test", he.Error())
+func TestHTTPError_Error(t *testing.T) {
+	var testCases = []struct {
+		name   string
+		error  error
+		expect string
+	}{
+		{
+			name:   "ok, without message",
+			error:  &HTTPError{Code: http.StatusBadRequest},
+			expect: "code=400, message=Bad Request",
+		},
+		{
+			name:   "ok, with message",
+			error:  &HTTPError{Code: http.StatusBadRequest, Message: "my error message"},
+			expect: "code=400, message=my error message",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expect, tc.error.Error())
+		})
+	}
 }
 
-func TestNewHTTPErrorWithInternal_noCustomMessage(t *testing.T) {
-	he := NewHTTPErrorWithInternal(http.StatusBadRequest, errors.New("test"))
-	assert.Equal(t, "code=400, message=Bad Request, internal=test", he.Error())
+func TestHTTPError_WrapUnwrap(t *testing.T) {
+	err := &HTTPError{Code: http.StatusBadRequest, Message: "bad"}
+	wrapped := err.Wrap(errors.New("my_error")).(*HTTPError)
+
+	err.Code = http.StatusOK
+	err.Message = "changed"
+
+	assert.Equal(t, http.StatusBadRequest, wrapped.Code)
+	assert.Equal(t, "bad", wrapped.Message)
+
+	assert.Equal(t, errors.New("my_error"), wrapped.Unwrap())
+	assert.Equal(t, "code=400, message=bad, err=my_error", wrapped.Error())
 }
 
-func TestHTTPError_Unwrap(t *testing.T) {
-	t.Run("non-internal", func(t *testing.T) {
-		err := NewHTTPError(http.StatusBadRequest, map[string]any{
-			"code": 12,
-		})
+func TestNewHTTPError(t *testing.T) {
+	err := NewHTTPError(http.StatusBadRequest, "bad")
+	err2 := &HTTPError{Code: http.StatusBadRequest, Message: "bad"}
 
-		assert.Nil(t, errors.Unwrap(err))
-	})
-	t.Run("internal", func(t *testing.T) {
-		err := NewHTTPError(http.StatusBadRequest, map[string]any{
-			"code": 12,
-		})
-		err = err.WithInternal(errors.New("internal error"))
-		assert.Equal(t, "internal error", errors.Unwrap(err).Error())
-	})
+	assert.Equal(t, err2, err)
 }

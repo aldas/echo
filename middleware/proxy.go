@@ -91,7 +91,7 @@ type ProxyConfig struct {
 type ProxyTarget struct {
 	Name string
 	URL  *url.URL
-	Meta echo.Map
+	Meta map[string]any
 }
 
 // ProxyBalancer defines an interface to implement a load balancing technique.
@@ -402,12 +402,13 @@ func proxyHTTP(c *echo.Context, tgt *ProxyTarget, config ProxyConfig) http.Handl
 		// https://github.com/golang/go/blob/6965b01ea248cabb70c3749fd218b36089a21efb/src/net/net.go#L416-L430
 		// From Caddy https://github.com/caddyserver/caddy/blob/afa778ae05503f563af0d1015cdf7e5e78b1eeec/modules/caddyhttp/reverseproxy/reverseproxy.go#L1352
 		if errors.Is(err, context.Canceled) || strings.Contains(err.Error(), "operation was canceled") {
-			httpError := echo.NewHTTPError(StatusCodeContextCanceled, fmt.Sprintf("client closed connection: %v", err))
-			httpError.Internal = err
+			httpError := echo.NewHTTPError(StatusCodeContextCanceled, "client closed connection").Wrap(err)
 			c.Set("_error", httpError)
 		} else {
-			httpError := echo.NewHTTPError(http.StatusBadGateway, fmt.Sprintf("remote %s unreachable, could not forward: %v", desc, err))
-			httpError.Internal = err
+			httpError := echo.NewHTTPError(
+				http.StatusBadGateway,
+				"remote server unreachable, could not proxy request",
+			).Wrap(fmt.Errorf("server: %s, err: %w", desc, err))
 			c.Set("_error", httpError)
 		}
 	}

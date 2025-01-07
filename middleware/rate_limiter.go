@@ -49,18 +49,10 @@ var DefaultRateLimiterConfig = RateLimiterConfig{
 		return id, nil
 	},
 	ErrorHandler: func(c *echo.Context, err error) error {
-		return &echo.HTTPError{
-			Code:     ErrExtractorError.Code,
-			Message:  ErrExtractorError.Message,
-			Internal: err,
-		}
+		return ErrExtractorError.Wrap(err)
 	},
 	DenyHandler: func(c *echo.Context, identifier string, err error) error {
-		return &echo.HTTPError{
-			Code:     ErrRateLimitExceeded.Code,
-			Message:  ErrRateLimitExceeded.Message,
-			Internal: err,
-		}
+		return ErrRateLimitExceeded.Wrap(err)
 	},
 }
 
