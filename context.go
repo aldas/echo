@@ -43,7 +43,7 @@ type Context struct {
 	route      *RouteInfo
 	pathValues *PathValues
 
-	store  Map
+	store  map[string]any
 	echo   *Echo
 	logger *slog.Logger
 
@@ -343,7 +343,7 @@ func (c *Context) Set(key string, val any) {
 	defer c.lock.Unlock()
 
 	if c.store == nil {
-		c.store = make(Map)
+		c.store = make(map[string]any)
 	}
 	c.store[key] = val
 }

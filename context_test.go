@@ -1254,7 +1254,7 @@ func TestContext_File(t *testing.T) {
 			whenFS:           os.DirFS("_fixture/images"),
 			expectStatus:     http.StatusOK,
 			expectStartsWith: nil,
-			expectError:      "code=404, message=Not Found",
+			expectError:      "Not Found",
 		},
 	}
 
@@ -1313,7 +1313,7 @@ func TestContext_FileFS(t *testing.T) {
 			whenFS:           os.DirFS("_fixture/images"),
 			expectStatus:     http.StatusOK,
 			expectStartsWith: nil,
-			expectError:      "code=404, message=Not Found",
+			expectError:      "Not Found",
 		},
 	}
 

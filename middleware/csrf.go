@@ -72,7 +72,7 @@ type CSRFConfig struct {
 }
 
 // ErrCSRFInvalid is returned when CSRF check fails
-var ErrCSRFInvalid = echo.NewHTTPError(http.StatusForbidden, "invalid csrf token")
+var ErrCSRFInvalid = &echo.HTTPError{Code: http.StatusForbidden, Message: "invalid csrf token"}
 
 // DefaultCSRFConfig is the default CSRF middleware config.
 var DefaultCSRFConfig = CSRFConfig{
@@ -169,7 +169,7 @@ func (config CSRFConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 				if lastTokenErr != nil {
 					finalErr = lastTokenErr
 				} else if lastExtractorErr != nil {
-					finalErr = echo.ErrBadRequest.WithInternal(lastExtractorErr)
+					finalErr = echo.ErrBadRequest.Wrap(lastExtractorErr)
 				}
 				if finalErr != nil {
 					if config.ErrorHandler != nil {

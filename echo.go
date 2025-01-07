@@ -114,9 +114,6 @@ type Validator interface {
 	Validate(i any) error
 }
 
-// Map defines a generic map of type `map[string]any`.
-type Map map[string]any
-
 // MIME types
 const (
 	// MIMEApplicationJSON JavaScript Object Notation (JSON) https://www.rfc-editor.org/rfc/rfc8259
@@ -253,7 +250,7 @@ func (e *Echo) NewContext(r *http.Request, w http.ResponseWriter) *Context {
 	p := make(PathValues, e.contextPathParamAllocSize.Load())
 	c := &Context{
 		pathValues: &p,
-		store:      make(Map),
+		store:      make(map[string]any),
 		echo:       e,
 		logger:     e.Logger,
 	}
@@ -282,38 +279,43 @@ func DefaultHTTPErrorHandler(exposeError bool) HTTPErrorHandler {
 			return
 		}
 
-		// in-case we have errors wrapping each other first HTTPError we see in this chain, will be the one used as
-		// error we send to the client
-		var he *HTTPError
-		if !errors.As(err, &he) {
-			he = &HTTPError{
-				Code:    http.StatusInternalServerError,
-				Message: http.StatusText(http.StatusInternalServerError),
+		code := http.StatusInternalServerError
+		var sc HTTPStatusCoder
+		if errors.As(err, &sc) {
+			if tmp := sc.StatusCode(); tmp != 0 {
+				code = tmp
 			}
 		}
 
-		// Issue #1426
-		code := he.Code
-		message := he.Message
-		switch m := he.Message.(type) {
-		case string:
+		var result any
+		switch m := sc.(type) {
+		case json.Marshaler: // this type knows how to format itself to JSON
+			result = m
+		case *HTTPError:
+			sText := m.Message
+			if sText == "" {
+				sText = http.StatusText(code)
+			}
+			msg := map[string]any{"message": sText}
 			if exposeError {
-				message = Map{"message": m, "error": err.Error()}
-			} else {
-				message = Map{"message": m}
+				if wrappedErr := m.Unwrap(); wrappedErr != nil {
+					msg["error"] = wrappedErr.Error()
+				}
 			}
-		case json.Marshaler:
-			// do nothing - this type knows how to format itself to JSON
-		case error:
-			message = Map{"message": m.Error()}
+			result = msg
+		default:
+			msg := map[string]any{"message": http.StatusText(code)}
+			if exposeError {
+				msg["error"] = err.Error()
+			}
+			result = msg
 		}
 
-		// Send response
 		var cErr error
 		if c.Request().Method == http.MethodHead { // Issue #608
-			cErr = c.NoContent(he.Code)
+			cErr = c.NoContent(code)
 		} else {
-			cErr = c.JSON(code, message)
+			cErr = c.JSON(code, result)
 		}
 		if cErr != nil {
 			c.Logger().Error("echo default error handler failed to send error to client", "error", cErr) // truly rare case. ala client already disconnected

@@ -986,15 +986,20 @@ func request(method, path string, e *Echo) (int, string) {
 }
 
 type customError struct {
-	s string
+	Code    int
+	Message string
+}
+
+func (ce *customError) StatusCode() int {
+	return ce.Code
 }
 
 func (ce *customError) MarshalJSON() ([]byte, error) {
-	return []byte(fmt.Sprintf(`{"x":"%v"}`, ce.s)), nil
+	return []byte(fmt.Sprintf(`{"x":"%v"}`, ce.Message)), nil
 }
 
 func (ce *customError) Error() string {
-	return ce.s
+	return ce.Message
 }
 
 func TestDefaultHTTPErrorHandler(t *testing.T) {
@@ -1009,35 +1014,41 @@ func TestDefaultHTTPErrorHandler(t *testing.T) {
 		givenLoggerFunc  bool
 	}{
 		{
-			name:             "ok, expose error = true, HTTPError",
+			name:             "ok, expose error = true, HTTPError, no wrapped err",
 			givenExposeError: true,
-			whenError:        NewHTTPError(http.StatusTeapot, "my_error"),
+			whenError:        &HTTPError{Code: http.StatusTeapot, Message: "my_error"},
 			expectStatus:     http.StatusTeapot,
-			expectBody:       `{"error":"code=418, message=my_error","message":"my_error"}` + "\n",
+			expectBody:       `{"message":"my_error"}` + "\n",
 		},
 		{
-			name:             "ok, expose error = true, HTTPError + internal error",
+			name:             "ok, expose error = true, HTTPError + wrapped error",
 			givenExposeError: true,
-			whenError:        NewHTTPError(http.StatusTeapot, "my_error").WithInternal(errors.New("internal_error")),
+			whenError:        HTTPError{Code: http.StatusTeapot, Message: "my_error"}.Wrap(errors.New("internal_error")),
 			expectStatus:     http.StatusTeapot,
-			expectBody:       `{"error":"code=418, message=my_error, internal=internal_error","message":"my_error"}` + "\n",
+			expectBody:       `{"error":"internal_error","message":"my_error"}` + "\n",
 		},
 		{
-			name:             "ok, expose error = true, HTTPError + internal HTTPError",
+			name:             "ok, expose error = true, HTTPError + wrapped HTTPError",
 			givenExposeError: true,
-			whenError:        NewHTTPError(http.StatusTooEarly, "my_error").WithInternal(NewHTTPError(http.StatusTeapot, "early_error")),
-			expectStatus:     http.StatusTooEarly,
-			expectBody:       `{"error":"code=425, message=my_error, internal=code=418, message=early_error","message":"my_error"}` + "\n",
+			whenError:        HTTPError{Code: http.StatusTeapot, Message: "my_error"}.Wrap(&HTTPError{Code: http.StatusTeapot, Message: "early_error"}),
+			expectStatus:     http.StatusTeapot,
+			expectBody:       `{"error":"code=418, message=early_error","message":"my_error"}` + "\n",
 		},
 		{
 			name:         "ok, expose error = false, HTTPError",
-			whenError:    NewHTTPError(http.StatusTeapot, "my_error"),
+			whenError:    &HTTPError{Code: http.StatusTeapot, Message: "my_error"},
 			expectStatus: http.StatusTeapot,
 			expectBody:   `{"message":"my_error"}` + "\n",
 		},
 		{
+			name:         "ok, expose error = false, HTTPError, no message",
+			whenError:    &HTTPError{Code: http.StatusTeapot, Message: ""},
+			expectStatus: http.StatusTeapot,
+			expectBody:   `{"message":"I'm a teapot"}` + "\n",
+		},
+		{
 			name:         "ok, expose error = false, HTTPError + internal HTTPError",
-			whenError:    NewHTTPError(http.StatusTooEarly, "my_error").WithInternal(NewHTTPError(http.StatusTeapot, "early_error")),
+			whenError:    HTTPError{Code: http.StatusTooEarly, Message: "my_error"}.Wrap(&HTTPError{Code: http.StatusTeapot, Message: "early_error"}),
 			expectStatus: http.StatusTooEarly,
 			expectBody:   `{"message":"my_error"}` + "\n",
 		},
@@ -1063,17 +1074,11 @@ func TestDefaultHTTPErrorHandler(t *testing.T) {
 			expectBody:       ``,
 		},
 		{
-			name:         "ok, custom error implement MarshalJSON",
+			name:         "ok, custom error implement MarshalJSON + HTTPStatusCoder",
 			whenMethod:   http.MethodGet,
-			whenError:    NewHTTPError(http.StatusBadRequest, &customError{s: "custom error msg"}),
-			expectStatus: http.StatusBadRequest,
-			expectBody:   "{\"x\":\"custom error msg\"}\n",
-		},
-		{
-			name:         "with Debug=false when httpError contains an error",
-			whenError:    NewHTTPError(http.StatusBadRequest, errors.New("error in httperror")),
-			expectStatus: http.StatusBadRequest,
-			expectBody:   "{\"message\":\"error in httperror\"}\n",
+			whenError:    &customError{Code: http.StatusTeapot, Message: "custom error msg"},
+			expectStatus: http.StatusTeapot,
+			expectBody:   `{"x":"custom error msg"}` + "\n",
 		},
 	}
 
@@ -1099,6 +1104,19 @@ func TestDefaultHTTPErrorHandler(t *testing.T) {
 			assert.Equal(t, tc.expectLogged, buf.String())
 		})
 	}
+}
+
+func TestDefaultHTTPErrorHandler_CommitedResponse(t *testing.T) {
+	e := New()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	resp := httptest.NewRecorder()
+	c := e.NewContext(req, resp)
+
+	c.orgResponse.Committed = true
+	errHandler := DefaultHTTPErrorHandler(false)
+
+	errHandler(c, errors.New("my_error"))
+	assert.Equal(t, http.StatusOK, resp.Code)
 }
 
 func benchmarkEchoRoutes(b *testing.B, routes []testRoute) {

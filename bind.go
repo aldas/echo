@@ -7,7 +7,6 @@ import (
 	"encoding"
 	"encoding/xml"
 	"errors"
-	"fmt"
 	"mime/multipart"
 	"net/http"
 	"reflect"
@@ -45,7 +44,7 @@ func BindPathValues(c *Context, target any) error {
 		params[param.Name] = []string{param.Value}
 	}
 	if err := bindData(target, params, "param", nil); err != nil {
-		return NewHTTPError(http.StatusBadRequest, err.Error()).WithInternal(err)
+		return ErrBadRequest.Wrap(err)
 	}
 	return nil
 }
@@ -53,7 +52,7 @@ func BindPathValues(c *Context, target any) error {
 // BindQueryParams binds query params to bindable object
 func BindQueryParams(c *Context, target any) error {
 	if err := bindData(target, c.QueryParams(), "query", nil); err != nil {
-		return NewHTTPError(http.StatusBadRequest, err.Error()).WithInternal(err)
+		return ErrBadRequest.Wrap(err)
 	}
 	return nil
 }
@@ -80,35 +79,30 @@ func BindBody(c *Context, target any) (err error) {
 			if errors.As(err, &hErr) {
 				return err
 			}
-			return NewHTTPError(http.StatusBadRequest, err.Error()).WithInternal(err)
+			return ErrBadRequest.Wrap(err)
 		}
 	case MIMEApplicationXML, MIMETextXML:
 		if err = xml.NewDecoder(req.Body).Decode(target); err != nil {
-			if ute, ok := err.(*xml.UnsupportedTypeError); ok {
-				return NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Unsupported type error: type=%v, error=%v", ute.Type, ute.Error())).WithInternal(err)
-			} else if se, ok := err.(*xml.SyntaxError); ok {
-				return NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Syntax error: line=%v, error=%v", se.Line, se.Error())).WithInternal(err)
-			}
-			return NewHTTPError(http.StatusBadRequest, err.Error()).WithInternal(err)
+			return ErrBadRequest.Wrap(err)
 		}
 	case MIMEApplicationForm:
 		params, err := c.FormValues()
 		if err != nil {
-			return NewHTTPError(http.StatusBadRequest, err.Error()).WithInternal(err)
+			return ErrBadRequest.Wrap(err)
 		}
 		if err = bindData(target, params, "form", nil); err != nil {
-			return NewHTTPError(http.StatusBadRequest, err.Error()).WithInternal(err)
+			return ErrBadRequest.Wrap(err)
 		}
 	case MIMEMultipartForm:
 		params, err := c.MultipartForm()
 		if err != nil {
-			return NewHTTPError(http.StatusBadRequest, err.Error()).WithInternal(err)
+			return ErrBadRequest.Wrap(err)
 		}
 		if err = bindData(target, params.Value, "form", params.File); err != nil {
-			return NewHTTPError(http.StatusBadRequest, err.Error()).WithInternal(err)
+			return ErrBadRequest.Wrap(err)
 		}
 	default:
-		return ErrUnsupportedMediaType
+		return &HTTPError{Code: http.StatusUnsupportedMediaType}
 	}
 	return nil
 }
@@ -116,7 +110,7 @@ func BindBody(c *Context, target any) (err error) {
 // BindHeaders binds HTTP headers to a bindable object
 func BindHeaders(c *Context, target any) error {
 	if err := bindData(target, c.Request().Header, "header", nil); err != nil {
-		return NewHTTPError(http.StatusBadRequest, err.Error()).WithInternal(err)
+		return ErrBadRequest.Wrap(err)
 	}
 	return nil
 }

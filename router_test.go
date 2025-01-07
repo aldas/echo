@@ -751,7 +751,7 @@ func TestRouter_addAndMatchAllSupportedMethods(t *testing.T) {
 			whenMethod:      "NOT_EXISTING_METHOD",
 			givenNoAddRoute: true,
 			expectPath:      "/*",
-			expectError:     "code=405, message=Method Not Allowed",
+			expectError:     "Method Not Allowed",
 		},
 	}
 
@@ -806,7 +806,7 @@ func TestRouterAllowHeaderForAnyOtherMethodType(t *testing.T) {
 	handler := e.router.Route(c)
 	err = handler(c)
 
-	assert.EqualError(t, err, "code=405, message=Method Not Allowed")
+	assert.EqualError(t, err, "Method Not Allowed")
 	assert.ElementsMatch(t, []string{"COPY", "GET", "LOCK", "OPTIONS"}, strings.Split(c.Response().Header().Get(HeaderAllow), ", "))
 }
 
@@ -963,8 +963,8 @@ func TestRouterHandleMethodOptions(t *testing.T) {
 
 			if tc.expectStatus >= 400 {
 				assert.Error(t, err)
-				he := err.(*HTTPError)
-				assert.Equal(t, tc.expectStatus, he.Code)
+				he := err.(HTTPStatusCoder)
+				assert.Equal(t, tc.expectStatus, he.StatusCode())
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tc.expectStatus, rec.Code)
@@ -1337,7 +1337,7 @@ func TestRouterParam_escapeColon(t *testing.T) {
 		{
 			whenURL:     "/files/a/long/file:notMatching",
 			expectRoute: "",
-			expectError: "code=404, message=Not Found",
+			expectError: "Not Found",
 			expectParam: nil,
 		},
 		{

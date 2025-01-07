@@ -636,9 +636,7 @@ func TestBindUnmarshalTypeError(t *testing.T) {
 
 	err := c.Bind(u)
 
-	he := &HTTPError{Code: http.StatusBadRequest, Message: "Unmarshal type error: expected=int, got=string, field=id, offset=14", Internal: err.(*HTTPError).Internal}
-
-	assert.Equal(t, he, err)
+	assert.EqualError(t, err, `code=400, message=Bad Request, err=json: cannot unmarshal string into Go struct field user.id of type int`)
 }
 
 func TestBindSetWithProperType(t *testing.T) {
@@ -750,12 +748,12 @@ func testBindError(t *testing.T, r io.Reader, ctype string, expectedInternal err
 		strings.HasPrefix(ctype, MIMEApplicationForm), strings.HasPrefix(ctype, MIMEMultipartForm):
 		if assert.IsType(t, new(HTTPError), err) {
 			assert.Equal(t, http.StatusBadRequest, err.(*HTTPError).Code)
-			assert.IsType(t, expectedInternal, err.(*HTTPError).Internal)
+			assert.IsType(t, expectedInternal, err.(*HTTPError).Unwrap())
 		}
 	default:
 		if assert.IsType(t, new(HTTPError), err) {
 			assert.Equal(t, ErrUnsupportedMediaType, err)
-			assert.IsType(t, expectedInternal, err.(*HTTPError).Internal)
+			assert.IsType(t, expectedInternal, err.(*HTTPError).Unwrap())
 		}
 	}
 }
@@ -836,7 +834,7 @@ func TestDefaultBinder_BindToStructFromMixedSources(t *testing.T) {
 			givenURL:     "/api/real_node/endpoint?node=xxx",
 			givenContent: strings.NewReader(`{`),
 			expect:       &Opts{ID: 0, Node: "node_from_path"}, // query binding has already modified bind target
-			expectError:  "code=400, message=unexpected EOF, internal=unexpected EOF",
+			expectError:  "code=400, message=Bad Request, err=unexpected EOF",
 		},
 		{
 			name:         "nok, GET with body bind failure when types are not convertible",
@@ -844,7 +842,7 @@ func TestDefaultBinder_BindToStructFromMixedSources(t *testing.T) {
 			givenURL:     "/api/real_node/endpoint?id=nope",
 			givenContent: strings.NewReader(`{"id": 1, "node": "zzz"}`),
 			expect:       &Opts{ID: 0, Node: "node_from_path"}, // path params binding has already modified bind target
-			expectError:  "code=400, message=strconv.ParseInt: parsing \"nope\": invalid syntax, internal=strconv.ParseInt: parsing \"nope\": invalid syntax",
+			expectError:  `code=400, message=Bad Request, err=strconv.ParseInt: parsing "nope": invalid syntax`,
 		},
 		{
 			name:         "nok, GET body bind failure - trying to bind json array to struct",
@@ -852,7 +850,7 @@ func TestDefaultBinder_BindToStructFromMixedSources(t *testing.T) {
 			givenURL:     "/api/real_node/endpoint?node=xxx",
 			givenContent: strings.NewReader(`[{"id": 1}]`),
 			expect:       &Opts{ID: 0, Node: "xxx"}, // query binding has already modified bind target
-			expectError:  "code=400, message=Unmarshal type error: expected=echo.Opts, got=array, field=, offset=1, internal=json: cannot unmarshal array into Go value of type echo.Opts",
+			expectError:  `code=400, message=Bad Request, err=json: cannot unmarshal array into Go value of type echo.Opts`,
 		},
 		{ // query param is ignored as we do not know where exactly to bind it in slice
 			name:             "ok, GET bind to struct slice, ignore query param",
@@ -1006,7 +1004,7 @@ func TestDefaultBinder_BindBody(t *testing.T) {
 			givenContentType: MIMEApplicationJSON,
 			givenContent:     strings.NewReader(`{`),
 			expect:           &Node{ID: 0, Node: ""},
-			expectError:      "code=400, message=unexpected EOF, internal=unexpected EOF",
+			expectError:      "code=400, message=Bad Request, err=unexpected EOF",
 		},
 		{
 			name:             "ok, XML POST bind to struct with: path + query + empty body",
@@ -1032,7 +1030,7 @@ func TestDefaultBinder_BindBody(t *testing.T) {
 			givenContentType: MIMEApplicationXML,
 			givenContent:     strings.NewReader(`<node><`),
 			expect:           &Node{ID: 0, Node: ""},
-			expectError:      "code=400, message=Syntax error: line=1, error=XML syntax error on line 1: unexpected EOF, internal=XML syntax error on line 1: unexpected EOF",
+			expectError:      "code=400, message=Bad Request, err=XML syntax error on line 1: unexpected EOF",
 		},
 		{
 			name:             "ok, FORM POST bind to struct with: path + query + body",
@@ -1078,7 +1076,7 @@ func TestDefaultBinder_BindBody(t *testing.T) {
 			givenContentType: MIMEApplicationJSON,
 			givenContent:     http.NoBody,
 			expect:           &Node{ID: 0, Node: ""},
-			expectError:      "code=400, message=EOF, internal=EOF",
+			expectError:      "code=400, message=Bad Request, err=EOF",
 		},
 		{
 			name:             "ok, JSON POST with empty body",
@@ -1195,7 +1193,7 @@ func TestBindUnmarshalParamExtras(t *testing.T) {
 		}{}
 		err := testBindURL("/?t=xxxx", &result)
 
-		assert.EqualError(t, err, "code=400, message='xxxx' is not an integer, internal='xxxx' is not an integer")
+		assert.EqualError(t, err, `code=400, message=Bad Request, err='xxxx' is not an integer`)
 	})
 
 	t.Run("ok, target is struct", func(t *testing.T) {
@@ -1300,7 +1298,7 @@ func TestBindUnmarshalParams(t *testing.T) {
 		}{}
 		err := testBindURL("/?t=xxxx", &result)
 
-		assert.EqualError(t, err, "code=400, message='xxxx' is not an integer, internal='xxxx' is not an integer")
+		assert.EqualError(t, err, "code=400, message=Bad Request, err='xxxx' is not an integer")
 	})
 
 	t.Run("ok, target is struct", func(t *testing.T) {
@@ -1367,7 +1365,7 @@ func TestBindInt8(t *testing.T) {
 		}
 		p := target{}
 		err := testBindURL("/?v=x&v=2", &p)
-		assert.EqualError(t, err, "code=400, message=strconv.ParseInt: parsing \"x\": invalid syntax, internal=strconv.ParseInt: parsing \"x\": invalid syntax")
+		assert.EqualError(t, err, `code=400, message=Bad Request, err=strconv.ParseInt: parsing "x": invalid syntax`)
 	})
 
 	t.Run("nok, int8 embedded in struct", func(t *testing.T) {
@@ -1475,7 +1473,7 @@ func TestBindMultipartFormFiles(t *testing.T) {
 		}
 		err := bindMultipartFiles(t, &target, file1, file2) // file2 should be ignored
 
-		assert.EqualError(t, err, "code=400, message=binding to multipart.FileHeader struct is not supported, use pointer to struct, internal=binding to multipart.FileHeader struct is not supported, use pointer to struct")
+		assert.EqualError(t, err, `code=400, message=Bad Request, err=binding to multipart.FileHeader struct is not supported, use pointer to struct`)
 	})
 
 	t.Run("ok, bind single multipart file to pointer to multipart file", func(t *testing.T) {

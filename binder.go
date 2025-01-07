@@ -75,15 +75,11 @@ type BindingError struct {
 }
 
 // NewBindingError creates new instance of binding error
-func NewBindingError(sourceParam string, values []string, message any, internalError error) error {
+func NewBindingError(sourceParam string, values []string, message string, err error) error {
 	return &BindingError{
-		Field:  sourceParam,
-		Values: values,
-		HTTPError: &HTTPError{
-			Code:     http.StatusBadRequest,
-			Message:  message,
-			Internal: internalError,
-		},
+		Field:     sourceParam,
+		Values:    values,
+		HTTPError: &HTTPError{Code: http.StatusBadRequest, Message: message, err: err},
 	}
 }
 
@@ -99,7 +95,7 @@ type ValueBinder struct {
 	// ValuesFunc is used to get all values for parameter from request. i.e. `/api/search?ids=1&ids=2`
 	ValuesFunc func(sourceParam string) []string
 	// ErrorFunc is used to create errors. Allows you to use your own error type, that for example marshals to your specific json response
-	ErrorFunc func(sourceParam string, values []string, message any, internalError error) error
+	ErrorFunc func(sourceParam string, values []string, message string, internalError error) error
 	errors    []error
 	// failFast is flag for binding methods to return without attempting to bind when previous binding already failed
 	failFast bool

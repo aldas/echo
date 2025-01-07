@@ -154,7 +154,7 @@ func TestRateLimiterWithConfig_defaultDenyHandler(t *testing.T) {
 		{id: "127.0.0.1"},
 		{id: "127.0.0.1"},
 		{id: "127.0.0.1", expectErr: "code=429, message=rate limit exceeded"},
-		{expectErr: "code=403, message=error while extracting identifier, internal=invalid identifier"},
+		{expectErr: "code=403, message=error while extracting identifier, err=invalid identifier"},
 		{id: "127.0.0.1", expectErr: "code=429, message=rate limit exceeded"},
 		{id: "127.0.0.1", expectErr: "code=429, message=rate limit exceeded"},
 	}
