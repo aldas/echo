@@ -131,10 +131,10 @@ func (config GzipConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 						if grw.wroteHeader {
 							grw.ResponseWriter.WriteHeader(grw.code)
 						}
-						grw.buffer.WriteTo(rw)
+						_, _ = grw.buffer.WriteTo(rw)
 						w.Reset(io.Discard)
 					}
-					w.Close()
+					_ = w.Close()
 					bpool.Put(buf)
 					pool.Put(w)
 				}()
@@ -189,10 +189,10 @@ func (w *gzipResponseWriter) Flush() {
 			w.ResponseWriter.WriteHeader(w.code)
 		}
 
-		w.Writer.Write(w.buffer.Bytes())
+		_, _ = w.Writer.Write(w.buffer.Bytes())
 	}
 
-	w.Writer.(*gzip.Writer).Flush()
+	_ = w.Writer.(*gzip.Writer).Flush()
 
 	_ = http.NewResponseController(w.ResponseWriter).Flush()
 }

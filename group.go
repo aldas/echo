@@ -13,7 +13,6 @@ import (
 // from the parent echo instance while still inheriting from it.
 type Group struct {
 	echo       *Echo
-	host       string
 	prefix     string
 	middleware []MiddlewareFunc
 }
@@ -124,7 +123,6 @@ func (g *Group) Group(prefix string, middleware ...MiddlewareFunc) (sg *Group) {
 	m = append(m, g.middleware...)
 	m = append(m, middleware...)
 	sg = g.echo.Group(g.prefix+prefix, m...)
-	sg.host = g.host
 	return
 }
 
@@ -187,5 +185,5 @@ func (g *Group) AddRoute(route Route) (RouteInfo, error) {
 	// multiple routes, which would lead to later add() calls overwriting the
 	// middleware from earlier calls.
 	groupRoute := route.ForGroup(g.prefix, append([]MiddlewareFunc{}, g.middleware...))
-	return g.echo.add(g.host, groupRoute)
+	return g.echo.add(groupRoute)
 }

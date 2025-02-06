@@ -524,10 +524,10 @@ func (e *Echo) File(path, file string, middleware ...MiddlewareFunc) RouteInfo {
 
 // AddRoute registers a new Route with default host Router
 func (e *Echo) AddRoute(route Route) (RouteInfo, error) {
-	return e.add("", route)
+	return e.add(route)
 }
 
-func (e *Echo) add(host string, route Route) (RouteInfo, error) {
+func (e *Echo) add(route Route) (RouteInfo, error) {
 	if e.OnAddRoute != nil {
 		if err := e.OnAddRoute(route); err != nil {
 			return RouteInfo{}, err
@@ -539,7 +539,7 @@ func (e *Echo) add(host string, route Route) (RouteInfo, error) {
 		return RouteInfo{}, err
 	}
 
-	paramsCount := int32(len(ri.Parameters))
+	paramsCount := int32(len(ri.Parameters)) // #nosec G115
 	if paramsCount > e.contextPathParamAllocSize.Load() {
 		e.contextPathParamAllocSize.Store(paramsCount)
 	}
@@ -550,7 +550,6 @@ func (e *Echo) add(host string, route Route) (RouteInfo, error) {
 // in the router with optional route-level middleware.
 func (e *Echo) Add(method, path string, handler HandlerFunc, middleware ...MiddlewareFunc) RouteInfo {
 	ri, err := e.add(
-		"",
 		Route{
 			Method:      method,
 			Path:        path,

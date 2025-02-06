@@ -21,33 +21,47 @@ const (
 
 // StartConfig is for creating configured http.Server instance to start serve http(s) requests with given Echo instance
 type StartConfig struct {
+	// Address specifies the address where listener will start listening on to serve HTTP(s) requests
 	Address string
 
+	// HideBanner instructs Start* method not to print banner when starting the Server.
 	HideBanner bool
-	HidePort   bool
+	// HidePort instructs Start* method not to print port when starting the Server.
+	HidePort bool
 
+	// CertFilesystem is filesystem is used to read `certFile` and `keyFile` when StartTLS method is called.
 	CertFilesystem fs.FS
 	TLSConfig      *tls.Config
 
-	ListenerNetwork  string
+	// ListenerNetwork is used configure on which Network listener will use.
+	ListenerNetwork string
+	// ListenerAddrFunc will be called after listener is created and started to listen for connections. This is useful in
+	// testing situations when server is started on random port `addres = ":0"` in that case you can get actual port where
+	// listener is listening on.
 	ListenerAddrFunc func(addr net.Addr)
 
+	// GracefulContext is context which is being waited on to end to start server graceful shutdown process.
 	GracefulContext stdContext.Context
+	// GracefulTimeout is timeout value (defaults to 10sec) graceful shutdown will wait for server to handle ongoing requests
+	// before shutting down the server.
 	GracefulTimeout time.Duration
-
-	BeforeServeFunc func(s *http.Server) error
+	// OnShutdownError is called when graceful shutdown results an error. for example when listeners are not shut down within
+	// given timeout
 	OnShutdownError func(err error)
+
+	// BeforeServeFunc is callback that is called just before server starts to serve HTTP request.
+	BeforeServeFunc func(s *http.Server) error
 }
 
-// Start starts a HTTP(s) server.
-func (sc StartConfig) Start(e *Echo) error {
-	return sc.start(e)
+// Start starts given Handler with HTTP(s) server.
+func (sc StartConfig) Start(h http.Handler) error {
+	return sc.start(h)
 }
 
-// StartTLS starts a HTTPS server.
+// StartTLS starts given Handler with HTTPS server.
 // If `certFile` or `keyFile` is `string` the values are treated as file paths.
 // If `certFile` or `keyFile` is `[]byte` the values are treated as the certificate or key as-is.
-func (sc StartConfig) StartTLS(e *Echo, certFile, keyFile any) error {
+func (sc StartConfig) StartTLS(h http.Handler, certFile, keyFile any) error {
 	certFs := sc.CertFilesystem
 	if certFs == nil {
 		certFs = os.DirFS(".")
@@ -72,14 +86,20 @@ func (sc StartConfig) StartTLS(e *Echo, certFile, keyFile any) error {
 		}
 	}
 	sc.TLSConfig.Certificates = []tls.Certificate{cer}
-	return sc.start(e)
+	return sc.start(h)
 }
 
-// start starts a HTTP(s) server.
-func (sc StartConfig) start(e *Echo) error {
-	logger := e.Logger
+// start starts handler with HTTP(s) server.
+func (sc StartConfig) start(h http.Handler) error {
+	var logger *slog.Logger
+	if e, ok := h.(*Echo); ok {
+		logger = e.Logger
+	} else {
+		logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
+	}
+
 	server := http.Server{
-		Handler:  e,
+		Handler:  h,
 		ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
 		// defaults for GoSec rule G112 // https://github.com/securego/gosec
 		// G112 (CWE-400): Potential Slowloris Attack because ReadHeaderTimeout is not configured in the http.Server

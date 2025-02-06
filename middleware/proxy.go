@@ -167,7 +167,9 @@ func proxyRaw(c *echo.Context, t *ProxyTarget) http.Handler {
 func NewRandomBalancer(targets []*ProxyTarget) ProxyBalancer {
 	b := randomBalancer{}
 	b.targets = targets
-	b.random = rand.New(rand.NewSource(int64(time.Now().Nanosecond())))
+	// G404 (CWE-338): Use of weak random number generator (math/rand or math/rand/v2 instead of crypto/rand)
+	// this random is used to select next target. I can not think of reason this must be cryptographically safe. If you can - please open PR.
+	b.random = rand.New(rand.NewSource(int64(time.Now().Nanosecond()))) // #nosec G404
 	return &b
 }
 
