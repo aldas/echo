@@ -64,7 +64,11 @@ func (config BodyDumpConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 			// Request
 			reqBody := []byte{}
 			if c.Request().Body != nil {
-				reqBody, _ = io.ReadAll(c.Request().Body)
+				var readErr error
+				reqBody, readErr = io.ReadAll(c.Request().Body)
+				if readErr != nil {
+					return readErr
+				}
 			}
 			c.Request().Body = io.NopCloser(bytes.NewBuffer(reqBody)) // Reset
 
