@@ -52,7 +52,7 @@ func TestBasicAuth(t *testing.T) {
 			name:         "nok, invalid Authorization header",
 			givenConfig:  defaultConfig,
 			whenAuth:     []string{strings.ToUpper(basic) + " " + base64.StdEncoding.EncodeToString([]byte("invalid"))},
-			expectHeader: basic + ` realm=Restricted`,
+			expectHeader: basic + ` realm="Restricted"`,
 			expectErr:    "Unauthorized",
 		},
 		{
@@ -64,7 +64,7 @@ func TestBasicAuth(t *testing.T) {
 		{
 			name:         "nok, missing Authorization header",
 			givenConfig:  defaultConfig,
-			expectHeader: basic + ` realm=Restricted`,
+			expectHeader: basic + ` realm="Restricted"`,
 			expectErr:    "Unauthorized",
 		},
 		{
@@ -158,4 +158,63 @@ func TestBasicAuthWithConfig_panic(t *testing.T) {
 		return true, nil
 	}})
 	assert.NotNil(t, mw)
+}
+
+func TestBasicAuthRealm(t *testing.T) {
+	e := echo.New()
+	mockValidator := func(c *echo.Context, u, p string) (bool, error) {
+		return false, nil // Always fail to trigger WWW-Authenticate header
+	}
+
+	tests := []struct {
+		name         string
+		realm        string
+		expectedAuth string
+	}{
+		{
+			name:         "Default realm",
+			realm:        "Restricted",
+			expectedAuth: `basic realm="Restricted"`,
+		},
+		{
+			name:         "Custom realm",
+			realm:        "My API",
+			expectedAuth: `basic realm="My API"`,
+		},
+		{
+			name:         "Realm with special characters",
+			realm:        `Realm with "quotes" and \backslashes`,
+			expectedAuth: `basic realm="Realm with \"quotes\" and \\backslashes"`,
+		},
+		{
+			name:         "Empty realm (falls back to default)",
+			realm:        "",
+			expectedAuth: `basic realm="Restricted"`,
+		},
+		{
+			name:         "Realm with unicode",
+			realm:        "测试领域",
+			expectedAuth: `basic realm="测试领域"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			res := httptest.NewRecorder()
+			c := e.NewContext(req, res)
+
+			h := BasicAuthWithConfig(BasicAuthConfig{
+				Validator: mockValidator,
+				Realm:     tt.realm,
+			})(func(c *echo.Context) error {
+				return c.String(http.StatusOK, "test")
+			})
+
+			err := h(c)
+
+			assert.Equal(t, echo.ErrUnauthorized, err)
+			assert.Equal(t, tt.expectedAuth, res.Header().Get(echo.HeaderWWWAuthenticate))
+		})
+	}
 }

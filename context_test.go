@@ -33,7 +33,7 @@ var testUser = user{ID: 1, Name: "Jon Snow"}
 
 func BenchmarkAllocJSONP(b *testing.B) {
 	e := New()
-	e.Logger = slog.New(&discardHandler{})
+	e.Logger = slog.New(slog.DiscardHandler)
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(userJSON))
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
@@ -48,7 +48,7 @@ func BenchmarkAllocJSONP(b *testing.B) {
 
 func BenchmarkAllocJSON(b *testing.B) {
 	e := New()
-	e.Logger = slog.New(&discardHandler{})
+	e.Logger = slog.New(slog.DiscardHandler)
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(userJSON))
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
@@ -63,7 +63,7 @@ func BenchmarkAllocJSON(b *testing.B) {
 
 func BenchmarkAllocXML(b *testing.B) {
 	e := New()
-	e.Logger = slog.New(&discardHandler{})
+	e.Logger = slog.New(slog.DiscardHandler)
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(userJSON))
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)

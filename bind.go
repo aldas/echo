@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Binder is the interface that wraps the Bind method.
@@ -253,7 +254,8 @@ func bindData(destination any, data map[string][]string, tag string, dataFiles m
 			continue
 		}
 
-		if ok, err := unmarshalInputToField(typeField.Type.Kind(), inputValue[0], structField); ok {
+		formatTag := typeField.Tag.Get("format")
+		if ok, err := unmarshalInputToField(typeField.Type.Kind(), inputValue[0], structField, formatTag); ok {
 			if err != nil {
 				return err
 			}
@@ -289,7 +291,8 @@ func bindData(destination any, data map[string][]string, tag string, dataFiles m
 
 func setWithProperType(valueKind reflect.Kind, val string, structField reflect.Value) error {
 	// But also call it here, in case we're dealing with an array of BindUnmarshalers
-	if ok, err := unmarshalInputToField(valueKind, val, structField); ok {
+	// Note: format tag not available in this context, so empty string is passed
+	if ok, err := unmarshalInputToField(valueKind, val, structField, ""); ok {
 		return err
 	}
 
@@ -346,7 +349,7 @@ func unmarshalInputsToField(valueKind reflect.Kind, values []string, field refle
 	return true, unmarshaler.UnmarshalParams(values)
 }
 
-func unmarshalInputToField(valueKind reflect.Kind, val string, field reflect.Value) (bool, error) {
+func unmarshalInputToField(valueKind reflect.Kind, val string, field reflect.Value, formatTag string) (bool, error) {
 	if valueKind == reflect.Ptr {
 		if field.IsNil() {
 			field.Set(reflect.New(field.Type().Elem()))
@@ -355,6 +358,18 @@ func unmarshalInputToField(valueKind reflect.Kind, val string, field reflect.Val
 	}
 
 	fieldIValue := field.Addr().Interface()
+	// Handle time.Time with custom format tag
+	if formatTag != "" {
+		if _, isTime := fieldIValue.(*time.Time); isTime {
+			t, err := time.Parse(formatTag, val)
+			if err != nil {
+				return true, err
+			}
+			field.Set(reflect.ValueOf(t))
+			return true, nil
+		}
+	}
+
 	switch unmarshaler := fieldIValue.(type) {
 	case BindUnmarshaler:
 		return true, unmarshaler.UnmarshalParam(val)
@@ -411,11 +426,11 @@ func setFloatField(value string, bitSize int, field reflect.Value) error {
 
 var (
 	// NOT supported by bind as you can NOT check easily empty struct being actual file or not
-	multipartFileHeaderType = reflect.TypeOf(multipart.FileHeader{})
+	multipartFileHeaderType = reflect.TypeFor[multipart.FileHeader]()
 	// supported by bind as you can check by nil value if file existed or not
-	multipartFileHeaderPointerType      = reflect.TypeOf(&multipart.FileHeader{})
-	multipartFileHeaderSliceType        = reflect.TypeOf([]multipart.FileHeader(nil))
-	multipartFileHeaderPointerSliceType = reflect.TypeOf([]*multipart.FileHeader(nil))
+	multipartFileHeaderPointerType      = reflect.TypeFor[*multipart.FileHeader]()
+	multipartFileHeaderSliceType        = reflect.TypeFor[[]multipart.FileHeader]()
+	multipartFileHeaderPointerSliceType = reflect.TypeFor[[]*multipart.FileHeader]()
 )
 
 func isFieldMultipartFile(field reflect.Type) (bool, error) {

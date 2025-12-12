@@ -57,9 +57,11 @@ func (config BasicAuthConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 	if config.Skipper == nil {
 		config.Skipper = DefaultSkipper
 	}
-	if config.Realm == "" {
-		config.Realm = defaultRealm
+	realm := defaultRealm
+	if config.Realm != "" {
+		realm = config.Realm
 	}
+	realm = strconv.Quote(realm)
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
@@ -94,11 +96,6 @@ func (config BasicAuthConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 
 			if lastError != nil {
 				return lastError
-			}
-
-			realm := defaultRealm
-			if config.Realm != defaultRealm {
-				realm = strconv.Quote(config.Realm)
 			}
 
 			// Need to return `401` for browsers to pop-up login box.

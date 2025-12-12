@@ -5,6 +5,7 @@ package middleware
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -125,7 +126,21 @@ var DefaultProxyConfig = ProxyConfig{
 	ContextKey: "target",
 }
 
-func proxyRaw(c *echo.Context, t *ProxyTarget) http.Handler {
+func proxyRaw(c *echo.Context, t *ProxyTarget, config ProxyConfig) http.Handler {
+	var dialFunc func(ctx context.Context, network, addr string) (net.Conn, error)
+	if transport, ok := config.Transport.(*http.Transport); ok {
+		if transport.TLSClientConfig != nil {
+			d := tls.Dialer{
+				Config: transport.TLSClientConfig,
+			}
+			dialFunc = d.DialContext
+		}
+	}
+	if dialFunc == nil {
+		var d net.Dialer
+		dialFunc = d.DialContext
+	}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		in, _, err := http.NewResponseController(w).Hijack()
 		if err != nil {
@@ -134,7 +149,7 @@ func proxyRaw(c *echo.Context, t *ProxyTarget) http.Handler {
 		}
 		defer in.Close()
 
-		out, err := net.Dial("tcp", t.URL.Host)
+		out, err := dialFunc(c.Request().Context(), "tcp", t.URL.Host)
 		if err != nil {
 			c.Set("_error", echo.NewHTTPError(http.StatusBadGateway, fmt.Sprintf("proxy raw, dial error=%v, url=%s", err, t.URL)))
 			return
@@ -362,7 +377,7 @@ func (config ProxyConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 				// Proxy
 				switch {
 				case c.IsWebSocket():
-					proxyRaw(c, tgt).ServeHTTP(res, req)
+					proxyRaw(c, tgt, config).ServeHTTP(res, req)
 				default: // even SSE requests
 					proxyHTTP(c, tgt, config).ServeHTTP(res, req)
 				}

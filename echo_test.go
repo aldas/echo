@@ -8,7 +8,6 @@ import (
 	stdContext "context"
 	"errors"
 	"fmt"
-	"golang.org/x/net/context"
 	"io/fs"
 	"log/slog"
 	"net"
@@ -23,12 +22,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 )
-
-type discardHandler struct { // TODO: can be removed when GO 1.24 is release. Replace with `slog.DiscardHandler`
-	slog.JSONHandler
-}
-
-func (d *discardHandler) Enabled(context.Context, slog.Level) bool { return false }
 
 type user struct {
 	ID   int    `json:"id" xml:"id" form:"id" query:"id" param:"id" header:"id"`
@@ -1086,7 +1079,7 @@ func TestDefaultHTTPErrorHandler(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			buf := new(bytes.Buffer)
 			e := New()
-			e.Logger = slog.New(&discardHandler{})
+			e.Logger = slog.New(slog.DiscardHandler)
 			e.Any("/path", func(c *Context) error {
 				return tc.whenError
 			})

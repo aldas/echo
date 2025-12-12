@@ -925,7 +925,7 @@ func (r *DefaultRouter) Route(c *Context) HandlerFunc {
 			pathValues[currentNode.paramsCount-1].Value = search
 			// update indexes/search in case we need to backtrack when no handler match is found
 			paramIndex++
-			searchIndex += +len(search)
+			searchIndex += len(search)
 			search = ""
 
 			if rMethod := currentNode.methods.find(req.Method); rMethod != nil {

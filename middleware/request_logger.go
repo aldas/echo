@@ -6,10 +6,11 @@ package middleware
 import (
 	"context"
 	"errors"
-	"github.com/labstack/echo/v5"
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/labstack/echo/v5"
 )
 
 // Example for `slog` https://pkg.go.dev/log/slog
@@ -409,14 +410,14 @@ func (config RequestLoggerConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 // RequestLogger creates Request Logger middleware with Echo default settings that uses Context.Logger() as logger.
 func RequestLogger() echo.MiddlewareFunc {
 	return RequestLoggerWithConfig(RequestLoggerConfig{
-		LogRequestID:     true, // FIXME: RequestID middleware probably should c.SetLogger() logger with that field as attr
+		LogLatency:       true,
 		LogRemoteIP:      true,
 		LogHost:          true,
 		LogMethod:        true,
 		LogURI:           true,
+		LogRequestID:     true,
 		LogUserAgent:     true,
 		LogStatus:        true,
-		LogLatency:       true,
 		LogContentLength: true,
 		LogResponseSize:  true,
 		// forwards error to the global error handler, so it can decide appropriate status code.
@@ -431,12 +432,12 @@ func RequestLogger() echo.MiddlewareFunc {
 					slog.String("uri", v.URI),
 					slog.Int("status", v.Status),
 					slog.Duration("latency", v.Latency),
-					slog.String("request_id", v.RequestID),
-					slog.String("request_ip", v.RemoteIP),
 					slog.String("host", v.Host),
+					slog.String("bytes_in", v.ContentLength),
+					slog.Int64("bytes_out", v.ResponseSize),
 					slog.String("user_agent", v.UserAgent),
-					slog.String("req_size", v.ContentLength),
-					slog.Int64("req_size", v.ResponseSize),
+					slog.String("remote_ip", v.RemoteIP),
+					slog.String("request_id", v.RequestID),
 				)
 				return nil
 			}
@@ -445,14 +446,15 @@ func RequestLogger() echo.MiddlewareFunc {
 				slog.String("method", v.Method),
 				slog.String("uri", v.URI),
 				slog.Int("status", v.Status),
-				slog.String("err", v.Error.Error()),
 				slog.Duration("latency", v.Latency),
-				slog.String("request_id", v.RequestID),
-				slog.String("request_ip", v.RemoteIP),
 				slog.String("host", v.Host),
+				slog.String("bytes_in", v.ContentLength),
+				slog.Int64("bytes_out", v.ResponseSize),
 				slog.String("user_agent", v.UserAgent),
-				slog.String("req_size", v.ContentLength),
-				slog.Int64("req_size", v.ResponseSize),
+				slog.String("remote_ip", v.RemoteIP),
+				slog.String("request_id", v.RequestID),
+
+				slog.String("error", v.Error.Error()),
 			)
 			return nil
 		},

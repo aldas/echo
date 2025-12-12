@@ -6,8 +6,9 @@ package middleware
 import (
 	"context"
 	"errors"
-	"github.com/labstack/echo/v5"
 	"time"
+
+	"github.com/labstack/echo/v5"
 )
 
 // ContextTimeoutConfig defines the config for ContextTimeout middleware.
@@ -15,7 +16,7 @@ type ContextTimeoutConfig struct {
 	// Skipper defines a function to skip middleware.
 	Skipper Skipper
 
-	// ErrorHandler is a function when error aries in middeware execution.
+	// ErrorHandler is a function when error arises in middeware execution.
 	ErrorHandler func(c *echo.Context, err error) error
 
 	// Timeout configures a timeout for the middleware

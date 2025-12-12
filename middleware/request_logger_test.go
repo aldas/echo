@@ -5,8 +5,8 @@ package middleware
 
 import (
 	"bytes"
-	"github.com/labstack/echo/v5"
-	"github.com/stretchr/testify/assert"
+	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -15,7 +15,102 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/labstack/echo/v5"
+	"github.com/stretchr/testify/assert"
 )
+
+func TestRequestLoggerOK(t *testing.T) {
+	old := slog.Default()
+	t.Cleanup(func() {
+		slog.SetDefault(old)
+	})
+
+	e := echo.New()
+	buf := new(bytes.Buffer)
+	e.Logger = slog.New(slog.NewJSONHandler(buf, nil))
+	e.Use(RequestLogger())
+
+	e.POST("/test", func(c *echo.Context) error {
+		return c.String(http.StatusTeapot, "OK")
+	})
+
+	reader := strings.NewReader(`{"foo":"bar"}`)
+	req := httptest.NewRequest(http.MethodPost, "/test", reader)
+	req.Header.Set(echo.HeaderContentLength, strconv.Itoa(int(reader.Size())))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderXRealIP, "8.8.8.8")
+	req.Header.Set("User-Agent", "curl/7.68.0")
+
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	logAttrs := map[string]interface{}{}
+	assert.NoError(t, json.Unmarshal(buf.Bytes(), &logAttrs))
+	logAttrs["latency"] = 123
+	logAttrs["time"] = "x"
+
+	expect := map[string]interface{}{
+		"level":      "INFO",
+		"msg":        "REQUEST",
+		"method":     "POST",
+		"uri":        "/test",
+		"status":     float64(418),
+		"bytes_in":   "13",
+		"host":       "example.com",
+		"bytes_out":  float64(2),
+		"user_agent": "curl/7.68.0",
+		"remote_ip":  "8.8.8.8",
+		"request_id": "",
+
+		"time":    "x",
+		"latency": 123,
+	}
+	assert.Equal(t, expect, logAttrs)
+}
+
+func TestRequestLoggerError(t *testing.T) {
+	old := slog.Default()
+	t.Cleanup(func() {
+		slog.SetDefault(old)
+	})
+
+	e := echo.New()
+	buf := new(bytes.Buffer)
+	e.Logger = slog.New(slog.NewJSONHandler(buf, nil))
+	e.Use(RequestLogger())
+
+	e.GET("/test", func(c *echo.Context) error {
+		return errors.New("nope")
+	})
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	logAttrs := map[string]interface{}{}
+	assert.NoError(t, json.Unmarshal(buf.Bytes(), &logAttrs))
+	logAttrs["latency"] = 123
+	logAttrs["time"] = "x"
+
+	expect := map[string]interface{}{
+		"level":      "ERROR",
+		"msg":        "REQUEST_ERROR",
+		"method":     "GET",
+		"uri":        "/test",
+		"status":     float64(500),
+		"bytes_in":   "",
+		"host":       "example.com",
+		"bytes_out":  float64(36.0),
+		"user_agent": "",
+		"remote_ip":  "192.0.2.1",
+		"request_id": "",
+		"error":      "nope",
+
+		"latency": 123,
+		"time":    "x",
+	}
+	assert.Equal(t, expect, logAttrs)
+}
 
 func TestRequestLoggerWithConfig(t *testing.T) {
 	e := echo.New()
@@ -387,7 +482,7 @@ func TestTestRequestLogger(t *testing.T) {
 			name:         "error",
 			whenError:    echo.NewHTTPError(http.StatusBadGateway, "bad gw"),
 			expectStatus: "502",
-			expectError:  `"err":"code=502, message=bad gw"`,
+			expectError:  `"error":"code=502, message=bad gw"`,
 		},
 	}
 	for _, tc := range testCases {
@@ -435,11 +530,11 @@ func TestTestRequestLogger(t *testing.T) {
 			assert.Contains(t, string(rawlog), `"uri":"/test?lang=en&checked=1&checked=2"`)
 			assert.Contains(t, string(rawlog), `"latency":`) // this value varies
 			assert.Contains(t, string(rawlog), `"request_id":"MY_ID"`)
-			assert.Contains(t, string(rawlog), `"request_ip":"8.8.8.8"`)
+			assert.Contains(t, string(rawlog), `"remote_ip":"8.8.8.8"`)
 			assert.Contains(t, string(rawlog), `"host":"example.com"`)
 			assert.Contains(t, string(rawlog), `"user_agent":"curl/7.68.0"`)
-			assert.Contains(t, string(rawlog), `"req_size":"32"`)
-			assert.Contains(t, string(rawlog), `"req_size":2`)
+			assert.Contains(t, string(rawlog), `"bytes_in":"32"`)
+			assert.Contains(t, string(rawlog), `"bytes_out":2`)
 		})
 	}
 }
