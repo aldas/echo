@@ -264,7 +264,7 @@ func (config CORSConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 			// Origin not allowed
 			if allowOrigin == "" {
 				if !preflight {
-					return next(c)
+					return echo.ErrUnauthorized
 				}
 				return c.NoContent(http.StatusNoContent)
 			}
