@@ -348,6 +348,22 @@ func TestGzipWithMinLengthNoContent(t *testing.T) {
 	}
 }
 
+func TestGzipErrorReturnedInvalidConfig(t *testing.T) {
+	e := echo.New()
+	// Invalid level
+	e.Use(GzipWithConfig(GzipConfig{Level: 12}))
+	e.GET("/", func(c *echo.Context) error {
+		c.Response().Write([]byte("test"))
+		return nil
+	})
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set(echo.HeaderAcceptEncoding, gzipScheme)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Contains(t, rec.Body.String(), `{"message":"invalid pool object"}`)
+}
+
 func TestGzipResponseWriter_CanUnwrap(t *testing.T) {
 	trwu := &testResponseWriterUnwrapper{rw: httptest.NewRecorder()}
 	bdrw := gzipResponseWriter{

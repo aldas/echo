@@ -5,6 +5,7 @@ package middleware
 
 import (
 	"io"
+	"net/http"
 	"sync"
 
 	"github.com/labstack/echo/v5"
@@ -66,7 +67,10 @@ func (config BodyLimitConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 			}
 
 			// Based on content read
-			r := pool.Get().(*limitedReader)
+			r, ok := pool.Get().(*limitedReader)
+			if !ok {
+				return echo.NewHTTPError(http.StatusInternalServerError, "invalid pool object")
+			}
 			r.Reset(req.Body)
 			defer pool.Put(r)
 			req.Body = r

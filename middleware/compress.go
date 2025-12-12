@@ -95,7 +95,7 @@ func (config GzipConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 				i := pool.Get()
 				w, ok := i.(*gzip.Writer)
 				if !ok {
-					return echo.NewHTTPError(http.StatusInternalServerError, "could not create gzip writer")
+					return echo.NewHTTPError(http.StatusInternalServerError, "invalid pool object")
 				}
 				rw := res
 				w.Reset(rw)
@@ -192,8 +192,9 @@ func (w *gzipResponseWriter) Flush() {
 		_, _ = w.Writer.Write(w.buffer.Bytes())
 	}
 
-	_ = w.Writer.(*gzip.Writer).Flush()
-
+	if gw, ok := w.Writer.(*gzip.Writer); ok {
+		gw.Flush()
+	}
 	_ = http.NewResponseController(w.ResponseWriter).Flush()
 }
 
