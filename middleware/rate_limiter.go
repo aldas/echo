@@ -5,6 +5,7 @@ package middleware
 
 import (
 	"errors"
+	"math"
 	"net/http"
 	"sync"
 	"time"
@@ -209,7 +210,7 @@ func NewRateLimiterMemoryStoreWithConfig(config RateLimiterMemoryStoreConfig) (s
 		store.expiresIn = DefaultRateLimiterMemoryStoreConfig.ExpiresIn
 	}
 	if config.Burst == 0 {
-		store.burst = int(config.Rate)
+		store.burst = int(math.Max(1, math.Ceil(float64(config.Rate))))
 	}
 	store.visitors = make(map[string]*Visitor)
 	store.timeNow = time.Now
