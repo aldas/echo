@@ -2635,7 +2635,7 @@ func TestRouter_addEmptyPathToSlashReverse(t *testing.T) {
 	_, err := r.Add(Route{Method: http.MethodGet, Path: "", Handler: handlerFunc, Name: "empty"})
 	assert.NoError(t, err)
 
-	reversed, err := r.Routes().Reverse("empty") // emtpy path is normalized to `/` internally but stays "" in route
+	reversed, err := r.Routes().Reverse("empty") // empty path is normalized to `/` internally but stays "" in route
 
 	assert.NoError(t, err)
 	assert.Equal(t, "", reversed)
