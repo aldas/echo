@@ -243,8 +243,9 @@ func (store *RateLimiterMemoryStore) Allow(identifier string) (bool, error) {
 	if now.Sub(store.lastCleanup) > store.expiresIn {
 		store.cleanupStaleVisitors()
 	}
+	allowed := limiter.AllowN(now, 1)
 	store.mutex.Unlock()
-	return limiter.AllowN(store.timeNow(), 1), nil
+	return allowed, nil
 }
 
 /*
