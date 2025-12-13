@@ -168,6 +168,8 @@ type routeMethods struct {
 	// notFoundHandler is handler registered with RouteNotFound method and is executed for 404 cases
 	notFoundHandler *routeMethod
 
+	// allowHeader contains comma-separated list of Methods registered to this node path.
+	// it is optimization for http.StatusMethodNotAllowed (405) handling.
 	allowHeader string
 }
 
@@ -662,7 +664,17 @@ func (r *DefaultRouter) insert(t kind, path string, method string, ri routeMetho
 	}
 }
 
-func newNode(t kind, pre string, p *node, sc children, mh *routeMethods, paramsCount int, ppath string, paramChildren, anyChildren *node) *node {
+func newNode(
+	t kind,
+	pre string,
+	p *node,
+	sc children,
+	mh *routeMethods,
+	paramsCount int,
+	ppath string,
+	paramChildren,
+	anyChildren *node,
+) *node {
 	return &node{
 		kind:           t,
 		label:          pre[0],

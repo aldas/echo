@@ -184,6 +184,6 @@ func (g *Group) AddRoute(route Route) (RouteInfo, error) {
 	// Combine middleware into a new slice to avoid accidentally passing the same slice for
 	// multiple routes, which would lead to later add() calls overwriting the
 	// middleware from earlier calls.
-	groupRoute := route.ForGroup(g.prefix, append([]MiddlewareFunc{}, g.middleware...))
+	groupRoute := route.WithPrefix(g.prefix, append([]MiddlewareFunc{}, g.middleware...))
 	return g.echo.add(groupRoute)
 }

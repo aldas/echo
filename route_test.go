@@ -5,9 +5,10 @@ package echo
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 var myNamedHandler = func(c *Context) error {
@@ -148,7 +149,7 @@ func TestRoute_ForGroup(t *testing.T) {
 			return next(c)
 		}
 	}
-	r := route.ForGroup("/users", []MiddlewareFunc{mw})
+	r := route.WithPrefix("/users", []MiddlewareFunc{mw})
 
 	assert.Equal(t, r.Method, http.MethodGet)
 	assert.Equal(t, r.Path, "/users/test")

@@ -36,8 +36,8 @@ func (r Route) ToRouteInfo(params []string) RouteInfo {
 	}
 }
 
-// ForGroup recreates Route with added group prefix and group middlewares it is grouped to.
-func (r Route) ForGroup(pathPrefix string, middlewares []MiddlewareFunc) Route {
+// WithPrefix recreates Route with added group prefix and group middlewares it is grouped to.
+func (r Route) WithPrefix(pathPrefix string, middlewares []MiddlewareFunc) Route {
 	r.Path = pathPrefix + r.Path
 
 	if len(middlewares) > 0 {
