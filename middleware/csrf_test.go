@@ -56,6 +56,7 @@ func TestCSRF_tokenExtractors(t *testing.T) {
 			givenFormTokens: map[string][]string{
 				"csrf": {"invalid", "token"},
 			},
+			expectError: "code=403, message=invalid csrf token",
 		},
 		{
 			name:            "nok, invalid token from POST form",
@@ -85,13 +86,14 @@ func TestCSRF_tokenExtractors(t *testing.T) {
 			},
 		},
 		{
-			name:            "ok, token from POST header, second token passes",
+			name:            "nok, token from POST header, tokens limited to 1, second token would pass",
 			whenTokenLookup: "header:" + echo.HeaderXCSRFToken,
 			givenCSRFCookie: "token",
 			givenMethod:     http.MethodPost,
 			givenHeaderTokens: map[string][]string{
 				echo.HeaderXCSRFToken: {"invalid", "token"},
 			},
+			expectError: "code=403, message=invalid csrf token",
 		},
 		{
 			name:            "nok, invalid token from POST header",
@@ -121,13 +123,14 @@ func TestCSRF_tokenExtractors(t *testing.T) {
 			},
 		},
 		{
-			name:            "ok, token from PUT query form, second token passes",
+			name:            "nok, token from PUT query form, second token would pass",
 			whenTokenLookup: "query:csrf",
 			givenCSRFCookie: "token",
 			givenMethod:     http.MethodPut,
 			givenQueryTokens: map[string][]string{
 				"csrf": {"invalid", "token"},
 			},
+			expectError: "code=403, message=invalid csrf token",
 		},
 		{
 			name:            "nok, invalid token from PUT query form",

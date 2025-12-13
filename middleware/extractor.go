@@ -5,9 +5,10 @@ package middleware
 
 import (
 	"fmt"
-	"github.com/labstack/echo/v5"
 	"net/textproto"
 	"strings"
+
+	"github.com/labstack/echo/v5"
 )
 
 const (
@@ -53,7 +54,7 @@ var errFormExtractorValueMissing = &ValueExtractorError{message: "missing value 
 type ValuesExtractor func(c *echo.Context) ([]string, ExtractorSource, error)
 
 // CreateExtractors creates ValuesExtractors from given lookups.
-// Lookups is a string in the form of "<source>:<name>" or "<source>:<name>,<source>:<name>" that is used
+// lookups is a string in the form of "<source>:<name>" or "<source>:<name>,<source>:<name>" that is used
 // to extract key from the request.
 // Possible values:
 //   - "header:<name>" or "header:<name>:<cut-prefix>"
@@ -68,14 +69,22 @@ type ValuesExtractor func(c *echo.Context) ([]string, ExtractorSource, error)
 //
 // Multiple sources example:
 // - "header:Authorization,header:X-Api-Key"
-func CreateExtractors(lookups string) ([]ValuesExtractor, error) {
-	return createExtractors(lookups)
+//
+// limit sets the maximum amount how many lookups can be returned.
+func CreateExtractors(lookups string, limit uint) ([]ValuesExtractor, error) {
+	return createExtractors(lookups, limit)
 }
 
-func createExtractors(lookups string) ([]ValuesExtractor, error) {
+func createExtractors(lookups string, limit uint) ([]ValuesExtractor, error) {
 	if lookups == "" {
 		return nil, nil
 	}
+	if limit == 0 {
+		limit = 1
+	} else if limit > extractorLimit {
+		limit = extractorLimit
+	}
+
 	sources := strings.Split(lookups, ",")
 	var extractors = make([]ValuesExtractor, 0)
 	for _, source := range sources {
@@ -86,19 +95,19 @@ func createExtractors(lookups string) ([]ValuesExtractor, error) {
 
 		switch parts[0] {
 		case "query":
-			extractors = append(extractors, valuesFromQuery(parts[1]))
+			extractors = append(extractors, valuesFromQuery(parts[1], limit))
 		case "param":
-			extractors = append(extractors, valuesFromParam(parts[1]))
+			extractors = append(extractors, valuesFromParam(parts[1], limit))
 		case "cookie":
-			extractors = append(extractors, valuesFromCookie(parts[1]))
+			extractors = append(extractors, valuesFromCookie(parts[1], limit))
 		case "form":
-			extractors = append(extractors, valuesFromForm(parts[1]))
+			extractors = append(extractors, valuesFromForm(parts[1], limit))
 		case "header":
 			prefix := ""
 			if len(parts) > 2 {
 				prefix = parts[2]
 			}
-			extractors = append(extractors, valuesFromHeader(parts[1], prefix))
+			extractors = append(extractors, valuesFromHeader(parts[1], prefix, limit))
 		}
 	}
 	return extractors, nil
@@ -110,31 +119,34 @@ func createExtractors(lookups string) ([]ValuesExtractor, error) {
 // note the space at the end. In case of basic authentication `Authorization: Basic <credentials>` prefix we want to remove
 // is `Basic `. In case of JWT tokens `Authorization: Bearer <token>` prefix is `Bearer `.
 // If prefix is left empty the whole value is returned.
-func valuesFromHeader(header string, valuePrefix string) ValuesExtractor {
+func valuesFromHeader(header string, valuePrefix string, limit uint) ValuesExtractor {
 	prefixLen := len(valuePrefix)
 	// standard library parses http.Request header keys in canonical form but we may provide something else so fix this
 	header = textproto.CanonicalMIMEHeaderKey(header)
+	if limit == 0 {
+		limit = 1
+	}
 	return func(c *echo.Context) ([]string, ExtractorSource, error) {
 		values := c.Request().Header.Values(header)
 		if len(values) == 0 {
 			return nil, ExtractorSourceHeader, errHeaderExtractorValueMissing
 		}
 
+		i := uint(0)
 		result := make([]string, 0)
-		for i, value := range values {
+		for _, value := range values {
 			if prefixLen == 0 {
 				result = append(result, value)
-				if i >= extractorLimit-1 {
+				if i >= limit-1 {
 					break
 				}
-				continue
-			}
-			if len(value) > prefixLen && strings.EqualFold(value[:prefixLen], valuePrefix) {
+			} else if len(value) > prefixLen && strings.EqualFold(value[:prefixLen], valuePrefix) {
 				result = append(result, value[prefixLen:])
-				if i >= extractorLimit-1 {
+				if i >= limit-1 {
 					break
 				}
 			}
+			i++
 		}
 
 		if len(result) == 0 {
@@ -148,29 +160,38 @@ func valuesFromHeader(header string, valuePrefix string) ValuesExtractor {
 }
 
 // valuesFromQuery returns a function that extracts values from the query string.
-func valuesFromQuery(param string) ValuesExtractor {
+func valuesFromQuery(param string, limit uint) ValuesExtractor {
+	if limit == 0 {
+		limit = 1
+	}
 	return func(c *echo.Context) ([]string, ExtractorSource, error) {
 		result := c.QueryParams()[param]
 		if len(result) == 0 {
 			return nil, ExtractorSourceQuery, errQueryExtractorValueMissing
-		} else if len(result) > extractorLimit-1 {
-			result = result[:extractorLimit]
+		} else if len(result) > int(limit)-1 {
+			result = result[:limit]
 		}
 		return result, ExtractorSourceQuery, nil
 	}
 }
 
 // valuesFromParam returns a function that extracts values from the url param string.
-func valuesFromParam(param string) ValuesExtractor {
+func valuesFromParam(param string, limit uint) ValuesExtractor {
+	if limit == 0 {
+		limit = 1
+	}
 	return func(c *echo.Context) ([]string, ExtractorSource, error) {
 		result := make([]string, 0)
-		for i, p := range c.PathValues() {
-			if param == p.Name {
-				result = append(result, p.Value)
-				if i >= extractorLimit-1 {
-					break
-				}
+		i := uint(0)
+		for _, p := range c.PathValues() {
+			if param != p.Name {
+				continue
 			}
+			result = append(result, p.Value)
+			if i >= limit-1 {
+				break
+			}
+			i++
 		}
 		if len(result) == 0 {
 			return nil, ExtractorSourcePathParam, errParamExtractorValueMissing
@@ -180,21 +201,27 @@ func valuesFromParam(param string) ValuesExtractor {
 }
 
 // valuesFromCookie returns a function that extracts values from the named cookie.
-func valuesFromCookie(name string) ValuesExtractor {
+func valuesFromCookie(name string, limit uint) ValuesExtractor {
+	if limit == 0 {
+		limit = 1
+	}
 	return func(c *echo.Context) ([]string, ExtractorSource, error) {
 		cookies := c.Cookies()
 		if len(cookies) == 0 {
 			return nil, ExtractorSourceCookie, errCookieExtractorValueMissing
 		}
 
+		i := uint(0)
 		result := make([]string, 0)
-		for i, cookie := range cookies {
-			if name == cookie.Name {
-				result = append(result, cookie.Value)
-				if i >= extractorLimit-1 {
-					break
-				}
+		for _, cookie := range cookies {
+			if name != cookie.Name {
+				continue
 			}
+			result = append(result, cookie.Value)
+			if i >= limit-1 {
+				break
+			}
+			i++
 		}
 		if len(result) == 0 {
 			return nil, ExtractorSourceCookie, errCookieExtractorValueMissing
@@ -204,7 +231,10 @@ func valuesFromCookie(name string) ValuesExtractor {
 }
 
 // valuesFromForm returns a function that extracts values from the form field.
-func valuesFromForm(name string) ValuesExtractor {
+func valuesFromForm(name string, limit uint) ValuesExtractor {
+	if limit == 0 {
+		limit = 1
+	}
 	return func(c *echo.Context) ([]string, ExtractorSource, error) {
 		if c.Request().Form == nil {
 			_ = c.Request().ParseMultipartForm(32 << 20) // same what `c.Request().FormValue(name)` does
@@ -213,8 +243,8 @@ func valuesFromForm(name string) ValuesExtractor {
 		if len(values) == 0 {
 			return nil, ExtractorSourceForm, errFormExtractorValueMissing
 		}
-		if len(values) > extractorLimit-1 {
-			values = values[:extractorLimit]
+		if len(values) > int(limit)-1 {
+			values = values[:limit]
 		}
 		result := append([]string{}, values...)
 		return result, ExtractorSourceForm, nil

@@ -41,12 +41,24 @@ func TestBasicAuth(t *testing.T) {
 		},
 		{
 			name:        "ok, multiple",
-			givenConfig: defaultConfig,
+			givenConfig: BasicAuthConfig{Validator: validatorFunc, AllowedCheckLimit: 2},
 			whenAuth: []string{
 				"Bearer " + base64.StdEncoding.EncodeToString([]byte("token")),
 				basic + " NOT_BASE64",
 				basic + " " + base64.StdEncoding.EncodeToString([]byte("joe:secret")),
 			},
+		},
+		{
+			name:        "nok, multiple, valid out of limit",
+			givenConfig: BasicAuthConfig{Validator: validatorFunc, AllowedCheckLimit: 1},
+			whenAuth: []string{
+				"Bearer " + base64.StdEncoding.EncodeToString([]byte("token")),
+				basic + " " + base64.StdEncoding.EncodeToString([]byte("joe:invalid_password")),
+				// limit only check first and should not check auth below
+				basic + " " + base64.StdEncoding.EncodeToString([]byte("joe:secret")),
+			},
+			expectHeader: basic + ` realm="Restricted"`,
+			expectErr:    "Unauthorized",
 		},
 		{
 			name:         "nok, invalid Authorization header",

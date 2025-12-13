@@ -5,6 +5,7 @@ package middleware
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/base64"
 	"errors"
 	"strconv"
@@ -26,6 +27,12 @@ type BasicAuthConfig struct {
 	// Realm is a string to define realm attribute of BasicAuthWithConfig.
 	// Default value "Restricted".
 	Realm string
+
+	// AllowedCheckLimit set how many headers are allowed to be checked. This is useful
+	// environments like corporate test environments with application proxies restricting
+	// access to environment with their own auth scheme.
+	// Defaults to 1.
+	AllowedCheckLimit uint
 }
 
 // BasicAuthValidator defines a function to validate BasicAuthWithConfig credentials.
@@ -62,6 +69,7 @@ func (config BasicAuthConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 		realm = config.Realm
 	}
 	realm = strconv.Quote(realm)
+	limit := cmp.Or(config.AllowedCheckLimit, 1)
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
@@ -71,10 +79,15 @@ func (config BasicAuthConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 
 			var lastError error
 			l := len(basic)
+			i := uint(0)
 			for _, auth := range c.Request().Header[echo.HeaderAuthorization] {
+				if i >= limit {
+					break
+				}
 				if !(len(auth) > l+1 && strings.EqualFold(auth[:l], basic)) {
 					continue
 				}
+				i++
 
 				// Invalid base64 shouldn't be treated as error
 				// instead should be treated as invalid client input

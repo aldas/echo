@@ -4,10 +4,12 @@
 package middleware
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
-	"github.com/labstack/echo/v5"
 	"net/http"
+
+	"github.com/labstack/echo/v5"
 )
 
 // KeyAuthConfig defines the config for KeyAuth middleware.
@@ -30,6 +32,11 @@ type KeyAuthConfig struct {
 	// Multiple sources example:
 	// - "header:Authorization,header:X-Api-Key"
 	KeyLookup string
+
+	// AllowedCheckLimit set how many KeyLookup values are allowed to be checked. This is
+	// useful environments like corporate test environments with application proxies restricting
+	// access to environment with their own auth scheme.
+	AllowedCheckLimit uint
 
 	// Validator is a function to validate key.
 	// Required.
@@ -102,7 +109,9 @@ func (config KeyAuthConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 		return nil, errors.New("echo key-auth middleware requires a validator function")
 	}
 
-	extractors, cErr := createExtractors(config.KeyLookup)
+	limit := cmp.Or(config.AllowedCheckLimit, 1)
+
+	extractors, cErr := createExtractors(config.KeyLookup, limit)
 	if cErr != nil {
 		return nil, fmt.Errorf("echo key-auth middleware could not create key extractor: %w", cErr)
 	}
