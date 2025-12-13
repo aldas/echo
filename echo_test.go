@@ -944,6 +944,32 @@ func TestEchoContext(t *testing.T) {
 	e.ReleaseContext(c)
 }
 
+func TestPreMiddlewares(t *testing.T) {
+	e := New()
+	assert.Equal(t, 0, len(e.PreMiddlewares()))
+
+	e.Pre(func(next HandlerFunc) HandlerFunc {
+		return func(c *Context) error {
+			return next(c)
+		}
+	})
+
+	assert.Equal(t, 1, len(e.PreMiddlewares()))
+}
+
+func TestMiddlewares(t *testing.T) {
+	e := New()
+	assert.Equal(t, 0, len(e.Middlewares()))
+
+	e.Use(func(next HandlerFunc) HandlerFunc {
+		return func(c *Context) error {
+			return next(c)
+		}
+	})
+
+	assert.Equal(t, 1, len(e.Middlewares()))
+}
+
 func TestEcho_Start(t *testing.T) {
 	e := New()
 	e.GET("/", func(c *Context) error {

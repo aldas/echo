@@ -67,11 +67,14 @@ type PathValue struct {
 // request matching and URL path parameter parsing.
 // Note: DefaultRouter is not coroutine-safe. Do not Add/Remove routes after HTTP server has been started with Echo.
 type DefaultRouter struct {
-	tree                     *node
-	notFoundHandler          HandlerFunc
-	methodNotAllowedHandler  HandlerFunc
-	optionsMethodHandler     HandlerFunc
-	routes                   Routes
+	tree                    *node
+	notFoundHandler         HandlerFunc
+	methodNotAllowedHandler HandlerFunc
+	optionsMethodHandler    HandlerFunc
+	routes                  Routes
+	// maxPathParamsLength tracks highest count of PathValues for all routes.
+	maxPathParamsLength int
+
 	allowOverwritingRoute    bool
 	unescapePathParamValues  bool
 	useEscapedPathForRouting bool
@@ -538,6 +541,9 @@ func (r *DefaultRouter) storeRouteInfo(ri RouteInfo) {
 }
 
 func (r *DefaultRouter) insert(t kind, path string, method string, ri routeMethod) {
+	if len(ri.Parameters) > r.maxPathParamsLength {
+		r.maxPathParamsLength = len(ri.Parameters)
+	}
 	currentNode := r.tree // Current node as root
 	search := path
 
@@ -779,7 +785,11 @@ var optionsMethodHandler = func(c *Context) error {
 // - Return it `Echo#ReleaseContext()`.
 func (r *DefaultRouter) Route(c *Context) HandlerFunc {
 	pathValues := c.PathValues()
-	pathValues = pathValues[0:cap(pathValues)] // resize slice to maximum capacity so we can index set values
+	if cap(pathValues) < r.maxPathParamsLength {
+		pathValues = make(PathValues, 0, r.maxPathParamsLength)
+	} else {
+		pathValues = pathValues[0:cap(pathValues)] // resize slice to maximum capacity so we can index set values
+	}
 
 	req := c.Request()
 	path := req.URL.Path

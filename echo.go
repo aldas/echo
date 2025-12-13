@@ -571,6 +571,23 @@ func (e *Echo) Group(prefix string, m ...MiddlewareFunc) (g *Group) {
 	return
 }
 
+// PreMiddlewares returns registered pre middlewares. These are middleware to the chain
+// which are run before router tries to find matching route.
+// Use this method to build your own ServeHTTP method.
+//
+// NOTE: returned slice is not a copy. Do not mutate.
+func (e *Echo) PreMiddlewares() []MiddlewareFunc {
+	return e.premiddleware
+}
+
+// Middlewares returns registered route level middlewares. Does not contain any group level
+// middlewares. Use this method to build your own ServeHTTP method.
+//
+// NOTE: returned slice is not a copy. Do not mutate.
+func (e *Echo) Middlewares() []MiddlewareFunc {
+	return e.middleware
+}
+
 // AcquireContext returns an empty `Context` instance from the pool.
 // You must return the context by calling `ReleaseContext()`.
 func (e *Echo) AcquireContext() *Context {

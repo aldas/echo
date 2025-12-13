@@ -157,18 +157,18 @@ func filepathOrContent(fileOrContent any, certFilesystem fs.FS) (content []byte,
 	}
 }
 
-func gracefulShutdown(gracefulCtx stdContext.Context, sc *StartConfig, server *http.Server, logger *slog.Logger) {
-	<-gracefulCtx.Done() // wait until shutdown context is closed.
+func gracefulShutdown(shutdownCtx stdContext.Context, sc *StartConfig, server *http.Server, logger *slog.Logger) {
+	<-shutdownCtx.Done() // wait until shutdown context is closed.
 	// note: is server if closed by other means this method is still run but is good as no-op
 
 	timeout := sc.GracefulTimeout
 	if timeout == 0 {
 		timeout = 10 * time.Second
 	}
-	shutdownCtx, cancel := stdContext.WithTimeout(stdContext.Background(), timeout)
+	waitShutdownCtx, cancel := stdContext.WithTimeout(stdContext.Background(), timeout)
 	defer cancel()
 
-	if err := server.Shutdown(shutdownCtx); err != nil {
+	if err := server.Shutdown(waitShutdownCtx); err != nil {
 		// we end up here when listeners are not shut down within given timeout
 		if sc.OnShutdownError != nil {
 			sc.OnShutdownError(err)
