@@ -1374,21 +1374,20 @@ func TestRouteInfo(t *testing.T) {
 		Path:       "/*",
 		Parameters: []string{"*"},
 	}
-	c.SetRouteInfo(orgRI)
+	c.route = &orgRI
 	ri := c.RouteInfo()
 	assert.Equal(t, orgRI, ri)
 
 	// Test mutability when middlewares start to change things
 
-	// RouteInfo inside context will not be affected when original instance is changed
-	expect := ri.Clone()
+	// RouteInfo inside context will not be affected when returned instance is changed
+	expect := orgRI.Clone()
 	ri.Path = "changed"
 	ri.Parameters[0] = "changed"
-
-	orgRI.Name = "changed"
-	orgRI.Parameters[0] = "id" // mutating original instance slice affects RI inside Context
-	assert.NotEqual(t, expect, c.RouteInfo())
-
-	expect.Parameters[0] = "id" // only then is equal
 	assert.Equal(t, expect, c.RouteInfo())
+
+	// RouteInfo inside context will not be affected when returned instance is changed
+	expect = c.RouteInfo()
+	orgRI.Name = "changed"
+	assert.NotEqual(t, expect, c.RouteInfo())
 }

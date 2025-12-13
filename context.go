@@ -179,11 +179,6 @@ func (c *Context) RouteInfo() RouteInfo {
 	return RouteInfo{}
 }
 
-// SetRouteInfo sets the route info of this request to the context.
-func (c *Context) SetRouteInfo(ri RouteInfo) {
-	c.route = &ri
-}
-
 // Param returns path parameter by name.
 func (c *Context) Param(name string) string {
 	return c.pathValues.Get(name, "")

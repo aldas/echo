@@ -638,7 +638,7 @@ func (e *Echo) serveHTTP(w http.ResponseWriter, r *http.Request) {
 // In need of customization use:
 //
 //	sc := echo.StartConfig{Address: ":8080"}
-//	if err := sc.Start(e); err != http.ErrServerClosed {
+//	if err := sc.Start(context.Background(), e); err != http.ErrServerClosed {
 //		log.Fatal(err)
 //	}
 //
@@ -652,9 +652,7 @@ func (e *Echo) Start(address string) error {
 	sc := StartConfig{Address: address}
 	ctx, cancel := signal.NotifyContext(stdContext.Background(), os.Interrupt) // start shutdown process on ctrl+c
 	defer cancel()
-	sc.GracefulContext = ctx
-
-	return sc.Start(e)
+	return sc.Start(ctx, e)
 }
 
 // WrapHandler wraps `http.Handler` into `echo.HandlerFunc`.

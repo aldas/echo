@@ -40,8 +40,6 @@ type StartConfig struct {
 	// listener is listening on.
 	ListenerAddrFunc func(addr net.Addr)
 
-	// GracefulContext is context which is being waited on to end to start server graceful shutdown process.
-	GracefulContext stdContext.Context
 	// GracefulTimeout is timeout value (defaults to 10sec) graceful shutdown will wait for server to handle ongoing requests
 	// before shutting down the server.
 	GracefulTimeout time.Duration
@@ -50,18 +48,19 @@ type StartConfig struct {
 	OnShutdownError func(err error)
 
 	// BeforeServeFunc is callback that is called just before server starts to serve HTTP request.
+	// Use this callback when you want to configure http.Server different timeouts/limits/etc
 	BeforeServeFunc func(s *http.Server) error
 }
 
 // Start starts given Handler with HTTP(s) server.
-func (sc StartConfig) Start(h http.Handler) error {
-	return sc.start(h)
+func (sc StartConfig) Start(ctx stdContext.Context, h http.Handler) error {
+	return sc.start(ctx, h)
 }
 
 // StartTLS starts given Handler with HTTPS server.
 // If `certFile` or `keyFile` is `string` the values are treated as file paths.
 // If `certFile` or `keyFile` is `[]byte` the values are treated as the certificate or key as-is.
-func (sc StartConfig) StartTLS(h http.Handler, certFile, keyFile any) error {
+func (sc StartConfig) StartTLS(ctx stdContext.Context, h http.Handler, certFile, keyFile any) error {
 	certFs := sc.CertFilesystem
 	if certFs == nil {
 		certFs = os.DirFS(".")
@@ -86,11 +85,11 @@ func (sc StartConfig) StartTLS(h http.Handler, certFile, keyFile any) error {
 		}
 	}
 	sc.TLSConfig.Certificates = []tls.Certificate{cer}
-	return sc.start(h)
+	return sc.start(ctx, h)
 }
 
 // start starts handler with HTTP(s) server.
-func (sc StartConfig) start(h http.Handler) error {
+func (sc StartConfig) start(ctx stdContext.Context, h http.Handler) error {
 	var logger *slog.Logger
 	if e, ok := h.(*Echo); ok {
 		logger = e.Logger
@@ -127,6 +126,7 @@ func (sc StartConfig) start(h http.Handler) error {
 
 	if sc.BeforeServeFunc != nil {
 		if err := sc.BeforeServeFunc(&server); err != nil {
+			_ = listener.Close()
 			return err
 		}
 	}
@@ -138,11 +138,7 @@ func (sc StartConfig) start(h http.Handler) error {
 		logger.Info("http(s) server started", "address", listener.Addr())
 	}
 
-	if sc.GracefulContext != nil {
-		ctx, cancel := stdContext.WithCancel(sc.GracefulContext)
-		defer cancel() // make sure this graceful coroutine will end when serve returns by some other means
-		go gracefulShutdown(ctx, &sc, &server, logger)
-	}
+	go gracefulShutdown(ctx, &sc, &server, logger)
 	return server.Serve(listener)
 }
 
