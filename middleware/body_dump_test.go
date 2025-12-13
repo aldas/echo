@@ -176,14 +176,14 @@ func TestBodyDump_ReadError(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	h := func(c echo.Context) error {
+	h := func(c *echo.Context) error {
 		// This handler should not be reached if body read fails
 		body, _ := io.ReadAll(c.Request().Body)
 		return c.String(http.StatusOK, string(body))
 	}
 
 	requestBodyReceived := ""
-	mw := BodyDump(func(c echo.Context, reqBody, resBody []byte) {
+	mw := BodyDump(func(c *echo.Context, reqBody, resBody []byte) {
 		requestBodyReceived = string(reqBody)
 	})
 
