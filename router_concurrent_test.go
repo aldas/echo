@@ -31,7 +31,6 @@ func TestConcurrentRouter_Remove(t *testing.T) {
 }
 
 func TestConcurrentRouter_ConcurrentReads(t *testing.T) {
-	e := New()
 	router := NewConcurrentRouter(NewRouter(RouterConfig{}))
 
 	testPaths := []string{"/route1", "/route2", "/route3", "/route4", "/route5"}
@@ -65,7 +64,7 @@ func TestConcurrentRouter_ConcurrentReads(t *testing.T) {
 				path := testPaths[j%len(testPaths)]
 				req := httptest.NewRequest(http.MethodGet, path, nil)
 				rec := httptest.NewRecorder()
-				c := e.NewContext(req, rec)
+				c := NewContext(req, rec, nil)
 
 				handler := router.Route(c)
 				if handler != nil {
@@ -94,12 +93,10 @@ func TestConcurrentRouter_ConcurrentReads(t *testing.T) {
 }
 
 func TestConcurrentRouter_ConcurrentWrites(t *testing.T) {
-	e := New()
-	e.router = NewConcurrentRouter(NewRouter(RouterConfig{}))
+	router := NewConcurrentRouter(NewRouter(RouterConfig{}))
 
-	// Seed with 2 initial routes
-	e.GET("/initial1", handlerFunc)
-	e.GET("/initial2", handlerFunc)
+	_, _ = router.Add(Route{Method: http.MethodGet, Path: "/initial1", Handler: handlerFunc})
+	_, _ = router.Add(Route{Method: http.MethodGet, Path: "/initial2", Handler: handlerFunc})
 
 	// Launch 5 goroutines, each adds 10 unique routes
 	var wg sync.WaitGroup
@@ -115,7 +112,7 @@ func TestConcurrentRouter_ConcurrentWrites(t *testing.T) {
 
 			for j := 0; j < addsPerGoroutine; j++ {
 				path := fmt.Sprintf("/route-g%d-n%d", goroutineID, j)
-				_, err := e.AddRoute(Route{
+				_, err := router.Add(Route{
 					Method:  http.MethodGet,
 					Path:    path,
 					Handler: handlerFunc,
@@ -134,21 +131,22 @@ func TestConcurrentRouter_ConcurrentWrites(t *testing.T) {
 	assert.Equal(t, expectedAdds, addCount.Load(), "all Add() calls should succeed")
 
 	expectedTotal := 2 + int(expectedAdds) // 2 initial + 50 added
-	assert.Len(t, e.Router().Routes(), expectedTotal, "route count mismatch")
+	assert.Len(t, router.Routes(), expectedTotal, "route count mismatch")
 
 	// Verify all routes are accessible
-	allRoutes := e.router.Routes()
+	allRoutes := router.Routes()
 	assert.Len(t, allRoutes, expectedTotal)
 }
 
 func TestConcurrentRouter_ConcurrentReadWrite(t *testing.T) {
-	e := New()
-	e.router = NewConcurrentRouter(NewRouter(RouterConfig{}))
+	router := NewConcurrentRouter(NewRouter(RouterConfig{}))
 
-	// Add 3 initial routes
 	initialPaths := []string{"/read1", "/read2", "/read3"}
 	for _, path := range initialPaths {
-		e.GET(path, handlerFunc)
+		_, err := router.Add(Route{Method: http.MethodGet, Path: path, Handler: handlerFunc})
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	var wg sync.WaitGroup
@@ -166,9 +164,9 @@ func TestConcurrentRouter_ConcurrentReadWrite(t *testing.T) {
 
 				req := httptest.NewRequest(http.MethodGet, path, nil)
 				rec := httptest.NewRecorder()
-				c := e.NewContext(req, rec)
+				c := NewContext(req, rec, nil)
 
-				handler := e.router.Route(c)
+				handler := router.Route(c)
 				if handler != nil {
 					routeCallCount.Add(1)
 				}
@@ -183,7 +181,7 @@ func TestConcurrentRouter_ConcurrentReadWrite(t *testing.T) {
 			defer wg.Done()
 			for j := 0; j < 20; j++ {
 				path := fmt.Sprintf("/write-g%d-n%d", goroutineID, j)
-				_, err := e.AddRoute(Route{
+				_, err := router.Add(Route{
 					Method:  http.MethodGet,
 					Path:    path,
 					Handler: handlerFunc,
@@ -201,7 +199,7 @@ func TestConcurrentRouter_ConcurrentReadWrite(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for j := 0; j < 50; j++ {
-				routes := e.router.Routes()
+				routes := router.Routes()
 				if routes != nil {
 					routesCallCount.Add(1)
 				}
@@ -218,5 +216,5 @@ func TestConcurrentRouter_ConcurrentReadWrite(t *testing.T) {
 
 	// Verify final route count
 	expectedTotal := 3 + 40 // 3 initial + 40 added
-	assert.Len(t, e.Router().Routes(), expectedTotal, "route count mismatch")
+	assert.Len(t, router.Routes(), expectedTotal, "route count mismatch")
 }

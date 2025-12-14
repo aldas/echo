@@ -236,17 +236,7 @@ func New() *Echo {
 // Note: both request and response can be left to nil as Echo.ServeHTTP will call c.Reset(req,resp) anyway
 // these arguments are useful when creating context for tests and cases like that.
 func (e *Echo) NewContext(r *http.Request, w http.ResponseWriter) *Context {
-	p := make(PathValues, e.contextPathParamAllocSize.Load())
-	c := &Context{
-		pathValues: &p,
-		store:      make(map[string]any),
-		echo:       e,
-		logger:     e.Logger,
-	}
-	c.SetRequest(r)
-	c.orgResponse = NewResponse(w, e.Logger)
-	c.response = c.orgResponse
-	return c
+	return NewContext(r, w, e)
 }
 
 // Router returns the default router.

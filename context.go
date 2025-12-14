@@ -51,6 +51,35 @@ type Context struct {
 	lock sync.RWMutex
 }
 
+// NewContext returns a new Context instance.
+//
+// Note: request,response and e can be left to nil as Echo.ServeHTTP will call c.Reset(req,resp) anyway
+// these arguments are useful when creating context for tests and cases like that.
+func NewContext(r *http.Request, w http.ResponseWriter, e *Echo) *Context {
+	c := &Context{
+		pathValues: nil,
+		store:      make(map[string]any),
+		echo:       e,
+		logger:     nil,
+	}
+	var logger *slog.Logger
+	paramLen := int32(0)
+	if e != nil {
+		paramLen = e.contextPathParamAllocSize.Load()
+		logger = e.Logger
+	} else {
+		logger = slog.Default()
+	}
+	c.logger = logger
+	p := make(PathValues, 0, paramLen)
+	c.pathValues = &p
+
+	c.SetRequest(r)
+	c.orgResponse = NewResponse(w, logger)
+	c.response = c.orgResponse
+	return c
+}
+
 // Reset resets the context after request completes. It must be called along
 // with `Echo#AcquireContext()` and `Echo#ReleaseContext()`.
 // See `Echo#ServeHTTP()`
