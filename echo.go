@@ -630,7 +630,7 @@ func (e *Echo) serveHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // Start stars HTTP server on given address with Echo as a handler serving requests. The server can be shutdown by
-// sending os.Interrupt signal with `ctrl+c`.
+// sending os.Interrupt signal with `ctrl+c`. Method returns only errors that are not http.ErrServerClosed.
 //
 // Note: this method is created for use in examples/demos and is deliberately simple without providing configuration
 // options.
@@ -652,7 +652,10 @@ func (e *Echo) Start(address string) error {
 	sc := StartConfig{Address: address}
 	ctx, cancel := signal.NotifyContext(stdContext.Background(), os.Interrupt) // start shutdown process on ctrl+c
 	defer cancel()
-	return sc.Start(ctx, e)
+	if err := sc.Start(ctx, e); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
 }
 
 // WrapHandler wraps `http.Handler` into `echo.HandlerFunc`.

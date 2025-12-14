@@ -74,14 +74,14 @@ func main() {
   e := echo.New()
 
   // Middleware
-  e.Use(middleware.RequestLogger())
-  e.Use(middleware.Recover())
+  e.Use(middleware.RequestLogger()) // use the RequestLogger middleware with slog logger
+  e.Use(middleware.Recover()) // recover panics as errors for proper error handling
 
   // Routes
   e.GET("/", hello)
 
   // Start server
-  if err := e.Start(":8080"); err != nil && !errors.Is(err, http.ErrServerClosed) {
+  if err := e.Start(":8080"); err != nil {
     slog.Error("failed to start server", "error", err)
   }
 }
