@@ -411,12 +411,13 @@ func (e *Echo) Match(methods []string, path string, handler HandlerFunc, middlew
 }
 
 // Static registers a new route with path prefix to serve static files from the provided root directory.
-func (e *Echo) Static(pathPrefix, fsRoot string) RouteInfo {
+func (e *Echo) Static(pathPrefix, fsRoot string, middleware ...MiddlewareFunc) RouteInfo {
 	subFs := MustSubFS(e.Filesystem, fsRoot)
 	return e.Add(
 		http.MethodGet,
 		pathPrefix+"*",
 		StaticDirectoryHandler(subFs, false),
+		middleware...,
 	)
 }
 
@@ -425,11 +426,12 @@ func (e *Echo) Static(pathPrefix, fsRoot string) RouteInfo {
 // When dealing with `embed.FS` use `fs := echo.MustSubFS(fs, "rootDirectory") to create sub fs which uses necessary
 // prefix for directory path. This is necessary as `//go:embed assets/images` embeds files with paths
 // including `assets/images` as their prefix.
-func (e *Echo) StaticFS(pathPrefix string, filesystem fs.FS) RouteInfo {
+func (e *Echo) StaticFS(pathPrefix string, filesystem fs.FS, middleware ...MiddlewareFunc) RouteInfo {
 	return e.Add(
 		http.MethodGet,
 		pathPrefix+"*",
 		StaticDirectoryHandler(filesystem, false),
+		middleware...,
 	)
 }
 

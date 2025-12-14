@@ -109,9 +109,9 @@ func (g *Group) Group(prefix string, middleware ...MiddlewareFunc) (sg *Group) {
 }
 
 // Static implements `Echo#Static()` for sub-routes within the Group.
-func (g *Group) Static(pathPrefix, fsRoot string) RouteInfo {
+func (g *Group) Static(pathPrefix, fsRoot string, middleware ...MiddlewareFunc) RouteInfo {
 	subFs := MustSubFS(g.echo.Filesystem, fsRoot)
-	return g.StaticFS(pathPrefix, subFs)
+	return g.StaticFS(pathPrefix, subFs, middleware...)
 }
 
 // StaticFS implements `Echo#StaticFS()` for sub-routes within the Group.
@@ -119,11 +119,12 @@ func (g *Group) Static(pathPrefix, fsRoot string) RouteInfo {
 // When dealing with `embed.FS` use `fs := echo.MustSubFS(fs, "rootDirectory") to create sub fs which uses necessary
 // prefix for directory path. This is necessary as `//go:embed assets/images` embeds files with paths
 // including `assets/images` as their prefix.
-func (g *Group) StaticFS(pathPrefix string, filesystem fs.FS) RouteInfo {
+func (g *Group) StaticFS(pathPrefix string, filesystem fs.FS, middleware ...MiddlewareFunc) RouteInfo {
 	return g.Add(
 		http.MethodGet,
 		pathPrefix+"*",
 		StaticDirectoryHandler(filesystem, false),
+		middleware...,
 	)
 }
 
