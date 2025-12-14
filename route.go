@@ -104,6 +104,15 @@ func HandlerName(h HandlerFunc) string {
 	return t.String()
 }
 
+// Clone creates copy of Routes
+func (r Routes) Clone() Routes {
+	result := make(Routes, len(r))
+	for i, route := range r {
+		result[i] = route.Clone()
+	}
+	return result
+}
+
 // Reverse reverses route to URL string by replacing path parameters with given params values.
 func (r Routes) Reverse(routeName string, pathValues ...any) (string, error) {
 	for _, rr := range r {

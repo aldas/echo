@@ -218,3 +218,161 @@ func TestConcurrentRouter_ConcurrentReadWrite(t *testing.T) {
 	expectedTotal := 3 + 40 // 3 initial + 40 added
 	assert.Len(t, router.Routes(), expectedTotal, "route count mismatch")
 }
+
+// TestConcurrentRouter_RoutesIterationDuringModification verifies that iterating over
+// Routes() while Add/Remove operations are happening doesn't cause data races.
+// This test specifically validates that Routes() returns a copy, not a reference.
+func TestConcurrentRouter_RoutesIterationDuringModification(t *testing.T) {
+	router := NewConcurrentRouter(NewRouter(RouterConfig{}))
+
+	// Add initial routes
+	for i := 0; i < 10; i++ {
+		_, err := router.Add(Route{
+			Method:  http.MethodGet,
+			Path:    fmt.Sprintf("/initial-%d", i),
+			Handler: handlerFunc,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var wg sync.WaitGroup
+	var iterationCount atomic.Int64
+	var addRemoveCount atomic.Int64
+
+	// Launch 3 goroutines that iterate over Routes() and access each element
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go func(goroutineID int) {
+			defer wg.Done()
+			for j := 0; j < 100; j++ {
+				routes := router.Routes()
+				// Actually iterate and access the route data
+				// This would cause a data race if Routes() returned a direct reference
+				for _, route := range routes {
+					_ = route.Method // Read the method
+					_ = route.Path   // Read the path
+					_ = route.Name   // Read the name
+					if len(route.Parameters) > 0 {
+						_ = route.Parameters[0] // Read parameters if present
+					}
+				}
+				iterationCount.Add(1)
+			}
+		}(i)
+	}
+
+	// Launch 2 goroutines that continuously Add routes
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func(goroutineID int) {
+			defer wg.Done()
+			for j := 0; j < 30; j++ {
+				path := fmt.Sprintf("/add-g%d-n%d", goroutineID, j)
+				_, err := router.Add(Route{
+					Method:  http.MethodPost,
+					Path:    path,
+					Handler: handlerFunc,
+				})
+				if err == nil {
+					addRemoveCount.Add(1)
+				}
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	// Verify operations completed
+	assert.Equal(t, int64(300), iterationCount.Load(), "all iterations should complete")
+	assert.Equal(t, int64(60), addRemoveCount.Load(), "all add operations should succeed")
+
+	// Verify final state
+	finalRoutes := router.Routes()
+	assert.Len(t, finalRoutes, 70, "should have 10 initial + 60 added routes")
+}
+
+// TestConcurrentRouter_ParametersNoRace verifies that accessing RouteInfo.Parameters
+// while routes are being added concurrently doesn't cause data races.
+// This test validates that Routes() deep-copies RouteInfo, not just the Routes slice.
+func TestConcurrentRouter_ParametersNoRace(t *testing.T) {
+	router := NewConcurrentRouter(NewRouter(RouterConfig{}))
+
+	// Add routes with parameters
+	_, err := router.Add(Route{
+		Method:  http.MethodGet,
+		Path:    "/users/:id/:name",
+		Handler: handlerFunc,
+	})
+	assert.NoError(t, err)
+
+	_, err = router.Add(Route{
+		Method:  http.MethodPost,
+		Path:    "/posts/:postId/comments/:commentId",
+		Handler: handlerFunc,
+	})
+	assert.NoError(t, err)
+
+	var wg sync.WaitGroup
+	var paramsAccessCount atomic.Int64
+	var addCount atomic.Int64
+
+	// Launch 3 goroutines that read Parameters repeatedly
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go func(goroutineID int) {
+			defer wg.Done()
+			for j := 0; j < 100; j++ {
+				routes := router.Routes()
+				// Actually access the Parameters slice data
+				// This would cause a data race if Parameters weren't deep-copied
+				for _, r := range routes {
+					for _, p := range r.Parameters {
+						_ = len(p)      // Read parameter name length
+						if len(p) > 0 { // Read first character
+							_ = p[0]
+						}
+					}
+					paramsAccessCount.Add(int64(len(r.Parameters)))
+				}
+			}
+		}(i)
+	}
+
+	// Launch 2 goroutines that add routes with parameters concurrently
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func(goroutineID int) {
+			defer wg.Done()
+			for j := 0; j < 20; j++ {
+				path := fmt.Sprintf("/api/:v%d/resource/:id", goroutineID*100+j)
+				_, err := router.Add(Route{
+					Method:  http.MethodPost,
+					Path:    path,
+					Handler: handlerFunc,
+				})
+				if err == nil {
+					addCount.Add(1)
+				}
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	// Verify operations completed
+	assert.Equal(t, int64(40), addCount.Load(), "all add operations should succeed")
+	assert.Greater(t, paramsAccessCount.Load(), int64(0), "should have accessed parameters")
+
+	// Verify final state
+	finalRoutes := router.Routes()
+	assert.Len(t, finalRoutes, 42, "should have 2 initial + 40 added routes")
+
+	// Verify we can still safely access Parameters after concurrent operations
+	for _, route := range finalRoutes {
+		for _, param := range route.Parameters {
+			assert.NotEmpty(t, param, "parameter name should not be empty")
+		}
+	}
+}

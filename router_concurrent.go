@@ -29,7 +29,7 @@ func (r *concurrentRouter) Routes() Routes {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	return r.router.Routes()
+	return r.router.Routes().Clone()
 }
 
 func (r *concurrentRouter) Add(routable Route) (RouteInfo, error) {

@@ -193,6 +193,18 @@ func exampleRoutes() Routes {
 	}
 }
 
+func TestRoutes_Clone(t *testing.T) {
+	org := exampleRoutes()
+	cloned := org.Clone()
+
+	assert.Equal(t, org, cloned)
+
+	org[1].Path = "r1"
+	org[1].Parameters[0] = "p0"
+
+	assert.NotEqual(t, org, cloned)
+}
+
 func TestRoutes_FindByMethodPath(t *testing.T) {
 	var testCases = []struct {
 		name        string
