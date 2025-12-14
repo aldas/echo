@@ -4,13 +4,14 @@
 package echo
 
 import (
-	"github.com/stretchr/testify/assert"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGroup_withoutRouteWillNotExecuteMiddleware(t *testing.T) {
@@ -374,55 +375,18 @@ func TestGroup_Any(t *testing.T) {
 	e := New()
 
 	users := e.Group("/users")
-	ris := users.Any("/activate", func(c *Context) error {
-		return c.String(http.StatusTeapot, "OK")
-	})
-	assert.Len(t, ris, 11)
-
-	for _, m := range methods {
-		status, body := request(m, "/users/activate", e)
-		assert.Equal(t, http.StatusTeapot, status)
-		assert.Equal(t, `OK`, body)
-	}
-}
-
-func TestGroup_AnyWithErrors(t *testing.T) {
-	e := New()
-
-	users := e.Group("/users")
-	users.GET("/activate", func(c *Context) error {
-		return c.String(http.StatusOK, "OK")
+	ri := users.Any("/activate", func(c *Context) error {
+		return c.String(http.StatusTeapot, "OK from ANY")
 	})
 
-	errs := func() (errs []error) {
-		defer func() {
-			if r := recover(); r != nil {
-				if tmpErr, ok := r.([]error); ok {
-					errs = tmpErr
-					return
-				}
-				panic(r)
-			}
-		}()
+	assert.Equal(t, RouteAny, ri.Method)
+	assert.Equal(t, "/users/activate", ri.Path)
+	assert.Equal(t, RouteAny+":/users/activate", ri.Name)
+	assert.Nil(t, ri.Parameters)
 
-		users.Any("/activate", func(c *Context) error {
-			return c.String(http.StatusTeapot, "OK")
-		})
-		return nil
-	}()
-	assert.Len(t, errs, 1)
-	assert.EqualError(t, errs[0], "GET /users/activate: adding duplicate route (same method+path) is not allowed")
-
-	for _, m := range methods {
-		status, body := request(m, "/users/activate", e)
-
-		expect := http.StatusTeapot
-		if m == http.MethodGet {
-			expect = http.StatusOK
-		}
-		assert.Equal(t, expect, status)
-		assert.Equal(t, `OK`, body)
-	}
+	status, body := request(http.MethodTrace, "/users/activate", e)
+	assert.Equal(t, http.StatusTeapot, status)
+	assert.Equal(t, `OK from ANY`, body)
 }
 
 func TestGroup_Match(t *testing.T) {

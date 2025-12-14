@@ -166,6 +166,7 @@ type routeMethods struct {
 	put      *routeMethod
 	trace    *routeMethod
 	report   *routeMethod
+	any      *routeMethod
 	anyOther map[string]*routeMethod
 
 	// notFoundHandler is handler registered with RouteNotFound method and is executed for 404 cases
@@ -200,6 +201,8 @@ func (m *routeMethods) set(method string, r *routeMethod) {
 		m.trace = r
 	case REPORT:
 		m.report = r
+	case RouteAny:
+		m.any = r
 	case RouteNotFound:
 		m.notFoundHandler = r
 		return // RouteNotFound/404 is not considered as a handler so no further logic needs to be executed
@@ -216,75 +219,85 @@ func (m *routeMethods) set(method string, r *routeMethod) {
 	m.updateAllowHeader()
 }
 
-func (m *routeMethods) find(method string) *routeMethod {
+func (m *routeMethods) find(method string, fallbackToAny bool) *routeMethod {
+	var r *routeMethod
 	switch method {
 	case http.MethodConnect:
-		return m.connect
+		r = m.connect
 	case http.MethodDelete:
-		return m.delete
+		r = m.delete
 	case http.MethodGet:
-		return m.get
+		r = m.get
 	case http.MethodHead:
-		return m.head
+		r = m.head
 	case http.MethodOptions:
-		return m.options
+		r = m.options
 	case http.MethodPatch:
-		return m.patch
+		r = m.patch
 	case http.MethodPost:
-		return m.post
+		r = m.post
 	case PROPFIND:
-		return m.propfind
+		r = m.propfind
 	case http.MethodPut:
-		return m.put
+		r = m.put
 	case http.MethodTrace:
-		return m.trace
+		r = m.trace
 	case REPORT:
-		return m.report
+		r = m.report
+	case RouteAny:
+		r = m.any
+	case RouteNotFound:
+		r = m.notFoundHandler
 	default:
-		return m.anyOther[method]
+		r = m.anyOther[method]
 	}
+	if r != nil || !fallbackToAny {
+		return r
+	}
+	return m.any
 }
 
 func (m *routeMethods) updateAllowHeader() {
 	buf := new(bytes.Buffer)
 	buf.WriteString(http.MethodOptions)
+	hasAnyMethod := m.any != nil
 
-	if m.connect != nil {
+	if hasAnyMethod || m.connect != nil {
 		buf.WriteString(", ")
 		buf.WriteString(http.MethodConnect)
 	}
-	if m.delete != nil {
+	if hasAnyMethod || m.delete != nil {
 		buf.WriteString(", ")
 		buf.WriteString(http.MethodDelete)
 	}
-	if m.get != nil {
+	if hasAnyMethod || m.get != nil {
 		buf.WriteString(", ")
 		buf.WriteString(http.MethodGet)
 	}
-	if m.head != nil {
+	if hasAnyMethod || m.head != nil {
 		buf.WriteString(", ")
 		buf.WriteString(http.MethodHead)
 	}
-	if m.patch != nil {
+	if hasAnyMethod || m.patch != nil {
 		buf.WriteString(", ")
 		buf.WriteString(http.MethodPatch)
 	}
-	if m.post != nil {
+	if hasAnyMethod || m.post != nil {
 		buf.WriteString(", ")
 		buf.WriteString(http.MethodPost)
 	}
-	if m.propfind != nil {
+	if hasAnyMethod || m.propfind != nil {
 		buf.WriteString(", PROPFIND")
 	}
-	if m.put != nil {
+	if hasAnyMethod || m.put != nil {
 		buf.WriteString(", ")
 		buf.WriteString(http.MethodPut)
 	}
-	if m.trace != nil {
+	if hasAnyMethod || m.trace != nil {
 		buf.WriteString(", ")
 		buf.WriteString(http.MethodTrace)
 	}
-	if m.report != nil {
+	if hasAnyMethod || m.report != nil {
 		buf.WriteString(", REPORT")
 	}
 	for method := range m.anyOther { // for simplicity, we use map and therefore order is not deterministic here
@@ -306,6 +319,7 @@ func (m *routeMethods) isHandler() bool {
 		m.propfind != nil ||
 		m.trace != nil ||
 		m.report != nil ||
+		m.any != nil ||
 		len(m.anyOther) != 0
 	// RouteNotFound/404 is not considered as a handler
 }
@@ -369,7 +383,7 @@ func (r *DefaultRouter) Remove(method string, path string) error {
 		return errors.New("could not find route to remove by given path")
 	}
 
-	if mh := nodeToRemove.methods.find(method); mh == nil {
+	if mh := nodeToRemove.methods.find(method, false); mh == nil {
 		return errors.New("could not find route to remove by given path and method")
 	}
 	nodeToRemove.setHandler(method, nil)
@@ -899,7 +913,7 @@ func (r *DefaultRouter) Route(c *Context) HandlerFunc {
 				if previousBestMatchNode == nil {
 					previousBestMatchNode = currentNode
 				}
-				if h := currentNode.methods.find(req.Method); h != nil {
+				if h := currentNode.methods.find(req.Method, true); h != nil {
 					matchedRouteMethod = h
 					break
 				}
@@ -950,7 +964,7 @@ func (r *DefaultRouter) Route(c *Context) HandlerFunc {
 			searchIndex += len(search)
 			search = ""
 
-			if rMethod := currentNode.methods.find(req.Method); rMethod != nil {
+			if rMethod := currentNode.methods.find(req.Method, true); rMethod != nil {
 				matchedRouteMethod = rMethod
 				break
 			}

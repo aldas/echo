@@ -4,12 +4,13 @@
 package echo
 
 import (
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 type testRoute struct {
@@ -2688,12 +2689,12 @@ func TestRoutes_ReverseHandlerName(t *testing.T) {
 		},
 		{
 			name:   "ok, unnamed any route",
-			when:   "POST:/documents/*",
+			when:   RouteAny + ":/documents/*",
 			expect: "/documents/*",
 		},
 		{
 			name:     "ok, unnamed any route + args",
-			when:     "GET:/documents/*",
+			when:     RouteAny + ":/documents/*",
 			whenArgs: []any{"index.html"},
 			expect:   "/documents/index.html",
 		},

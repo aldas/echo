@@ -69,26 +69,8 @@ func (g *Group) TRACE(path string, h HandlerFunc, m ...MiddlewareFunc) RouteInfo
 }
 
 // Any implements `Echo#Any()` for sub-routes within the Group. Panics on error.
-func (g *Group) Any(path string, handler HandlerFunc, middleware ...MiddlewareFunc) Routes {
-	errs := make([]error, 0)
-	ris := make(Routes, 0)
-	for _, m := range methods {
-		ri, err := g.AddRoute(Route{
-			Method:      m,
-			Path:        path,
-			Handler:     handler,
-			Middlewares: middleware,
-		})
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		ris = append(ris, ri)
-	}
-	if len(errs) > 0 {
-		panic(errs) // this is how `v4` handles errors. `v5` has methods to have panic-free usage
-	}
-	return ris
+func (g *Group) Any(path string, handler HandlerFunc, middleware ...MiddlewareFunc) RouteInfo {
+	return g.Add(RouteAny, path, handler, middleware...)
 }
 
 // Match implements `Echo#Match()` for sub-routes within the Group. Panics on error.

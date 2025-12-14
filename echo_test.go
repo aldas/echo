@@ -668,12 +668,40 @@ func TestEchoTrace(t *testing.T) {
 	assert.Equal(t, "OK", body)
 }
 
-func TestEchoAny(t *testing.T) { // JFC
+func TestEcho_Any(t *testing.T) {
 	e := New()
-	ris := e.Any("/", func(c *Context) error {
-		return c.String(http.StatusOK, "Any")
+
+	ri := e.Any("/activate", func(c *Context) error {
+		return c.String(http.StatusTeapot, "OK from ANY")
 	})
-	assert.Len(t, ris, 11)
+
+	assert.Equal(t, RouteAny, ri.Method)
+	assert.Equal(t, "/activate", ri.Path)
+	assert.Equal(t, RouteAny+":/activate", ri.Name)
+	assert.Nil(t, ri.Parameters)
+
+	status, body := request(http.MethodTrace, "/activate", e)
+	assert.Equal(t, http.StatusTeapot, status)
+	assert.Equal(t, `OK from ANY`, body)
+}
+
+func TestEcho_Any_hasLowerPriority(t *testing.T) {
+	e := New()
+
+	e.Any("/activate", func(c *Context) error {
+		return c.String(http.StatusTeapot, "ANY")
+	})
+	e.GET("/activate", func(c *Context) error {
+		return c.String(http.StatusLocked, "GET")
+	})
+
+	status, body := request(http.MethodTrace, "/activate", e)
+	assert.Equal(t, http.StatusTeapot, status)
+	assert.Equal(t, `ANY`, body)
+
+	status, body = request(http.MethodGet, "/activate", e)
+	assert.Equal(t, http.StatusLocked, status)
+	assert.Equal(t, `GET`, body)
 }
 
 func TestEchoMatch(t *testing.T) { // JFC

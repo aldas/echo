@@ -148,6 +148,9 @@ const (
 	REPORT = "REPORT"
 	// RouteNotFound is special method type for routes handling "route not found" (404) cases
 	RouteNotFound = "echo_route_not_found"
+	// RouteAny is special method type that matches any HTTP method in request. Any has lower
+	// priority that other methods that have been registered with Router to that path.
+	RouteAny = "echo_route_any"
 )
 
 // Headers
@@ -208,20 +211,6 @@ const (
 	HeaderXCSRFToken                      = "X-CSRF-Token" // #nosec G101
 	HeaderReferrerPolicy                  = "Referrer-Policy"
 )
-
-var methods = [...]string{ // TODO refactor: maybe `routeMethod` could have `any` as method.
-	http.MethodConnect,
-	http.MethodDelete,
-	http.MethodGet,
-	http.MethodHead,
-	http.MethodOptions,
-	http.MethodPatch,
-	http.MethodPost,
-	PROPFIND,
-	http.MethodPut,
-	http.MethodTrace,
-	REPORT,
-}
 
 // New creates an instance of Echo.
 func New() *Echo {
@@ -403,26 +392,8 @@ func (e *Echo) RouteNotFound(path string, h HandlerFunc, m ...MiddlewareFunc) Ro
 //
 // Note: this method only adds specific set of supported HTTP methods as handler and is not true
 // "catch-any-arbitrary-method" way of matching requests.
-func (e *Echo) Any(path string, handler HandlerFunc, middleware ...MiddlewareFunc) Routes {
-	errs := make([]error, 0)
-	ris := make(Routes, 0)
-	for _, m := range methods { // could we just register RouteNotFound here?
-		ri, err := e.AddRoute(Route{
-			Method:      m,
-			Path:        path,
-			Handler:     handler,
-			Middlewares: middleware,
-		})
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		ris = append(ris, ri)
-	}
-	if len(errs) > 0 {
-		panic(errs) // this is how `v4` handles errors. `v5` has methods to have panic-free usage
-	}
-	return ris
+func (e *Echo) Any(path string, handler HandlerFunc, middleware ...MiddlewareFunc) RouteInfo {
+	return e.Add(RouteAny, path, handler, middleware...)
 }
 
 // Match registers a new route for multiple HTTP methods and path with matching
