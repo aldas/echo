@@ -20,7 +20,7 @@ type concurrentRouter struct {
 
 func (r *concurrentRouter) Route(c *Context) HandlerFunc {
 	r.mu.RLock()
-	r.mu.RUnlock()
+	defer r.mu.RUnlock()
 
 	return r.router.Route(c)
 }
