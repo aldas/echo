@@ -42,7 +42,7 @@ type ProxyConfig struct {
 	// of previous retries is less than RetryCount. If the function returns true, the
 	// request will be retried. The provided error indicates the reason for the request
 	// failure. When the ProxyTarget is unavailable, the error will be an instance of
-	// echo.HTTPError with a Code of http.StatusBadGateway. In all other cases, the error
+	// echo.HTTPError with a code of http.StatusBadGateway. In all other cases, the error
 	// will indicate an internal error in the Proxy middleware. When a RetryFilter is not
 	// specified, all requests that fail with http.StatusBadGateway will be retried. A custom
 	// RetryFilter can be provided to only retry specific requests. Note that RetryFilter is

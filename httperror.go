@@ -16,18 +16,18 @@ type HTTPStatusCoder interface {
 
 // Following errors can produce HTTP status code by implementing HTTPStatusCoder interface
 var (
-	ErrBadRequest                  = httpError(http.StatusBadRequest)            // 400
-	ErrUnauthorized                = httpError(http.StatusUnauthorized)          // 401
-	ErrForbidden                   = httpError(http.StatusForbidden)             // 403
-	ErrNotFound                    = httpError(http.StatusNotFound)              // 404
-	ErrMethodNotAllowed            = httpError(http.StatusMethodNotAllowed)      // 405
-	ErrRequestTimeout              = httpError(http.StatusRequestTimeout)        // 408
-	ErrStatusRequestEntityTooLarge = httpError(http.StatusRequestEntityTooLarge) // 413
-	ErrUnsupportedMediaType        = httpError(http.StatusUnsupportedMediaType)  // 415
-	ErrTooManyRequests             = httpError(http.StatusTooManyRequests)       // 429
-	ErrInternalServerError         = httpError(http.StatusInternalServerError)   // 500
-	ErrBadGateway                  = httpError(http.StatusBadGateway)            // 502
-	ErrServiceUnavailable          = httpError(http.StatusServiceUnavailable)    // 503
+	ErrBadRequest                  = &httpError{http.StatusBadRequest}            // 400
+	ErrUnauthorized                = &httpError{http.StatusUnauthorized}          // 401
+	ErrForbidden                   = &httpError{http.StatusForbidden}             // 403
+	ErrNotFound                    = &httpError{http.StatusNotFound}              // 404
+	ErrMethodNotAllowed            = &httpError{http.StatusMethodNotAllowed}      // 405
+	ErrRequestTimeout              = &httpError{http.StatusRequestTimeout}        // 408
+	ErrStatusRequestEntityTooLarge = &httpError{http.StatusRequestEntityTooLarge} // 413
+	ErrUnsupportedMediaType        = &httpError{http.StatusUnsupportedMediaType}  // 415
+	ErrTooManyRequests             = &httpError{http.StatusTooManyRequests}       // 429
+	ErrInternalServerError         = &httpError{http.StatusInternalServerError}   // 500
+	ErrBadGateway                  = &httpError{http.StatusBadGateway}            // 502
+	ErrServiceUnavailable          = &httpError{http.StatusServiceUnavailable}    // 503
 )
 
 // Following errors fall into 500 (InternalServerError) category
@@ -86,20 +86,22 @@ func (he *HTTPError) Unwrap() error {
 	return he.err
 }
 
-type httpError int
+type httpError struct {
+	code int
+}
 
 func (he httpError) StatusCode() int {
-	return int(he)
+	return he.code
 }
 
 func (he httpError) Error() string {
-	return http.StatusText(int(he)) // does not include status code
+	return http.StatusText(he.code) // does not include status code
 }
 
 func (he httpError) Wrap(err error) error {
 	return &HTTPError{
-		Code:    int(he),
-		Message: http.StatusText(int(he)),
+		Code:    he.code,
+		Message: http.StatusText(he.code),
 		err:     err,
 	}
 }
