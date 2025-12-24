@@ -236,7 +236,7 @@ func New() *Echo {
 // Note: both request and response can be left to nil as Echo.ServeHTTP will call c.Reset(req,resp) anyway
 // these arguments are useful when creating context for tests and cases like that.
 func (e *Echo) NewContext(r *http.Request, w http.ResponseWriter) *Context {
-	return NewContext(r, w, e)
+	return newContext(r, w, e)
 }
 
 // Router returns the default router.
@@ -571,6 +571,8 @@ func (e *Echo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // serveHTTP implements `http.Handler` interface, which serves HTTP requests.
 func (e *Echo) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	c := e.contextPool.Get().(*Context)
+	defer e.contextPool.Put(c)
+
 	c.Reset(r, w)
 	var h HandlerFunc
 
@@ -588,8 +590,6 @@ func (e *Echo) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := h(c); err != nil {
 		e.HTTPErrorHandler(c, err)
 	}
-
-	e.contextPool.Put(c)
 }
 
 // Start stars HTTP server on given address with Echo as a handler serving requests. The server can be shutdown by

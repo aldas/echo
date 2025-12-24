@@ -64,7 +64,7 @@ func TestConcurrentRouter_ConcurrentReads(t *testing.T) {
 				path := testPaths[j%len(testPaths)]
 				req := httptest.NewRequest(http.MethodGet, path, nil)
 				rec := httptest.NewRecorder()
-				c := NewContext(req, rec, nil)
+				c := newContext(req, rec, nil)
 
 				handler := router.Route(c)
 				if handler != nil {
@@ -164,7 +164,7 @@ func TestConcurrentRouter_ConcurrentReadWrite(t *testing.T) {
 
 				req := httptest.NewRequest(http.MethodGet, path, nil)
 				rec := httptest.NewRecorder()
-				c := NewContext(req, rec, nil)
+				c := newContext(req, rec, nil)
 
 				handler := router.Route(c)
 				if handler != nil {

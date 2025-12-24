@@ -54,15 +54,6 @@ const (
 // Routes is collection of RouteInfo instances with various helper methods.
 type Routes []RouteInfo
 
-// PathValues is collections of PathValue instances with various helper methods
-type PathValues []PathValue
-
-// PathValue is tuple pf path parameter name and its value in request path
-type PathValue struct {
-	Name  string
-	Value string
-}
-
 // DefaultRouter is the registry of all registered routes for an `Echo` instance for
 // request matching and URL path parameter parsing.
 // Note: DefaultRouter is not coroutine-safe. Do not Add/Remove routes after HTTP server has been started with Echo.
@@ -1053,8 +1044,27 @@ func (r *DefaultRouter) Route(c *Context) HandlerFunc {
 	return rHandler
 }
 
-// Get returns path parameter value for given name or default value.
-func (p PathValues) Get(name string, defaultValue string) string {
+// PathValues is collections of PathValue instances with various helper methods
+type PathValues []PathValue
+
+// PathValue is tuple pf path parameter name and its value in request path
+type PathValue struct {
+	Name  string
+	Value string
+}
+
+// Get returns path parameter value for given name or false.
+func (p PathValues) Get(name string) (string, bool) {
+	for _, param := range p {
+		if param.Name == name {
+			return param.Value, true
+		}
+	}
+	return "", false
+}
+
+// GetOr returns path parameter value for given name or default value if the name does not exist.
+func (p PathValues) GetOr(name string, defaultValue string) string {
 	for _, param := range p {
 		if param.Name == name {
 			return param.Value

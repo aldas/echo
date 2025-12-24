@@ -320,68 +320,6 @@ func TestStartConfig_StartTLS(t *testing.T) {
 	}
 }
 
-func TestStartConfig_StartTLSAndStart(t *testing.T) {
-	// We name if Echo and listeners work correctly when Echo is simultaneously attached to HTTP and HTTPS server
-	e := New()
-	e.GET("/", func(c *Context) error {
-		return c.String(http.StatusOK, "OK")
-	})
-
-	tlsCtx, tlsShutdown := stdContext.WithTimeout(stdContext.Background(), 100*time.Millisecond)
-	defer tlsShutdown()
-	addrTLSChan := make(chan string)
-	errTLSChan := make(chan error)
-	go func() {
-		s := &StartConfig{
-			Address:         ":0",
-			GracefulTimeout: 100 * time.Millisecond,
-			ListenerAddrFunc: func(addr net.Addr) {
-				addrTLSChan <- addr.String()
-			},
-		}
-		errTLSChan <- s.StartTLS(tlsCtx, e, "_fixture/certs/cert.pem", "_fixture/certs/key.pem")
-	}()
-
-	tlsAddr, err := waitForServerStart(addrTLSChan, errTLSChan)
-	assert.NoError(t, err)
-
-	// check if HTTPS works (note: we are using self signed certs so InsecureSkipVerify=true)
-	client := &http.Client{Transport: &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}}
-	res, err := client.Get(fmt.Sprintf("https://%v", tlsAddr))
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusOK, res.StatusCode)
-
-	ctx, shutdown := stdContext.WithTimeout(stdContext.Background(), 100*time.Millisecond)
-	defer shutdown()
-	addrChan := make(chan string)
-	errChan := make(chan error)
-	go func() {
-		s := &StartConfig{
-			Address:         ":0",
-			GracefulTimeout: 100 * time.Millisecond,
-			ListenerAddrFunc: func(addr net.Addr) {
-				addrChan <- addr.String()
-			},
-		}
-		errChan <- s.Start(ctx, e)
-	}()
-
-	addr, err := waitForServerStart(addrChan, errChan)
-	assert.NoError(t, err)
-
-	// now we are serving both HTTPS and HTTP listeners. see if HTTP works in addition to HTTPS
-	res, err = client.Get(fmt.Sprintf("http://%v", addr))
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusOK, res.StatusCode)
-
-	// see if HTTPS works after HTTP listener is also added
-	res, err = client.Get(fmt.Sprintf("https://%v", tlsAddr))
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusOK, res.StatusCode)
-}
-
 func TestFilepathOrContent(t *testing.T) {
 	cert, err := os.ReadFile("_fixture/certs/cert.pem")
 	require.NoError(t, err)

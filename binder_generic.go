@@ -1,0 +1,308 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2015 LabStack LLC and Echo contributors
+
+package echo
+
+import (
+	"encoding"
+	"encoding/json"
+	"fmt"
+	"strconv"
+	"time"
+)
+
+// TimeLayout specifies the format for parsing time values in request parameters.
+// It can be a standard Go time layout string or one of the special Unix time layouts.
+type TimeLayout string
+
+// TimeOpts is options for parsing time.Time values
+type TimeOpts struct {
+	// Layout specifies the format for parsing time values in request parameters.
+	// It can be a standard Go time layout string or one of the special Unix time layouts.
+	//
+	// Parsing layout defaults to: echo.TimeLayout(time.RFC3339Nano)
+	// - To convert to custom layout use `echo.TimeLayout("2006-01-02")`
+	// - To convert unix timestamp (integer) to time.Time use `echo.TimeLayoutUnixTime`
+	// - To convert unix timestamp in milliseconds to time.Time use `echo.TimeLayoutUnixTimeMilli`
+	// - To convert unix timestamp in nanoseconds to time.Time use `echo.TimeLayoutUnixTimeNano`
+	Layout TimeLayout
+
+	// ParseInLocation is location used with time.ParseInLocation for layout that do not contain
+	// timezone information to set output time in given location.
+	// Defaults to time.UTC
+	ParseInLocation *time.Location
+
+	// ToInLocation is location to which parsed time is set to.
+	// Defaults to time.UTC
+	ToInLocation *time.Location
+}
+
+// TimeLayout constants for parsing Unix timestamps in different precisions.
+const (
+	TimeLayoutUnixTime      = TimeLayout("UnixTime")      // Unix timestamp in seconds
+	TimeLayoutUnixTimeMilli = TimeLayout("UnixTimeMilli") // Unix timestamp in milliseconds
+	TimeLayoutUnixTimeNano  = TimeLayout("UnixTimeNano")  // Unix timestamp in nanoseconds
+)
+
+// PathParam extracts and parses a path parameter from the context by name.
+// It returns the typed value and an error if binding fails. Returns ErrNonExistentKey if parameter not found.
+//
+// See ParseValue for supported types and options
+func PathParam[T any](c *Context, paramName string, opts ...any) (T, error) {
+	for _, pv := range c.PathValues() {
+		if pv.Name == paramName {
+			v, err := ParseValue[T](pv.Value, opts...)
+			if err != nil {
+				return v, NewBindingError(paramName, []string{pv.Value}, "failed to parse path value", err)
+			}
+			return v, nil
+		}
+	}
+	var zero T
+	return zero, ErrNonExistentKey
+}
+
+// QueryParam extracts and parses a single query parameter from the request by key.
+// It returns the typed value and an error if binding fails. Returns ErrNonExistentKey if parameter not found.
+//
+// See ParseValue for supported types and options
+func QueryParam[T any](c *Context, key string, opts ...any) (T, error) {
+	values, ok := c.QueryParams()[key]
+	var zero T
+	if !ok {
+		return zero, ErrNonExistentKey
+	}
+	if len(values) == 0 {
+		return zero, nil
+	}
+	value := values[0]
+	v, err := ParseValue[T](value, opts...)
+	if err != nil {
+		return v, NewBindingError(key, []string{value}, "failed to parse query value", err)
+	}
+	return v, nil
+}
+
+// QueryParams extracts and parses all values for a query parameter key as a slice.
+// It returns the typed slice and an error if binding any value fails. Returns ErrNonExistentKey if parameter not found.
+//
+// See ParseValues for supported types and options
+func QueryParams[T any](c *Context, key string, opts ...any) ([]T, error) {
+	values, ok := c.QueryParams()[key]
+	if !ok {
+		return nil, ErrNonExistentKey
+	}
+
+	result, err := ParseValues[T](values, opts...)
+	if err != nil {
+		return nil, NewBindingError(key, values, "failed to parse query values", err)
+	}
+	return result, nil
+}
+
+// ParseValues parses value to generic type slice. Same types are supported as ParseValue
+// function but the result type is slice instead of scalar value.
+//
+// See ParseValue for supported types and options
+func ParseValues[T any](values []string, opts ...any) ([]T, error) {
+	var result []T
+	for _, v := range values {
+		tmp, err := ParseValue[T](v, opts...)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, tmp)
+	}
+	return result, nil
+}
+
+// ParseValue parses value to generic type
+//
+// Types that are supported:
+//   - bool
+//   - float32
+//   - float64
+//   - int
+//   - int8
+//   - int16
+//   - int32
+//   - int64
+//   - uint
+//   - uint8/byte
+//   - uint16
+//   - uint32
+//   - uint64
+//   - string
+//   - echo.BindUnmarshaler interface
+//   - encoding.TextUnmarshaler interface
+//   - json.Unmarshaler interface
+//   - time.Duration
+//   - time.Time use echo.TimeOpts or echo.TimeLayout to set time parsing configuration
+func ParseValue[T any](value string, opts ...any) (T, error) {
+	var tmp T
+	if err := bindValue(value, &tmp, opts...); err != nil {
+		var zero T
+		return zero, err
+	}
+	return tmp, nil
+}
+
+func bindValue(value string, dest any, opts ...any) error {
+	switch d := dest.(type) {
+	case *bool:
+		n, err := strconv.ParseBool(value)
+		if err != nil {
+			return err
+		}
+		*d = n
+	case *float32:
+		n, err := strconv.ParseFloat(value, 32)
+		if err != nil {
+			return err
+		}
+		*d = float32(n)
+	case *float64:
+		n, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return err
+		}
+		*d = n
+	case *int:
+		n, err := strconv.ParseInt(value, 10, 0)
+		if err != nil {
+			return err
+		}
+		*d = int(n)
+	case *int8:
+		n, err := strconv.ParseInt(value, 10, 8)
+		if err != nil {
+			return err
+		}
+		*d = int8(n)
+	case *int16:
+		n, err := strconv.ParseInt(value, 10, 16)
+		if err != nil {
+			return err
+		}
+		*d = int16(n)
+	case *int32:
+		n, err := strconv.ParseInt(value, 10, 32)
+		if err != nil {
+			return err
+		}
+		*d = int32(n)
+	case *int64:
+		n, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			return err
+		}
+		*d = n
+	case *uint:
+		n, err := strconv.ParseUint(value, 10, 0)
+		if err != nil {
+			return err
+		}
+		*d = uint(n)
+	case *uint8:
+		n, err := strconv.ParseUint(value, 10, 8)
+		if err != nil {
+			return err
+		}
+		*d = uint8(n)
+	case *uint16:
+		n, err := strconv.ParseUint(value, 10, 16)
+		if err != nil {
+			return err
+		}
+		*d = uint16(n)
+	case *uint32:
+		n, err := strconv.ParseUint(value, 10, 32)
+		if err != nil {
+			return err
+		}
+		*d = uint32(n)
+	case *uint64:
+		n, err := strconv.ParseUint(value, 10, 64)
+		if err != nil {
+			return err
+		}
+		*d = n
+	case *string:
+		*d = value
+	case *time.Duration:
+		t, err := time.ParseDuration(value)
+		if err != nil {
+			return err
+		}
+		*d = t
+	case *time.Time:
+		to := TimeOpts{
+			Layout:          TimeLayout(time.RFC3339Nano),
+			ParseInLocation: time.UTC,
+			ToInLocation:    time.UTC,
+		}
+		for _, o := range opts {
+			switch v := o.(type) {
+			case TimeOpts:
+				if v.Layout != "" {
+					to.Layout = v.Layout
+				}
+				if v.ParseInLocation != nil {
+					to.ParseInLocation = v.ParseInLocation
+				}
+				if v.ToInLocation != nil {
+					to.ToInLocation = v.ToInLocation
+				}
+			case TimeLayout:
+				to.Layout = v
+			}
+		}
+		var t time.Time
+		var err error
+		switch to.Layout {
+		case TimeLayoutUnixTime:
+			n, err := strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				return err
+			}
+			t = time.Unix(n, 0)
+		case TimeLayoutUnixTimeMilli:
+			n, err := strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				return err
+			}
+			t = time.UnixMilli(n)
+		case TimeLayoutUnixTimeNano:
+			n, err := strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				return err
+			}
+			t = time.Unix(0, n)
+		default:
+			if to.ParseInLocation != nil {
+				t, err = time.ParseInLocation(string(to.Layout), value, to.ParseInLocation)
+			} else {
+				t, err = time.Parse(string(to.Layout), value)
+			}
+			if err != nil {
+				return err
+			}
+		}
+		*d = t.In(to.ToInLocation)
+	case BindUnmarshaler:
+		if err := d.UnmarshalParam(value); err != nil {
+			return err
+		}
+	case encoding.TextUnmarshaler:
+		if err := d.UnmarshalText([]byte(value)); err != nil {
+			return err
+		}
+	case json.Unmarshaler:
+		if err := d.UnmarshalJSON([]byte(value)); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unsupported value type: %T", dest)
+	}
+	return nil
+}

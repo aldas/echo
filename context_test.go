@@ -623,7 +623,7 @@ func TestContext_PathParamDefault(t *testing.T) {
 			},
 			whenParamName:    "uid",
 			whenDefaultValue: "999",
-			expect:           "", // <-- this is different from QueryParamDefault behaviour
+			expect:           "", // <-- this is different from QueryParamOr behaviour
 		},
 		{
 			name: "param does not exists",
@@ -644,7 +644,7 @@ func TestContext_PathParamDefault(t *testing.T) {
 
 			c.SetPathValues(tc.given)
 
-			assert.EqualValues(t, tc.expect, c.ParamDefault(tc.whenParamName, tc.whenDefaultValue))
+			assert.EqualValues(t, tc.expect, c.ParamOr(tc.whenParamName, tc.whenDefaultValue))
 		})
 	}
 }
@@ -758,9 +758,9 @@ func TestContextFormValue(t *testing.T) {
 	assert.Equal(t, "Jon Snow", c.FormValue("name"))
 	assert.Equal(t, "jon@labstack.com", c.FormValue("email"))
 
-	// FormValueDefault
-	assert.Equal(t, "Jon Snow", c.FormValueDefault("name", "nope"))
-	assert.Equal(t, "default", c.FormValueDefault("missing", "default"))
+	// FormValueOr
+	assert.Equal(t, "Jon Snow", c.FormValueOr("name", "nope"))
+	assert.Equal(t, "default", c.FormValueOr("missing", "default"))
 
 	// FormValues
 	values, err := c.FormValues()
@@ -900,7 +900,7 @@ func TestContext_QueryParamDefault(t *testing.T) {
 			e := New()
 			c := e.NewContext(req, nil)
 
-			assert.Equal(t, tc.expect, c.QueryParamDefault(tc.whenParamName, tc.whenDefaultValue))
+			assert.Equal(t, tc.expect, c.QueryParamOr(tc.whenParamName, tc.whenDefaultValue))
 		})
 	}
 }
@@ -963,10 +963,41 @@ func TestContextRedirect(t *testing.T) {
 	assert.Error(t, c.Redirect(310, "http://labstack.github.io/echo"))
 }
 
-func TestContextStore(t *testing.T) {
-	var c = new(Context)
-	c.Set("name", "Jon Snow")
-	assert.Equal(t, "Jon Snow", c.Get("name"))
+func TestContextGet(t *testing.T) {
+	var testCases = []struct {
+		name    string
+		given   any
+		whenKey string
+		expect  any
+	}{
+		{
+			name:    "ok, value exist",
+			given:   "Jon Snow",
+			whenKey: "key",
+			expect:  "Jon Snow",
+		},
+		{
+			name:    "ok, value does not exist",
+			given:   "Jon Snow",
+			whenKey: "nope",
+			expect:  nil,
+		},
+		{
+			name:    "ok, value is nil value",
+			given:   []byte(nil),
+			whenKey: "key",
+			expect:  []byte(nil),
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var c = new(Context)
+			c.Set("key", tc.given)
+
+			v := c.Get(tc.whenKey)
+			assert.Equal(t, tc.expect, v)
+		})
+	}
 }
 
 func BenchmarkContext_Store(b *testing.B) {

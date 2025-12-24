@@ -55,7 +55,18 @@ type Context struct {
 //
 // Note: request,response and e can be left to nil as Echo.ServeHTTP will call c.Reset(req,resp) anyway
 // these arguments are useful when creating context for tests and cases like that.
-func NewContext(r *http.Request, w http.ResponseWriter, e *Echo) *Context {
+func NewContext(r *http.Request, w http.ResponseWriter, opts ...any) *Context {
+	var e *Echo
+	for _, opt := range opts {
+		switch v := opt.(type) {
+		case *Echo:
+			e = v
+		}
+	}
+	return newContext(r, w, e)
+}
+
+func newContext(r *http.Request, w http.ResponseWriter, e *Echo) *Context {
 	c := &Context{
 		pathValues: nil,
 		store:      make(map[string]any),
@@ -67,7 +78,8 @@ func NewContext(r *http.Request, w http.ResponseWriter, e *Echo) *Context {
 	if e != nil {
 		paramLen = e.contextPathParamAllocSize.Load()
 		logger = e.Logger
-	} else {
+	}
+	if logger == nil {
 		logger = slog.Default()
 	}
 	c.logger = logger
@@ -210,10 +222,10 @@ func (c *Context) RouteInfo() RouteInfo {
 
 // Param returns path parameter by name.
 func (c *Context) Param(name string) string {
-	return c.pathValues.Get(name, "")
+	return c.pathValues.GetOr(name, "")
 }
 
-// ParamDefault returns the path parameter or default value for the provided name.
+// ParamOr returns the path parameter or default value for the provided name.
 //
 // Notes for DefaultRouter implementation:
 // Path parameter could be empty for cases like that:
@@ -221,8 +233,8 @@ func (c *Context) Param(name string) string {
 // * route `/api/:version/image.jpg` and request URL is `/api//image.jpg`
 // but not when path parameter is last part of route path
 // * route `/download/file.:ext` will not match request `/download/file.`
-func (c *Context) ParamDefault(name, defaultValue string) string {
-	return c.pathValues.Get(name, defaultValue)
+func (c *Context) ParamOr(name, defaultValue string) string {
+	return c.pathValues.GetOr(name, defaultValue)
 }
 
 // PathValues returns path parameter values.
@@ -270,10 +282,10 @@ func (c *Context) QueryParam(name string) string {
 	return c.query.Get(name)
 }
 
-// QueryParamDefault returns the query param or default value for the provided name.
-// Note: QueryParamDefault does not distinguish if query had no value by that name or value was empty string
-// This means URLs `/test?search=` and `/test` would both return `1` for `c.QueryParamDefault("search", "1")`
-func (c *Context) QueryParamDefault(name, defaultValue string) string {
+// QueryParamOr returns the query param or default value for the provided name.
+// Note: QueryParamOr does not distinguish if query had no value by that name or value was empty string
+// This means URLs `/test?search=` and `/test` would both return `1` for `c.QueryParamOr("search", "1")`
+func (c *Context) QueryParamOr(name, defaultValue string) string {
 	value := c.QueryParam(name)
 	if value == "" {
 		value = defaultValue
@@ -299,9 +311,9 @@ func (c *Context) FormValue(name string) string {
 	return c.request.FormValue(name)
 }
 
-// FormValueDefault returns the form field value or default value for the provided name.
-// Note: FormValueDefault does not distinguish if form had no value by that name or value was empty string
-func (c *Context) FormValueDefault(name, defaultValue string) string {
+// FormValueOr returns the form field value or default value for the provided name.
+// Note: FormValueOr does not distinguish if form had no value by that name or value was empty string
+func (c *Context) FormValueOr(name, defaultValue string) string {
 	value := c.FormValue(name)
 	if value == "" {
 		value = defaultValue
@@ -355,6 +367,7 @@ func (c *Context) Cookies() []*http.Cookie {
 }
 
 // Get retrieves data from the context.
+// Method returns any(nil) when key does not exist which is different from typed nil (eg. []byte(nil)).
 func (c *Context) Get(key string) any {
 	c.lock.RLock()
 	defer c.lock.RUnlock()

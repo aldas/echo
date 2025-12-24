@@ -720,7 +720,7 @@ func TestRouterParam(t *testing.T) {
 
 			assert.Equal(t, tc.expectRoute, c.Path())
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, c.pathValues.Get(param, "---none---"))
+				assert.Equal(t, expectedValue, c.pathValues.GetOr(param, "---none---"))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -875,7 +875,7 @@ func TestMethodNotAllowedAndNotFound(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, c.Path())
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, c.pathValues.Get(param, "---none---"))
+				assert.Equal(t, expectedValue, c.pathValues.GetOr(param, "---none---"))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 			assert.Equal(t, tc.expectAllowHeader, c.Response().Header().Get(HeaderAllow))
@@ -983,8 +983,8 @@ func TestRouterTwoParam(t *testing.T) {
 	_ = e.router.Route(c)
 
 	assert.Equal(t, "/users/:uid/files/:fid", c.Path())
-	assert.Equal(t, "1", c.pathValues.Get("uid", ""))
-	assert.Equal(t, "1", c.pathValues.Get("fid", ""))
+	assert.Equal(t, "1", c.pathValues.GetOr("uid", ""))
+	assert.Equal(t, "1", c.pathValues.GetOr("fid", ""))
 }
 
 // Issue #378
@@ -1092,7 +1092,7 @@ func TestRouteMultiLevelBacktracking(t *testing.T) {
 
 			assert.Equal(t, tc.expectRoute, c.Path())
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, c.pathValues.Get(param, "---none---"))
+				assert.Equal(t, expectedValue, c.pathValues.GetOr(param, "---none---"))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1191,7 +1191,7 @@ func TestRouteMultiLevelBacktracking2(t *testing.T) {
 
 			assert.Equal(t, tc.expectRoute, c.Path())
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, c.pathValues.Get(param, "---none---"))
+				assert.Equal(t, expectedValue, c.pathValues.GetOr(param, "---none---"))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1256,7 +1256,7 @@ func TestRouterBacktrackingFromMultipleParamKinds(t *testing.T) {
 
 			assert.Equal(t, tc.expectRoute, c.Path())
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, c.pathValues.Get(param, "---none---"))
+				assert.Equal(t, expectedValue, c.pathValues.GetOr(param, "---none---"))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1297,7 +1297,7 @@ func TestRouterParamStaticConflict(t *testing.T) {
 			assert.NoError(t, handler(c))
 			assert.Equal(t, tc.expectRoute, c.Path())
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, c.pathValues.Get(param, ""))
+				assert.Equal(t, expectedValue, c.pathValues.GetOr(param, ""))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1407,7 +1407,7 @@ func TestRouterMatchAny(t *testing.T) {
 			assert.NoError(t, handler(c))
 			assert.Equal(t, tc.expectRoute, c.Path())
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, c.pathValues.Get(param, ""))
+				assert.Equal(t, expectedValue, c.pathValues.GetOr(param, ""))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1431,7 +1431,7 @@ func TestRouterAnyMatchesLastAddedAnyRoute(t *testing.T) {
 
 	assert.NoError(t, handler(c))
 	assert.Equal(t, "/users/*/action*", c.Path())
-	assert.Equal(t, "xxx/action/sea", c.pathValues.Get("*", ""))
+	assert.Equal(t, "xxx/action/sea", c.pathValues.GetOr("*", ""))
 
 	// if we add another route then it is the last added and so it is matched
 	e.GET("/users/*/action/search", handlerFunc)
@@ -1441,7 +1441,7 @@ func TestRouterAnyMatchesLastAddedAnyRoute(t *testing.T) {
 
 	assert.NoError(t, handler2(c2))
 	assert.Equal(t, "/users/*/action/search", c2.Path())
-	assert.Equal(t, "xxx/action/sea", c2.pathValues.Get("*", ""))
+	assert.Equal(t, "xxx/action/sea", c2.pathValues.GetOr("*", ""))
 }
 
 // Issue #1739
@@ -1492,7 +1492,7 @@ func TestRouterMatchAnyPrefixIssue(t *testing.T) {
 			assert.NoError(t, handler(c))
 			assert.Equal(t, tc.expectRoute, c.Path())
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, c.pathValues.Get(param, "---none---"))
+				assert.Equal(t, expectedValue, c.pathValues.GetOr(param, "---none---"))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1578,7 +1578,7 @@ func TestRouterMatchAnySlash(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, c.Path())
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, c.pathValues.Get(param, ""))
+				assert.Equal(t, expectedValue, c.pathValues.GetOr(param, ""))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1652,7 +1652,7 @@ func TestRouterMatchAnyMultiLevel(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, c.Path())
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, c.pathValues.Get(param, ""))
+				assert.Equal(t, expectedValue, c.pathValues.GetOr(param, ""))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1718,7 +1718,7 @@ func TestRouterMatchAnyMultiLevelWithPost(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, c.Path())
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, c.pathValues.Get(param, ""))
+				assert.Equal(t, expectedValue, c.pathValues.GetOr(param, ""))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1734,9 +1734,9 @@ func TestRouterMicroParam(t *testing.T) {
 	handler := e.router.Route(c)
 
 	assert.NoError(t, handler(c))
-	assert.Equal(t, "1", c.pathValues.Get("a", "---none---"))
-	assert.Equal(t, "2", c.pathValues.Get("b", "---none---"))
-	assert.Equal(t, "3", c.pathValues.Get("c", "---none---"))
+	assert.Equal(t, "1", c.pathValues.GetOr("a", "---none---"))
+	assert.Equal(t, "2", c.pathValues.GetOr("b", "---none---"))
+	assert.Equal(t, "3", c.pathValues.GetOr("c", "---none---"))
 }
 
 func TestRouterMixParamMatchAny(t *testing.T) {
@@ -1751,8 +1751,8 @@ func TestRouterMixParamMatchAny(t *testing.T) {
 
 	assert.NoError(t, handler(c))
 	assert.Equal(t, "/users/:id/*", c.Path())
-	assert.Equal(t, "joe", c.pathValues.Get("id", "---none---"))
-	assert.Equal(t, "comments", c.pathValues.Get("*", "---none---"))
+	assert.Equal(t, "joe", c.pathValues.GetOr("id", "---none---"))
+	assert.Equal(t, "comments", c.pathValues.GetOr("*", "---none---"))
 }
 
 func TestRouterMultiRoute(t *testing.T) {
@@ -1800,7 +1800,7 @@ func TestRouterMultiRoute(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, c.Path())
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, c.pathValues.Get(param, ""))
+				assert.Equal(t, expectedValue, c.pathValues.GetOr(param, ""))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1914,7 +1914,7 @@ func TestRouterPriority(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, c.Path())
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, c.pathValues.Get(param, "---none---"))
+				assert.Equal(t, expectedValue, c.pathValues.GetOr(param, "---none---"))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -1977,7 +1977,7 @@ func TestRouterPriorityNotFound(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, c.Path())
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, c.pathValues.Get(param, "---none---"))
+				assert.Equal(t, expectedValue, c.pathValues.GetOr(param, "---none---"))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -2037,7 +2037,7 @@ func TestRouterParamNames(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, c.Path())
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, c.pathValues.Get(param, "---none---"))
+				assert.Equal(t, expectedValue, c.pathValues.GetOr(param, "---none---"))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -2114,7 +2114,7 @@ func TestRouterStaticDynamicConflict(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, c.Path())
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, c.pathValues.Get(param, ""))
+				assert.Equal(t, expectedValue, c.pathValues.GetOr(param, ""))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -2192,7 +2192,7 @@ func TestRouterParamBacktraceNotFound(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, c.Path())
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, c.pathValues.Get(param, "---none---"))
+				assert.Equal(t, expectedValue, c.pathValues.GetOr(param, "---none---"))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -2223,7 +2223,7 @@ func testRouterAPI(t *testing.T, api []testRoute) {
 			tokens := strings.Split(route.Path[1:], "/")
 			for _, token := range tokens {
 				if token[0] == ':' {
-					assert.Equal(t, c.pathValues.Get(token[1:], "---none---"), token)
+					assert.Equal(t, c.pathValues.GetOr(token[1:], "---none---"), token)
 				}
 			}
 		})
@@ -2287,7 +2287,7 @@ func TestRouter_Match_DifferentParamNamesForSamePlace(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, c.Path())
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, c.pathValues.Get(param, ""))
+				assert.Equal(t, expectedValue, c.pathValues.GetOr(param, ""))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -2345,7 +2345,7 @@ func TestDefaultRouter_PathValuesCanMatchEmptyValues(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, c.Path())
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, c.pathValues.Get(param, ""))
+				assert.Equal(t, expectedValue, c.pathValues.GetOr(param, ""))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -2494,7 +2494,7 @@ func TestRouterParam1466(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, c.Path())
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, c.pathValues.Get(param, ""))
+				assert.Equal(t, expectedValue, c.pathValues.GetOr(param, ""))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -2624,7 +2624,7 @@ func TestRouterPanicWhenParamNoRootOnlyChildsFailsFind(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectRoute, c.Path())
 			for param, expectedValue := range tc.expectParam {
-				assert.Equal(t, expectedValue, c.pathValues.Get(param, "---none---"))
+				assert.Equal(t, expectedValue, c.pathValues.GetOr(param, "---none---"))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
 		})
@@ -3539,6 +3539,73 @@ func TestRouter_RouteWhenNotFoundRouteStaticKind(t *testing.T) {
 				assert.Equal(t, expectedValue, c.Param(param))
 			}
 			checkUnusedParamValues(t, c, tc.expectParam)
+		})
+	}
+}
+
+func TestPathValues_Get(t *testing.T) {
+	var testCases = []struct {
+		name     string
+		whenKey  string
+		expect   string
+		expectOK bool
+	}{
+		{
+			name:     "ok",
+			whenKey:  `tag`,
+			expect:   `latest`,
+			expectOK: true,
+		},
+		{
+			name:     "nok",
+			whenKey:  `not existent key`,
+			expect:   "",
+			expectOK: false,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			pv := PathValues{
+				{Name: "image", Value: "docker"},
+				{Name: "tag", Value: "latest"},
+			}
+
+			result, ok := pv.Get(tc.whenKey)
+			assert.Equal(t, tc.expectOK, ok)
+			assert.Equal(t, tc.expect, result)
+		})
+	}
+}
+
+func TestPathValues_GetOr(t *testing.T) {
+	var testCases = []struct {
+		name             string
+		whenKey          string
+		whenDefaultValue string
+		expect           string
+	}{
+		{
+			name:             "ok, existing key",
+			whenKey:          `tag`,
+			whenDefaultValue: `tag`,
+			expect:           `latest`,
+		},
+		{
+			name:             "nok, no existing key return default value",
+			whenKey:          `not existent key`,
+			whenDefaultValue: `ok`,
+			expect:           "ok",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			pv := PathValues{
+				{Name: "image", Value: "docker"},
+				{Name: "tag", Value: "latest"},
+			}
+
+			result := pv.GetOr(tc.whenKey, tc.whenDefaultValue)
+			assert.Equal(t, tc.expect, result)
 		})
 	}
 }
