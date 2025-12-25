@@ -48,6 +48,12 @@ const (
 // PathParam extracts and parses a path parameter from the context by name.
 // It returns the typed value and an error if binding fails. Returns ErrNonExistentKey if parameter not found.
 //
+// Empty String Handling:
+//   If the parameter exists but has an empty value, the zero value of type T is returned
+//   with no error. For example, a path parameter with value "" returns (0, nil) for int types.
+//   This differs from standard library behavior where parsing empty strings returns errors.
+//   To treat empty values as errors, validate the result separately or check the raw value.
+//
 // See ParseValue for supported types and options
 func PathParam[T any](c *Context, paramName string, opts ...any) (T, error) {
 	for _, pv := range c.PathValues() {
@@ -64,7 +70,14 @@ func PathParam[T any](c *Context, paramName string, opts ...any) (T, error) {
 }
 
 // PathParamOr extracts and parses a path parameter from the context by name.
-// It returns the typed value and an error if binding fails. Returns ErrNonExistentKey if parameter not found.
+// Returns defaultValue if the parameter is not found or has an empty value.
+// Returns an error only if parsing fails (e.g., "abc" for int type).
+//
+// Example:
+//   id, err := echo.PathParamOr[int](c, "id", 0)
+//   // If "id" is missing: returns (0, nil)
+//   // If "id" is "123": returns (123, nil)
+//   // If "id" is "abc": returns (0, BindingError)
 //
 // See ParseValue for supported types and options
 func PathParamOr[T any](c *Context, paramName string, defaultValue T, opts ...any) (T, error) {
@@ -82,6 +95,17 @@ func PathParamOr[T any](c *Context, paramName string, defaultValue T, opts ...an
 
 // QueryParam extracts and parses a single query parameter from the request by key.
 // It returns the typed value and an error if binding fails. Returns ErrNonExistentKey if parameter not found.
+//
+// Empty String Handling:
+//   If the parameter exists but has an empty value (?key=), the zero value of type T is returned
+//   with no error. For example, "?count=" returns (0, nil) for int types.
+//   This differs from standard library behavior where parsing empty strings returns errors.
+//   To treat empty values as errors, validate the result separately or check the raw value.
+//
+// Behavior Summary:
+//   - Missing key (?other=value): returns (zero, ErrNonExistentKey)
+//   - Empty value (?key=): returns (zero, nil)
+//   - Invalid value (?key=abc for int): returns (zero, BindingError)
 //
 // See ParseValue for supported types and options
 func QueryParam[T any](c *Context, key string, opts ...any) (T, error) {
@@ -103,7 +127,14 @@ func QueryParam[T any](c *Context, key string, opts ...any) (T, error) {
 }
 
 // QueryParamOr extracts and parses a single query parameter from the request by key.
-// It returns the typed value and an error if binding fails. Returns ErrNonExistentKey if parameter not found.
+// Returns defaultValue if the parameter is not found or has an empty value.
+// Returns an error only if parsing fails (e.g., "abc" for int type).
+//
+// Example:
+//   page, err := echo.QueryParamOr[int](c, "page", 1)
+//   // If "page" is missing: returns (1, nil)
+//   // If "page" is "5": returns (5, nil)
+//   // If "page" is "abc": returns (1, BindingError)
 //
 // See ParseValue for supported types and options
 func QueryParamOr[T any](c *Context, key string, defaultValue T, opts ...any) (T, error) {
@@ -140,8 +171,14 @@ func QueryParams[T any](c *Context, key string, opts ...any) ([]T, error) {
 }
 
 // QueryParamsOr extracts and parses all values for a query parameter key as a slice.
-// It returns the typed slice and an error if binding any value fails.
-// Returns ErrNonExistentKey if parameter not found.
+// Returns defaultValue if the parameter is not found.
+// Returns an error only if parsing any value fails.
+//
+// Example:
+//   ids, err := echo.QueryParamsOr[int](c, "ids", []int{})
+//   // If "ids" is missing: returns ([], nil)
+//   // If "ids" is "1&ids=2": returns ([1, 2], nil)
+//   // If "ids" contains "abc": returns ([], BindingError)
 //
 // See ParseValues for supported types and options
 func QueryParamsOr[T any](c *Context, key string, defaultValue []T, opts ...any) ([]T, error) {
@@ -159,6 +196,12 @@ func QueryParamsOr[T any](c *Context, key string, defaultValue []T, opts ...any)
 
 // FormValue extracts and parses a single form value from the request by key.
 // It returns the typed value and an error if binding fails. Returns ErrNonExistentKey if parameter not found.
+//
+// Empty String Handling:
+//   If the form field exists but has an empty value, the zero value of type T is returned
+//   with no error. For example, an empty form field returns (0, nil) for int types.
+//   This differs from standard library behavior where parsing empty strings returns errors.
+//   To treat empty values as errors, validate the result separately or check the raw value.
 //
 // See ParseValue for supported types and options
 func FormValue[T any](c *Context, key string, opts ...any) (T, error) {
@@ -185,7 +228,14 @@ func FormValue[T any](c *Context, key string, opts ...any) (T, error) {
 }
 
 // FormValueOr extracts and parses a single form value from the request by key.
-// It returns the typed value and an error if binding fails. Returns ErrNonExistentKey if parameter not found.
+// Returns defaultValue if the parameter is not found or has an empty value.
+// Returns an error only if parsing fails or form parsing errors occur.
+//
+// Example:
+//   limit, err := echo.FormValueOr[int](c, "limit", 100)
+//   // If "limit" is missing: returns (100, nil)
+//   // If "limit" is "50": returns (50, nil)
+//   // If "limit" is "abc": returns (100, BindingError)
 //
 // See ParseValue for supported types and options
 func FormValueOr[T any](c *Context, key string, defaultValue T, opts ...any) (T, error) {
@@ -230,7 +280,13 @@ func FormValues[T any](c *Context, key string, opts ...any) ([]T, error) {
 }
 
 // FormValuesOr extracts and parses all values for a form values key as a slice.
-// It returns the typed slice and an error if binding any value fails. Returns ErrNonExistentKey if parameter not found.
+// Returns defaultValue if the parameter is not found.
+// Returns an error only if parsing any value fails or form parsing errors occur.
+//
+// Example:
+//   tags, err := echo.FormValuesOr[string](c, "tags", []string{})
+//   // If "tags" is missing: returns ([], nil)
+//   // If form parsing fails: returns (nil, error)
 //
 // See ParseValues for supported types and options
 func FormValuesOr[T any](c *Context, key string, defaultValue []T, opts ...any) ([]T, error) {
