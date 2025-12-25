@@ -109,14 +109,14 @@ func FormValue[T any](c *Context, key string, opts ...any) (T, error) {
 	formValues, err := c.FormValues()
 	if err != nil {
 		var zero T
-		return zero, NewBindingError(key, []string{}, "failed to get form value", err)
+		return zero, NewBindingError(key, nil, "failed to get form value", err)
 	}
 	values, ok := formValues[key]
 	if !ok {
 		var zero T
 		return zero, ErrNonExistentKey
 	}
-	if len(formValues) == 0 {
+	if len(values) == 0 {
 		var zero T
 		return zero, nil
 	}
@@ -154,7 +154,10 @@ func FormValues[T any](c *Context, key string, opts ...any) ([]T, error) {
 //
 // See ParseValue for supported types and options
 func ParseValues[T any](values []string, opts ...any) ([]T, error) {
-	var result []T
+	if len(values) == 0 {
+		return []T{}, nil
+	}
+	result := make([]T, 0, len(values))
 	for _, v := range values {
 		tmp, err := ParseValue[T](v, opts...)
 		if err != nil {
