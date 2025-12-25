@@ -61,7 +61,7 @@ func TestPathParam(t *testing.T) {
 			name:       "nok, invalid value",
 			givenValue: "can_parse_me",
 			expect:     false,
-			expectErr:  `code=400, message=failed to parse path value, err=strconv.ParseBool: parsing "can_parse_me": invalid syntax, field=key`,
+			expectErr:  `code=400, message=path value, err=failed to parse value, err: strconv.ParseBool: parsing "can_parse_me": invalid syntax, field=key`,
 		},
 	}
 	for _, tc := range testCases {
@@ -89,7 +89,7 @@ func TestPathParam_UnsupportedType(t *testing.T) {
 
 	v, err := PathParam[[]bool](c, "key")
 
-	expectErr := "code=400, message=failed to parse path value, err=unsupported value type: *[]bool, field=key"
+	expectErr := "code=400, message=path value, err=failed to parse value, err: unsupported value type: *[]bool, field=key"
 	assert.EqualError(t, err, expectErr)
 	assert.Equal(t, []bool(nil), v)
 }
@@ -116,7 +116,7 @@ func TestQueryParam(t *testing.T) {
 			name:      "nok, invalid value",
 			givenURL:  "/?key=invalidbool",
 			expect:    false,
-			expectErr: `code=400, message=failed to parse query value, err=strconv.ParseBool: parsing "invalidbool": invalid syntax, field=key`,
+			expectErr: `code=400, message=query param, err=failed to parse value, err: strconv.ParseBool: parsing "invalidbool": invalid syntax, field=key`,
 		},
 	}
 	for _, tc := range testCases {
@@ -141,7 +141,7 @@ func TestQueryParam_UnsupportedType(t *testing.T) {
 
 	v, err := QueryParam[[]bool](c, "key")
 
-	expectErr := "code=400, message=failed to parse query value, err=unsupported value type: *[]bool, field=key"
+	expectErr := "code=400, message=query param, err=failed to parse value, err: unsupported value type: *[]bool, field=key"
 	assert.EqualError(t, err, expectErr)
 	assert.Equal(t, []bool(nil), v)
 }
@@ -168,7 +168,7 @@ func TestQueryParams(t *testing.T) {
 			name:      "nok, invalid value",
 			givenURL:  "/?key=true&key=invalidbool",
 			expect:    []bool(nil),
-			expectErr: `code=400, message=failed to parse query values, err=strconv.ParseBool: parsing "invalidbool": invalid syntax, field=key`,
+			expectErr: `code=400, message=query params, err=failed to parse value, err: strconv.ParseBool: parsing "invalidbool": invalid syntax, field=key`,
 		},
 	}
 	for _, tc := range testCases {
@@ -193,7 +193,7 @@ func TestQueryParams_UnsupportedType(t *testing.T) {
 
 	v, err := QueryParams[[]bool](c, "key")
 
-	expectErr := "code=400, message=failed to parse query values, err=unsupported value type: *[]bool, field=key"
+	expectErr := "code=400, message=query params, err=failed to parse value, err: unsupported value type: *[]bool, field=key"
 	assert.EqualError(t, err, expectErr)
 	assert.Equal(t, [][]bool(nil), v)
 }
@@ -220,7 +220,7 @@ func TestFormValue(t *testing.T) {
 			name:      "nok, invalid value",
 			givenURL:  "/?key=invalidbool",
 			expect:    false,
-			expectErr: `code=400, message=failed to parse form value, err=strconv.ParseBool: parsing "invalidbool": invalid syntax, field=key`,
+			expectErr: `code=400, message=form value, err=failed to parse value, err: strconv.ParseBool: parsing "invalidbool": invalid syntax, field=key`,
 		},
 	}
 	for _, tc := range testCases {
@@ -245,7 +245,7 @@ func TestFormValue_UnsupportedType(t *testing.T) {
 
 	v, err := FormValue[[]bool](c, "key")
 
-	expectErr := "code=400, message=failed to parse form value, err=unsupported value type: *[]bool, field=key"
+	expectErr := "code=400, message=form value, err=failed to parse value, err: unsupported value type: *[]bool, field=key"
 	assert.EqualError(t, err, expectErr)
 	assert.Equal(t, []bool(nil), v)
 }
@@ -272,7 +272,7 @@ func TestFormValues(t *testing.T) {
 			name:      "nok, invalid value",
 			givenURL:  "/?key=true&key=invalidbool",
 			expect:    []bool(nil),
-			expectErr: `code=400, message=failed to parse form values, err=strconv.ParseBool: parsing "invalidbool": invalid syntax, field=key`,
+			expectErr: `code=400, message=form values, err=failed to parse value, err: strconv.ParseBool: parsing "invalidbool": invalid syntax, field=key`,
 		},
 	}
 	for _, tc := range testCases {
@@ -297,7 +297,7 @@ func TestFormValues_UnsupportedType(t *testing.T) {
 
 	v, err := FormValues[[]bool](c, "key")
 
-	expectErr := "code=400, message=failed to parse form values, err=unsupported value type: *[]bool, field=key"
+	expectErr := "code=400, message=form values, err=failed to parse value, err: unsupported value type: *[]bool, field=key"
 	assert.EqualError(t, err, expectErr)
 	assert.Equal(t, [][]bool(nil), v)
 }
@@ -379,7 +379,7 @@ func TestParseValue_float32(t *testing.T) {
 			name:      "ok, invalid value",
 			when:      "X",
 			expect:    0,
-			expectErr: `strconv.ParseFloat: parsing "X": invalid syntax`,
+			expectErr: `failed to parse value, err: strconv.ParseFloat: parsing "X": invalid syntax`,
 		},
 	}
 	for _, tc := range testCases {
@@ -437,7 +437,7 @@ func TestParseValue_float64(t *testing.T) {
 			name:      "ok, invalid value",
 			when:      "X",
 			expect:    0,
-			expectErr: `strconv.ParseFloat: parsing "X": invalid syntax`,
+			expectErr: `failed to parse value, err: strconv.ParseFloat: parsing "X": invalid syntax`,
 		},
 	}
 	for _, tc := range testCases {
@@ -495,19 +495,19 @@ func TestParseValue_int(t *testing.T) {
 			name:      "ok, overflow max int (64bit)",
 			when:      "9223372036854775808",
 			expect:    0,
-			expectErr: `strconv.ParseInt: parsing "9223372036854775808": value out of range`,
+			expectErr: `failed to parse value, err: strconv.ParseInt: parsing "9223372036854775808": value out of range`,
 		},
 		{
 			name:      "ok, underflow min int (64bit)",
 			when:      "-9223372036854775809",
 			expect:    0,
-			expectErr: `strconv.ParseInt: parsing "-9223372036854775809": value out of range`,
+			expectErr: `failed to parse value, err: strconv.ParseInt: parsing "-9223372036854775809": value out of range`,
 		},
 		{
 			name:      "ok, invalid value",
 			when:      "X",
 			expect:    0,
-			expectErr: `strconv.ParseInt: parsing "X": invalid syntax`,
+			expectErr: `failed to parse value, err: strconv.ParseInt: parsing "X": invalid syntax`,
 		},
 	}
 	for _, tc := range testCases {
@@ -549,19 +549,19 @@ func TestParseValue_uint(t *testing.T) {
 			name:      "nok, overflow max uint (64bit)",
 			when:      "18446744073709551616",
 			expect:    0,
-			expectErr: `strconv.ParseUint: parsing "18446744073709551616": value out of range`,
+			expectErr: `failed to parse value, err: strconv.ParseUint: parsing "18446744073709551616": value out of range`,
 		},
 		{
 			name:      "nok, negative value",
 			when:      "-1",
 			expect:    0,
-			expectErr: `strconv.ParseUint: parsing "-1": invalid syntax`,
+			expectErr: `failed to parse value, err: strconv.ParseUint: parsing "-1": invalid syntax`,
 		},
 		{
 			name:      "nok, invalid value",
 			when:      "X",
 			expect:    0,
-			expectErr: `strconv.ParseUint: parsing "X": invalid syntax`,
+			expectErr: `failed to parse value, err: strconv.ParseUint: parsing "X": invalid syntax`,
 		},
 	}
 	for _, tc := range testCases {
@@ -613,19 +613,19 @@ func TestParseValue_int8(t *testing.T) {
 			name:      "nok, overflow max int8",
 			when:      "128",
 			expect:    0,
-			expectErr: `strconv.ParseInt: parsing "128": value out of range`,
+			expectErr: `failed to parse value, err: strconv.ParseInt: parsing "128": value out of range`,
 		},
 		{
 			name:      "nok, underflow min int8",
 			when:      "-129",
 			expect:    0,
-			expectErr: `strconv.ParseInt: parsing "-129": value out of range`,
+			expectErr: `failed to parse value, err: strconv.ParseInt: parsing "-129": value out of range`,
 		},
 		{
 			name:      "nok, invalid value",
 			when:      "X",
 			expect:    0,
-			expectErr: `strconv.ParseInt: parsing "X": invalid syntax`,
+			expectErr: `failed to parse value, err: strconv.ParseInt: parsing "X": invalid syntax`,
 		},
 	}
 	for _, tc := range testCases {
@@ -677,19 +677,19 @@ func TestParseValue_int16(t *testing.T) {
 			name:      "nok, overflow max int16",
 			when:      "32768",
 			expect:    0,
-			expectErr: `strconv.ParseInt: parsing "32768": value out of range`,
+			expectErr: `failed to parse value, err: strconv.ParseInt: parsing "32768": value out of range`,
 		},
 		{
 			name:      "nok, underflow min int16",
 			when:      "-32769",
 			expect:    0,
-			expectErr: `strconv.ParseInt: parsing "-32769": value out of range`,
+			expectErr: `failed to parse value, err: strconv.ParseInt: parsing "-32769": value out of range`,
 		},
 		{
 			name:      "nok, invalid value",
 			when:      "X",
 			expect:    0,
-			expectErr: `strconv.ParseInt: parsing "X": invalid syntax`,
+			expectErr: `failed to parse value, err: strconv.ParseInt: parsing "X": invalid syntax`,
 		},
 	}
 	for _, tc := range testCases {
@@ -741,19 +741,19 @@ func TestParseValue_int32(t *testing.T) {
 			name:      "nok, overflow max int32",
 			when:      "2147483648",
 			expect:    0,
-			expectErr: `strconv.ParseInt: parsing "2147483648": value out of range`,
+			expectErr: `failed to parse value, err: strconv.ParseInt: parsing "2147483648": value out of range`,
 		},
 		{
 			name:      "nok, underflow min int32",
 			when:      "-2147483649",
 			expect:    0,
-			expectErr: `strconv.ParseInt: parsing "-2147483649": value out of range`,
+			expectErr: `failed to parse value, err: strconv.ParseInt: parsing "-2147483649": value out of range`,
 		},
 		{
 			name:      "nok, invalid value",
 			when:      "X",
 			expect:    0,
-			expectErr: `strconv.ParseInt: parsing "X": invalid syntax`,
+			expectErr: `failed to parse value, err: strconv.ParseInt: parsing "X": invalid syntax`,
 		},
 	}
 	for _, tc := range testCases {
@@ -805,19 +805,19 @@ func TestParseValue_int64(t *testing.T) {
 			name:      "nok, overflow max int64",
 			when:      "9223372036854775808",
 			expect:    0,
-			expectErr: `strconv.ParseInt: parsing "9223372036854775808": value out of range`,
+			expectErr: `failed to parse value, err: strconv.ParseInt: parsing "9223372036854775808": value out of range`,
 		},
 		{
 			name:      "nok, underflow min int64",
 			when:      "-9223372036854775809",
 			expect:    0,
-			expectErr: `strconv.ParseInt: parsing "-9223372036854775809": value out of range`,
+			expectErr: `failed to parse value, err: strconv.ParseInt: parsing "-9223372036854775809": value out of range`,
 		},
 		{
 			name:      "nok, invalid value",
 			when:      "X",
 			expect:    0,
-			expectErr: `strconv.ParseInt: parsing "X": invalid syntax`,
+			expectErr: `failed to parse value, err: strconv.ParseInt: parsing "X": invalid syntax`,
 		},
 	}
 	for _, tc := range testCases {
@@ -859,19 +859,19 @@ func TestParseValue_uint8(t *testing.T) {
 			name:      "nok, overflow max uint8",
 			when:      "256",
 			expect:    0,
-			expectErr: `strconv.ParseUint: parsing "256": value out of range`,
+			expectErr: `failed to parse value, err: strconv.ParseUint: parsing "256": value out of range`,
 		},
 		{
 			name:      "nok, negative value",
 			when:      "-1",
 			expect:    0,
-			expectErr: `strconv.ParseUint: parsing "-1": invalid syntax`,
+			expectErr: `failed to parse value, err: strconv.ParseUint: parsing "-1": invalid syntax`,
 		},
 		{
 			name:      "nok, invalid value",
 			when:      "X",
 			expect:    0,
-			expectErr: `strconv.ParseUint: parsing "X": invalid syntax`,
+			expectErr: `failed to parse value, err: strconv.ParseUint: parsing "X": invalid syntax`,
 		},
 	}
 	for _, tc := range testCases {
@@ -913,19 +913,19 @@ func TestParseValue_uint16(t *testing.T) {
 			name:      "nok, overflow max uint16",
 			when:      "65536",
 			expect:    0,
-			expectErr: `strconv.ParseUint: parsing "65536": value out of range`,
+			expectErr: `failed to parse value, err: strconv.ParseUint: parsing "65536": value out of range`,
 		},
 		{
 			name:      "nok, negative value",
 			when:      "-1",
 			expect:    0,
-			expectErr: `strconv.ParseUint: parsing "-1": invalid syntax`,
+			expectErr: `failed to parse value, err: strconv.ParseUint: parsing "-1": invalid syntax`,
 		},
 		{
 			name:      "nok, invalid value",
 			when:      "X",
 			expect:    0,
-			expectErr: `strconv.ParseUint: parsing "X": invalid syntax`,
+			expectErr: `failed to parse value, err: strconv.ParseUint: parsing "X": invalid syntax`,
 		},
 	}
 	for _, tc := range testCases {
@@ -967,19 +967,19 @@ func TestParseValue_uint32(t *testing.T) {
 			name:      "nok, overflow max uint32",
 			when:      "4294967296",
 			expect:    0,
-			expectErr: `strconv.ParseUint: parsing "4294967296": value out of range`,
+			expectErr: `failed to parse value, err: strconv.ParseUint: parsing "4294967296": value out of range`,
 		},
 		{
 			name:      "nok, negative value",
 			when:      "-1",
 			expect:    0,
-			expectErr: `strconv.ParseUint: parsing "-1": invalid syntax`,
+			expectErr: `failed to parse value, err: strconv.ParseUint: parsing "-1": invalid syntax`,
 		},
 		{
 			name:      "nok, invalid value",
 			when:      "X",
 			expect:    0,
-			expectErr: `strconv.ParseUint: parsing "X": invalid syntax`,
+			expectErr: `failed to parse value, err: strconv.ParseUint: parsing "X": invalid syntax`,
 		},
 	}
 	for _, tc := range testCases {
@@ -1021,19 +1021,19 @@ func TestParseValue_uint64(t *testing.T) {
 			name:      "nok, overflow max uint64",
 			when:      "18446744073709551616",
 			expect:    0,
-			expectErr: `strconv.ParseUint: parsing "18446744073709551616": value out of range`,
+			expectErr: `failed to parse value, err: strconv.ParseUint: parsing "18446744073709551616": value out of range`,
 		},
 		{
 			name:      "nok, negative value",
 			when:      "-1",
 			expect:    0,
-			expectErr: `strconv.ParseUint: parsing "-1": invalid syntax`,
+			expectErr: `failed to parse value, err: strconv.ParseUint: parsing "-1": invalid syntax`,
 		},
 		{
 			name:      "nok, invalid value",
 			when:      "X",
 			expect:    0,
-			expectErr: `strconv.ParseUint: parsing "X": invalid syntax`,
+			expectErr: `failed to parse value, err: strconv.ParseUint: parsing "X": invalid syntax`,
 		},
 	}
 	for _, tc := range testCases {
@@ -1093,10 +1093,15 @@ func TestParseValue_Duration(t *testing.T) {
 			expect: 10*time.Hour + 11*time.Minute + 1*time.Second,
 		},
 		{
-			name:      "ok, empty",
-			when:      "",
+			name:   "ok, empty",
+			when:   "",
+			expect: 0,
+		},
+		{
+			name:      "ok, invalid",
+			when:      "0x0",
 			expect:    0,
-			expectErr: `time: invalid duration ""`,
+			expectErr: `failed to parse value, err: time: unknown unit "x" in duration "0x0"`,
 		},
 	}
 	for _, tc := range testCases {
@@ -1177,7 +1182,7 @@ func TestParseValue_Time(t *testing.T) {
 			name:       "nok, TimeLayoutUnixTime, invalid value",
 			when:       "176x6604665",
 			whenLayout: TimeLayoutUnixTime,
-			expectErr:  `strconv.ParseInt: parsing "176x6604665": invalid syntax`,
+			expectErr:  `failed to parse value, err: strconv.ParseInt: parsing "176x6604665": invalid syntax`,
 		},
 		{
 			name:       "ok, TimeLayoutUnixTimeMilli",
@@ -1189,7 +1194,7 @@ func TestParseValue_Time(t *testing.T) {
 			name:       "nok, TimeLayoutUnixTimeMilli, invalid value",
 			when:       "1x766604665123",
 			whenLayout: TimeLayoutUnixTimeMilli,
-			expectErr:  `strconv.ParseInt: parsing "1x766604665123": invalid syntax`,
+			expectErr:  `failed to parse value, err: strconv.ParseInt: parsing "1x766604665123": invalid syntax`,
 		},
 		{
 			name:       "ok, TimeLayoutUnixTimeMilli",
@@ -1201,13 +1206,13 @@ func TestParseValue_Time(t *testing.T) {
 			name:       "nok, TimeLayoutUnixTimeMilli, invalid value",
 			when:       "1x766604665999999999",
 			whenLayout: TimeLayoutUnixTimeNano,
-			expectErr:  `strconv.ParseInt: parsing "1x766604665999999999": invalid syntax`,
+			expectErr:  `failed to parse value, err: strconv.ParseInt: parsing "1x766604665999999999": invalid syntax`,
 		},
 		{
 			name:      "ok, invalid",
 			when:      "xx",
 			expect:    time.Time{},
-			expectErr: `parsing time "xx" as "2006-01-02T15:04:05.999999999Z07:00": cannot parse "xx" as "2006"`,
+			expectErr: `failed to parse value, err: parsing time "xx" as "2006-01-02T15:04:05.999999999Z07:00": cannot parse "xx" as "2006"`,
 		},
 	}
 	for _, tc := range testCases {
@@ -1248,7 +1253,7 @@ func TestParseValue_BindUnmarshaler(t *testing.T) {
 			name:      "nok, invalid value",
 			when:      "2020-12-23T09:45:3102:00",
 			expect:    Timestamp{},
-			expectErr: `parsing time "2020-12-23T09:45:3102:00" as "2006-01-02T15:04:05Z07:00": cannot parse "02:00" as "Z07:00"`,
+			expectErr: `failed to parse value, err: parsing time "2020-12-23T09:45:3102:00" as "2006-01-02T15:04:05Z07:00": cannot parse "02:00" as "Z07:00"`,
 		},
 	}
 	for _, tc := range testCases {
@@ -1285,7 +1290,7 @@ func TestParseValue_TextUnmarshaler(t *testing.T) {
 			name:      "nok, invalid value",
 			when:      "invalid",
 			expect:    TextUnmarshalerType{},
-			expectErr: "invalid value: invalid",
+			expectErr: "failed to parse value, err: invalid value: invalid",
 		},
 	}
 	for _, tc := range testCases {
@@ -1322,18 +1327,50 @@ func TestParseValue_JSONUnmarshaler(t *testing.T) {
 			name:      "nok, invalid JSON",
 			when:      "not-json",
 			expect:    JSONUnmarshalerType{},
-			expectErr: "invalid character 'o' in literal null (expecting 'u')",
+			expectErr: "failed to parse value, err: invalid character 'o' in literal null (expecting 'u')",
 		},
 		{
 			name:      "nok, unquoted string",
 			when:      "hello",
 			expect:    JSONUnmarshalerType{},
-			expectErr: "invalid character 'h' looking for beginning of value",
+			expectErr: "failed to parse value, err: invalid character 'h' looking for beginning of value",
 		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			v, err := ParseValue[JSONUnmarshalerType](tc.when)
+			if tc.expectErr != "" {
+				assert.EqualError(t, err, tc.expectErr)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tc.expect, v)
+		})
+	}
+}
+
+func TestParseValues_bools(t *testing.T) {
+	var testCases = []struct {
+		name      string
+		when      []string
+		expect    []bool
+		expectErr string
+	}{
+		{
+			name:   "ok",
+			when:   []string{"true", "0", "false", "1"},
+			expect: []bool{true, false, false, true},
+		},
+		{
+			name:      "nok",
+			when:      []string{"true", "10"},
+			expect:    nil,
+			expectErr: `failed to parse value, err: strconv.ParseBool: parsing "10": invalid syntax`,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			v, err := ParseValues[bool](tc.when)
 			if tc.expectErr != "" {
 				assert.EqualError(t, err, tc.expectErr)
 			} else {
