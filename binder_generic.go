@@ -32,7 +32,8 @@ type TimeOpts struct {
 	// Defaults to time.UTC
 	ParseInLocation *time.Location
 
-	// ToInLocation is location to which parsed time is set to.
+	// ToInLocation is location to which parsed time is converted to after parsing.
+	// The parsed time will be converted using time.In(ToInLocation).
 	// Defaults to time.UTC
 	ToInLocation *time.Location
 }
