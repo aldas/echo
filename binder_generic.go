@@ -50,8 +50,17 @@ const (
 //
 // See ParseValue for supported types and options
 func PathParam[T any](c *Context, paramName string, opts ...any) (T, error) {
+	for _, pv := range c.PathValues() {
+		if pv.Name == paramName {
+			v, err := ParseValue[T](pv.Value, opts...)
+			if err != nil {
+				return v, NewBindingError(paramName, []string{pv.Value}, "path value", err)
+			}
+			return v, nil
+		}
+	}
 	var zero T
-	return PathParamOr(c, paramName, zero, opts...)
+	return zero, ErrNonExistentKey
 }
 
 // PathParamOr extracts and parses a path parameter from the context by name.
@@ -68,8 +77,7 @@ func PathParamOr[T any](c *Context, paramName string, defaultValue T, opts ...an
 			return v, nil
 		}
 	}
-	var zero T
-	return zero, ErrNonExistentKey
+	return defaultValue, nil
 }
 
 // QueryParam extracts and parses a single query parameter from the request by key.
@@ -77,8 +85,21 @@ func PathParamOr[T any](c *Context, paramName string, defaultValue T, opts ...an
 //
 // See ParseValue for supported types and options
 func QueryParam[T any](c *Context, key string, opts ...any) (T, error) {
-	var zero T
-	return QueryParamOr(c, key, zero, opts...)
+	values, ok := c.QueryParams()[key]
+	if !ok {
+		var zero T
+		return zero, ErrNonExistentKey
+	}
+	if len(values) == 0 {
+		var zero T
+		return zero, nil
+	}
+	value := values[0]
+	v, err := ParseValue[T](value, opts...)
+	if err != nil {
+		return v, NewBindingError(key, []string{value}, "query param", err)
+	}
+	return v, nil
 }
 
 // QueryParamOr extracts and parses a single query parameter from the request by key.
@@ -88,8 +109,7 @@ func QueryParam[T any](c *Context, key string, opts ...any) (T, error) {
 func QueryParamOr[T any](c *Context, key string, defaultValue T, opts ...any) (T, error) {
 	values, ok := c.QueryParams()[key]
 	if !ok {
-		var zero T
-		return zero, ErrNonExistentKey
+		return defaultValue, nil
 	}
 	if len(values) == 0 {
 		return defaultValue, nil
@@ -107,8 +127,16 @@ func QueryParamOr[T any](c *Context, key string, defaultValue T, opts ...any) (T
 //
 // See ParseValues for supported types and options
 func QueryParams[T any](c *Context, key string, opts ...any) ([]T, error) {
-	var zero []T
-	return QueryParamsOr[T](c, key, zero, opts...)
+	values, ok := c.QueryParams()[key]
+	if !ok {
+		return nil, ErrNonExistentKey
+	}
+
+	result, err := ParseValues[T](values, opts...)
+	if err != nil {
+		return nil, NewBindingError(key, values, "query params", err)
+	}
+	return result, nil
 }
 
 // QueryParamsOr extracts and parses all values for a query parameter key as a slice.
@@ -119,7 +147,7 @@ func QueryParams[T any](c *Context, key string, opts ...any) ([]T, error) {
 func QueryParamsOr[T any](c *Context, key string, defaultValue []T, opts ...any) ([]T, error) {
 	values, ok := c.QueryParams()[key]
 	if !ok {
-		return nil, ErrNonExistentKey
+		return defaultValue, nil
 	}
 
 	result, err := ParseValuesOr[T](values, defaultValue, opts...)
@@ -134,8 +162,26 @@ func QueryParamsOr[T any](c *Context, key string, defaultValue []T, opts ...any)
 //
 // See ParseValue for supported types and options
 func FormValue[T any](c *Context, key string, opts ...any) (T, error) {
-	var zero T
-	return FormValueOr[T](c, key, zero, opts...)
+	formValues, err := c.FormValues()
+	if err != nil {
+		var zero T
+		return zero, fmt.Errorf("failed to parse form value, key: %s, err: %w", key, err)
+	}
+	values, ok := formValues[key]
+	if !ok {
+		var zero T
+		return zero, ErrNonExistentKey
+	}
+	if len(values) == 0 {
+		var zero T
+		return zero, nil
+	}
+	value := values[0]
+	v, err := ParseValue[T](value, opts...)
+	if err != nil {
+		return v, NewBindingError(key, []string{value}, "form value", err)
+	}
+	return v, nil
 }
 
 // FormValueOr extracts and parses a single form value from the request by key.
@@ -150,8 +196,7 @@ func FormValueOr[T any](c *Context, key string, defaultValue T, opts ...any) (T,
 	}
 	values, ok := formValues[key]
 	if !ok {
-		var zero T
-		return zero, ErrNonExistentKey
+		return defaultValue, nil
 	}
 	if len(values) == 0 {
 		return defaultValue, nil
@@ -169,8 +214,19 @@ func FormValueOr[T any](c *Context, key string, defaultValue T, opts ...any) (T,
 //
 // See ParseValues for supported types and options
 func FormValues[T any](c *Context, key string, opts ...any) ([]T, error) {
-	var zero []T
-	return FormValuesOr[T](c, key, zero, opts...)
+	formValues, err := c.FormValues()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse form values, key: %s, err: %w", key, err)
+	}
+	values, ok := formValues[key]
+	if !ok {
+		return nil, ErrNonExistentKey
+	}
+	result, err := ParseValues[T](values, opts...)
+	if err != nil {
+		return nil, NewBindingError(key, values, "form values", err)
+	}
+	return result, nil
 }
 
 // FormValuesOr extracts and parses all values for a form values key as a slice.
@@ -184,7 +240,7 @@ func FormValuesOr[T any](c *Context, key string, defaultValue []T, opts ...any) 
 	}
 	values, ok := formValues[key]
 	if !ok {
-		return nil, ErrNonExistentKey
+		return defaultValue, nil
 	}
 	result, err := ParseValuesOr[T](values, defaultValue, opts...)
 	if err != nil {
@@ -285,6 +341,11 @@ func ParseValueOr[T any](value string, defaultValue T, opts ...any) (T, error) {
 func bindValue(value string, dest any, opts ...any) error {
 	// NOTE: if this function is ever made public the dest should be checked for nil
 	// values when dealing with interfaces
+	if len(opts) > 0 {
+		if _, isTime := dest.(*time.Time); !isTime {
+			return fmt.Errorf("options are only supported for time.Time, got %T", dest)
+		}
+	}
 
 	switch d := dest.(type) {
 	case *bool:
