@@ -198,6 +198,110 @@ func TestQueryParams_UnsupportedType(t *testing.T) {
 	assert.Equal(t, [][]bool(nil), v)
 }
 
+func TestFormValue(t *testing.T) {
+	var testCases = []struct {
+		name      string
+		givenURL  string
+		expect    bool
+		expectErr string
+	}{
+		{
+			name:     "ok",
+			givenURL: "/?key=true",
+			expect:   true,
+		},
+		{
+			name:      "nok, non existent key",
+			givenURL:  "/?different=true",
+			expect:    false,
+			expectErr: ErrNonExistentKey.Error(),
+		},
+		{
+			name:      "nok, invalid value",
+			givenURL:  "/?key=invalidbool",
+			expect:    false,
+			expectErr: `code=400, message=failed to parse form value, err=strconv.ParseBool: parsing "invalidbool": invalid syntax, field=key`,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, tc.givenURL, nil)
+			c := NewContext(req, nil)
+
+			v, err := FormValue[bool](c, "key")
+			if tc.expectErr != "" {
+				assert.EqualError(t, err, tc.expectErr)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tc.expect, v)
+		})
+	}
+}
+
+func TestFormValue_UnsupportedType(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/?key=bool", nil)
+	c := NewContext(req, nil)
+
+	v, err := FormValue[[]bool](c, "key")
+
+	expectErr := "code=400, message=failed to parse form value, err=unsupported value type: *[]bool, field=key"
+	assert.EqualError(t, err, expectErr)
+	assert.Equal(t, []bool(nil), v)
+}
+
+func TestFormValues(t *testing.T) {
+	var testCases = []struct {
+		name      string
+		givenURL  string
+		expect    []bool
+		expectErr string
+	}{
+		{
+			name:     "ok",
+			givenURL: "/?key=true&key=false",
+			expect:   []bool{true, false},
+		},
+		{
+			name:      "nok, non existent key",
+			givenURL:  "/?different=true",
+			expect:    []bool(nil),
+			expectErr: ErrNonExistentKey.Error(),
+		},
+		{
+			name:      "nok, invalid value",
+			givenURL:  "/?key=true&key=invalidbool",
+			expect:    []bool(nil),
+			expectErr: `code=400, message=failed to parse form values, err=strconv.ParseBool: parsing "invalidbool": invalid syntax, field=key`,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, tc.givenURL, nil)
+			c := NewContext(req, nil)
+
+			v, err := FormValues[bool](c, "key")
+			if tc.expectErr != "" {
+				assert.EqualError(t, err, tc.expectErr)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tc.expect, v)
+		})
+	}
+}
+
+func TestFormValues_UnsupportedType(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/?key=bool", nil)
+	c := NewContext(req, nil)
+
+	v, err := FormValues[[]bool](c, "key")
+
+	expectErr := "code=400, message=failed to parse form values, err=unsupported value type: *[]bool, field=key"
+	assert.EqualError(t, err, expectErr)
+	assert.Equal(t, [][]bool(nil), v)
+}
+
 func TestParseValue_bool(t *testing.T) {
 	var testCases = []struct {
 		name      string

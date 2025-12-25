@@ -68,11 +68,12 @@ func PathParam[T any](c *Context, paramName string, opts ...any) (T, error) {
 // See ParseValue for supported types and options
 func QueryParam[T any](c *Context, key string, opts ...any) (T, error) {
 	values, ok := c.QueryParams()[key]
-	var zero T
 	if !ok {
+		var zero T
 		return zero, ErrNonExistentKey
 	}
 	if len(values) == 0 {
+		var zero T
 		return zero, nil
 	}
 	value := values[0]
@@ -96,6 +97,54 @@ func QueryParams[T any](c *Context, key string, opts ...any) ([]T, error) {
 	result, err := ParseValues[T](values, opts...)
 	if err != nil {
 		return nil, NewBindingError(key, values, "failed to parse query values", err)
+	}
+	return result, nil
+}
+
+// FormValue extracts and parses a single form value from the request by key.
+// It returns the typed value and an error if binding fails. Returns ErrNonExistentKey if parameter not found.
+//
+// See ParseValue for supported types and options
+func FormValue[T any](c *Context, key string, opts ...any) (T, error) {
+	formValues, err := c.FormValues()
+	if err != nil {
+		var zero T
+		return zero, NewBindingError(key, []string{}, "failed to get form value", err)
+	}
+	values, ok := formValues[key]
+	if !ok {
+		var zero T
+		return zero, ErrNonExistentKey
+	}
+	if len(formValues) == 0 {
+		var zero T
+		return zero, nil
+	}
+	value := values[0]
+	v, err := ParseValue[T](value, opts...)
+	if err != nil {
+		return v, NewBindingError(key, []string{value}, "failed to parse form value", err)
+	}
+	return v, nil
+}
+
+// FormValues extracts and parses all values for a form values key as a slice.
+// It returns the typed slice and an error if binding any value fails. Returns ErrNonExistentKey if parameter not found.
+//
+// See ParseValues for supported types and options
+func FormValues[T any](c *Context, key string, opts ...any) ([]T, error) {
+	formValues, err := c.FormValues()
+	if err != nil {
+		return nil, NewBindingError(key, []string{}, "failed to get form values", err)
+	}
+	values, ok := formValues[key]
+	if !ok {
+		return nil, ErrNonExistentKey
+	}
+
+	result, err := ParseValues[T](values, opts...)
+	if err != nil {
+		return nil, NewBindingError(key, values, "failed to parse form values", err)
 	}
 	return result, nil
 }
