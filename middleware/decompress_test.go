@@ -14,61 +14,91 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestDecompress(t *testing.T) {
 	e := echo.New()
-	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("test"))
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
 
-	// Skip if no Content-Encoding header
-	h := Decompress()(func(c echo.Context) error {
+	h := Decompress()(func(c *echo.Context) error {
 		c.Response().Write([]byte("test")) // For Content-Type sniffing
 		return nil
 	})
-	h(c)
 
-	assert.Equal(t, "test", rec.Body.String())
-
-	// Decompress
+	// Decompress request body
 	body := `{"name": "echo"}`
 	gz, _ := gzipString(body)
-	req = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(gz)))
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(gz)))
 	req.Header.Set(echo.HeaderContentEncoding, GZIPEncoding)
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec)
-	h(c)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h(c)
+	assert.NoError(t, err)
+
 	assert.Equal(t, GZIPEncoding, req.Header.Get(echo.HeaderContentEncoding))
 	b, err := io.ReadAll(req.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, body, string(b))
 }
 
-func TestDecompressDefaultConfig(t *testing.T) {
+func TestDecompress_skippedIfNoHeader(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("test"))
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	h := DecompressWithConfig(DecompressConfig{})(func(c echo.Context) error {
+	// Skip if no Content-Encoding header
+	h := Decompress()(func(c *echo.Context) error {
 		c.Response().Write([]byte("test")) // For Content-Type sniffing
 		return nil
 	})
-	h(c)
+
+	err := h(c)
+	assert.NoError(t, err)
+	assert.Equal(t, "test", rec.Body.String())
+
+}
+
+func TestDecompressWithConfig_DefaultConfig_noDecode(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("test"))
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	h, err := DecompressConfig{}.ToMiddleware()
+	assert.NoError(t, err)
+
+	err = h(func(c *echo.Context) error {
+		c.Response().Write([]byte("test")) // For Content-Type sniffing
+		return nil
+	})(c)
+	assert.NoError(t, err)
 
 	assert.Equal(t, "test", rec.Body.String())
+
+}
+
+func TestDecompressWithConfig_DefaultConfig(t *testing.T) {
+	e := echo.New()
+
+	h := Decompress()(func(c *echo.Context) error {
+		c.Response().Write([]byte("test")) // For Content-Type sniffing
+		return nil
+	})
 
 	// Decompress
 	body := `{"name": "echo"}`
 	gz, _ := gzipString(body)
-	req = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(gz)))
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(gz)))
 	req.Header.Set(echo.HeaderContentEncoding, GZIPEncoding)
-	rec = httptest.NewRecorder()
-	c = e.NewContext(req, rec)
-	h(c)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h(c)
+	assert.NoError(t, err)
+
 	assert.Equal(t, GZIPEncoding, req.Header.Get(echo.HeaderContentEncoding))
 	b, err := io.ReadAll(req.Body)
 	assert.NoError(t, err)
@@ -83,7 +113,9 @@ func TestCompressRequestWithoutDecompressMiddleware(t *testing.T) {
 	req.Header.Set(echo.HeaderContentEncoding, GZIPEncoding)
 	rec := httptest.NewRecorder()
 	e.NewContext(req, rec)
+
 	e.ServeHTTP(rec, req)
+
 	assert.Equal(t, GZIPEncoding, req.Header.Get(echo.HeaderContentEncoding))
 	b, err := io.ReadAll(req.Body)
 	assert.NoError(t, err)
@@ -97,10 +129,13 @@ func TestDecompressNoContent(t *testing.T) {
 	req.Header.Set(echo.HeaderContentEncoding, GZIPEncoding)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	h := Decompress()(func(c echo.Context) error {
+	h := Decompress()(func(c *echo.Context) error {
 		return c.NoContent(http.StatusNoContent)
 	})
-	if assert.NoError(t, h(c)) {
+
+	err := h(c)
+
+	if assert.NoError(t, err) {
 		assert.Equal(t, GZIPEncoding, req.Header.Get(echo.HeaderContentEncoding))
 		assert.Empty(t, rec.Header().Get(echo.HeaderContentType))
 		assert.Equal(t, 0, len(rec.Body.Bytes()))
@@ -110,13 +145,15 @@ func TestDecompressNoContent(t *testing.T) {
 func TestDecompressErrorReturned(t *testing.T) {
 	e := echo.New()
 	e.Use(Decompress())
-	e.GET("/", func(c echo.Context) error {
+	e.GET("/", func(c *echo.Context) error {
 		return echo.ErrNotFound
 	})
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set(echo.HeaderContentEncoding, GZIPEncoding)
 	rec := httptest.NewRecorder()
+
 	e.ServeHTTP(rec, req)
+
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 	assert.Empty(t, rec.Header().Get(echo.HeaderContentEncoding))
 }
@@ -124,7 +161,7 @@ func TestDecompressErrorReturned(t *testing.T) {
 func TestDecompressSkipper(t *testing.T) {
 	e := echo.New()
 	e.Use(DecompressWithConfig(DecompressConfig{
-		Skipper: func(c echo.Context) bool {
+		Skipper: func(c *echo.Context) bool {
 			return c.Request().URL.Path == "/skip"
 		},
 	}))
@@ -133,7 +170,9 @@ func TestDecompressSkipper(t *testing.T) {
 	req.Header.Set(echo.HeaderContentEncoding, GZIPEncoding)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
+
 	e.ServeHTTP(rec, req)
+
 	assert.Equal(t, rec.Header().Get(echo.HeaderContentType), echo.MIMEApplicationJSON)
 	reqBody, err := io.ReadAll(c.Request().Body)
 	assert.NoError(t, err)
@@ -145,7 +184,7 @@ type TestDecompressPoolWithError struct {
 
 func (d *TestDecompressPoolWithError) gzipDecompressPool() sync.Pool {
 	return sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return errors.New("pool error")
 		},
 	}
@@ -162,7 +201,9 @@ func TestDecompressPoolError(t *testing.T) {
 	req.Header.Set(echo.HeaderContentEncoding, GZIPEncoding)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
+
 	e.ServeHTTP(rec, req)
+
 	assert.Equal(t, GZIPEncoding, req.Header.Get(echo.HeaderContentEncoding))
 	reqBody, err := io.ReadAll(c.Request().Body)
 	assert.NoError(t, err)
@@ -177,7 +218,7 @@ func BenchmarkDecompress(b *testing.B) {
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(gz)))
 	req.Header.Set(echo.HeaderContentEncoding, GZIPEncoding)
 
-	h := Decompress()(func(c echo.Context) error {
+	h := Decompress()(func(c *echo.Context) error {
 		c.Response().Write([]byte(body)) // For Content-Type sniffing
 		return nil
 	})

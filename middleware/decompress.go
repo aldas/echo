@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // DecompressConfig defines the config for Decompress middleware.
@@ -29,39 +29,37 @@ type Decompressor interface {
 	gzipDecompressPool() sync.Pool
 }
 
-// DefaultDecompressConfig defines the config for decompress middleware
-var DefaultDecompressConfig = DecompressConfig{
-	Skipper:            DefaultSkipper,
-	GzipDecompressPool: &DefaultGzipDecompressPool{},
-}
-
 // DefaultGzipDecompressPool is the default implementation of Decompressor interface
 type DefaultGzipDecompressPool struct {
 }
 
 func (d *DefaultGzipDecompressPool) gzipDecompressPool() sync.Pool {
-	return sync.Pool{New: func() interface{} { return new(gzip.Reader) }}
+	return sync.Pool{New: func() any { return new(gzip.Reader) }}
 }
 
 // Decompress decompresses request body based if content encoding type is set to "gzip" with default config
 func Decompress() echo.MiddlewareFunc {
-	return DecompressWithConfig(DefaultDecompressConfig)
+	return DecompressWithConfig(DecompressConfig{})
 }
 
-// DecompressWithConfig decompresses request body based if content encoding type is set to "gzip" with config
+// DecompressWithConfig returns a decompress middleware with config or panics on invalid configuration.
 func DecompressWithConfig(config DecompressConfig) echo.MiddlewareFunc {
-	// Defaults
+	return toMiddlewareOrPanic(config)
+}
+
+// ToMiddleware converts DecompressConfig to middleware or returns an error for invalid configuration
+func (config DecompressConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 	if config.Skipper == nil {
-		config.Skipper = DefaultGzipConfig.Skipper
+		config.Skipper = DefaultSkipper
 	}
 	if config.GzipDecompressPool == nil {
-		config.GzipDecompressPool = DefaultDecompressConfig.GzipDecompressPool
+		config.GzipDecompressPool = &DefaultGzipDecompressPool{}
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		pool := config.GzipDecompressPool.gzipDecompressPool()
 
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if config.Skipper(c) {
 				return next(c)
 			}
@@ -94,5 +92,5 @@ func DecompressWithConfig(config DecompressConfig) echo.MiddlewareFunc {
 
 			return next(c)
 		}
-	}
+	}, nil
 }

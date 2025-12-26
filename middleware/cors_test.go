@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,18 +30,6 @@ func TestCORS(t *testing.T) {
 		{
 			name:             "ok, wildcard AllowedOrigin with no Origin header in request",
 			notExpectHeaders: map[string]string{echo.HeaderAccessControlAllowOrigin: ""},
-		},
-		{
-			name: "ok, invalid pattern is ignored",
-			givenMW: CORSWithConfig(CORSConfig{
-				AllowOrigins: []string{
-					"\xff", // Invalid UTF-8 makes regexp.Compile to error
-					"*.example.com",
-				},
-			}),
-			whenMethod:    http.MethodOptions,
-			whenHeaders:   map[string]string{echo.HeaderOrigin: "http://aaa.example.com"},
-			expectHeaders: map[string]string{echo.HeaderAccessControlAllowOrigin: "http://aaa.example.com"},
 		},
 		{
 			name: "ok, specific AllowOrigins and AllowCredentials",
@@ -112,7 +100,7 @@ func TestCORS(t *testing.T) {
 			givenMW: CORSWithConfig(CORSConfig{
 				AllowOrigins:     []string{"localhost"},
 				AllowCredentials: true,
-				Skipper: func(c echo.Context) bool {
+				Skipper: func(c *echo.Context) bool {
 					return true
 				},
 			}),
@@ -232,7 +220,7 @@ func TestCORS(t *testing.T) {
 			if tc.givenMW != nil {
 				mw = tc.givenMW
 			}
-			h := mw(func(c echo.Context) error {
+			h := mw(func(c *echo.Context) error {
 				return nil
 			})
 
@@ -263,6 +251,16 @@ func TestCORS(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCORSInvalidAllowOriginsPattern(t *testing.T) {
+	_, err := CORSConfig{
+		AllowOrigins: []string{
+			"\xff", // Invalid UTF-8 makes regexp.Compile to error
+			"*.example.com",
+		},
+	}.ToMiddleware()
+	assert.EqualError(t, err, "invalid AllowOrigins pattern for CORS middleware, err: error parsing regexp: invalid UTF-8: `\xff$`")
 }
 
 func Test_allowOriginScheme(t *testing.T) {
@@ -301,7 +299,7 @@ func Test_allowOriginScheme(t *testing.T) {
 		cors := CORSWithConfig(CORSConfig{
 			AllowOrigins: []string{tt.pattern},
 		})
-		h := cors(echo.NotFoundHandler)
+		h := cors(func(c *echo.Context) error { return echo.ErrNotFound })
 		h(c)
 
 		if tt.expected {
@@ -392,7 +390,7 @@ func Test_allowOriginSubdomain(t *testing.T) {
 		cors := CORSWithConfig(CORSConfig{
 			AllowOrigins: []string{tt.pattern},
 		})
-		h := cors(echo.NotFoundHandler)
+		h := cors(func(c *echo.Context) error { return echo.ErrNotFound })
 		h(c)
 
 		if tt.expected {
@@ -458,7 +456,7 @@ func TestCORSWithConfig_AllowMethods(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			e := echo.New()
-			e.GET("/test", func(c echo.Context) error {
+			e.GET("/test", func(c *echo.Context) error {
 				return c.String(http.StatusOK, "OK")
 			})
 
@@ -476,7 +474,9 @@ func TestCORSWithConfig_AllowMethods(t *testing.T) {
 				c.Set(echo.ContextKeyHeaderAllow, tc.allowContextKey)
 			}
 
-			h := cors(echo.NotFoundHandler)
+			h := cors(func(c *echo.Context) error {
+				return c.String(http.StatusOK, "OK")
+			})
 			h(c)
 
 			assert.Equal(t, tc.expectAllow, rec.Header().Get(echo.HeaderAllow))
@@ -592,10 +592,10 @@ func TestCorsHeaders(t *testing.T) {
 				//MaxAge:           3600,
 			}))
 
-			e.GET("/", func(c echo.Context) error {
+			e.GET("/", func(c *echo.Context) error {
 				return c.String(http.StatusOK, "OK")
 			})
-			e.POST("/", func(c echo.Context) error {
+			e.POST("/", func(c *echo.Context) error {
 				return c.String(http.StatusCreated, "OK")
 			})
 
@@ -663,11 +663,11 @@ func Test_allowOriginFunc(t *testing.T) {
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
 		req.Header.Set(echo.HeaderOrigin, origin)
-		cors := CORSWithConfig(CORSConfig{
-			AllowOriginFunc: allowOriginFunc,
-		})
-		h := cors(echo.NotFoundHandler)
-		err := h(c)
+		cors, err := CORSConfig{AllowOriginFunc: allowOriginFunc}.ToMiddleware()
+		assert.NoError(t, err)
+
+		h := cors(func(c *echo.Context) error { return echo.ErrNotFound })
+		err = h(c)
 
 		expected, expectedErr := allowOriginFunc(origin)
 		if expectedErr != nil {

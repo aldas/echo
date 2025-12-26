@@ -4,12 +4,13 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // CORSConfig defines the config for CORS middleware.
@@ -29,7 +30,7 @@ type CORSConfig struct {
 	// Optional. Default value []string{"*"}.
 	//
 	// See also: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin
-	AllowOrigins []string `yaml:"allow_origins"`
+	AllowOrigins []string
 
 	// AllowOriginFunc is a custom function to validate the origin. It takes the
 	// origin as an argument and returns true if allowed or false otherwise. If
@@ -41,7 +42,7 @@ type CORSConfig struct {
 	// See https://blog.portswigger.net/2016/10/exploiting-cors-misconfigurations-for.html
 	//
 	// Optional.
-	AllowOriginFunc func(origin string) (bool, error) `yaml:"-"`
+	AllowOriginFunc func(origin string) (bool, error)
 
 	// AllowMethods determines the value of the Access-Control-Allow-Methods
 	// response header.  This header specified the list of methods allowed when
@@ -53,7 +54,7 @@ type CORSConfig struct {
 	// from `Allow` header that echo.Router set into context.
 	//
 	// See also: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Methods
-	AllowMethods []string `yaml:"allow_methods"`
+	AllowMethods []string
 
 	// AllowHeaders determines the value of the Access-Control-Allow-Headers
 	// response header.  This header is used in response to a preflight request to
@@ -62,7 +63,7 @@ type CORSConfig struct {
 	// Optional. Default value []string{}.
 	//
 	// See also: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Headers
-	AllowHeaders []string `yaml:"allow_headers"`
+	AllowHeaders []string
 
 	// AllowCredentials determines the value of the
 	// Access-Control-Allow-Credentials response header.  This header indicates
@@ -79,7 +80,7 @@ type CORSConfig struct {
 	// https://blog.portswigger.net/2016/10/exploiting-cors-misconfigurations-for.html
 	//
 	// See also: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Credentials
-	AllowCredentials bool `yaml:"allow_credentials"`
+	AllowCredentials bool
 
 	// UnsafeWildcardOriginWithAllowCredentials UNSAFE/INSECURE: allows wildcard '*' origin to be used with AllowCredentials
 	// flag. In that case we consider any origin allowed and send it back to the client with `Access-Control-Allow-Origin` header.
@@ -88,7 +89,7 @@ type CORSConfig struct {
 	// attacks. See: https://github.com/labstack/echo/issues/2400 for discussion on the subject.
 	//
 	// Optional. Default value is false.
-	UnsafeWildcardOriginWithAllowCredentials bool `yaml:"unsafe_wildcard_origin_with_allow_credentials"`
+	UnsafeWildcardOriginWithAllowCredentials bool
 
 	// ExposeHeaders determines the value of Access-Control-Expose-Headers, which
 	// defines a list of headers that clients are allowed to access.
@@ -96,7 +97,7 @@ type CORSConfig struct {
 	// Optional. Default value []string{}, in which case the header is not set.
 	//
 	// See also: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Expose-Header
-	ExposeHeaders []string `yaml:"expose_headers"`
+	ExposeHeaders []string
 
 	// MaxAge determines the value of the Access-Control-Max-Age response header.
 	// This header indicates how long (in seconds) the results of a preflight
@@ -106,7 +107,7 @@ type CORSConfig struct {
 	// Optional. Default value 0 - meaning header is not sent.
 	//
 	// See also: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Max-Age
-	MaxAge int `yaml:"max_age"`
+	MaxAge int
 }
 
 // DefaultCORSConfig is the default CORS middleware config.
@@ -131,9 +132,14 @@ func CORS() echo.MiddlewareFunc {
 	return CORSWithConfig(DefaultCORSConfig)
 }
 
-// CORSWithConfig returns a CORS middleware with config.
+// CORSWithConfig returns a CORS middleware with config or panics on invalid configuration.
 // See: [CORS].
 func CORSWithConfig(config CORSConfig) echo.MiddlewareFunc {
+	return toMiddlewareOrPanic(config)
+}
+
+// ToMiddleware converts CORSConfig to middleware or returns an error for invalid configuration
+func (config CORSConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 	// Defaults
 	if config.Skipper == nil {
 		config.Skipper = DefaultCORSConfig.Skipper
@@ -159,11 +165,7 @@ func CORSWithConfig(config CORSConfig) echo.MiddlewareFunc {
 
 		re, err := regexp.Compile(pattern)
 		if err != nil {
-			// this is to preserve previous behaviour - invalid patterns were just ignored.
-			// If we would turn this to panic, users with invalid patterns
-			// would have applications crashing in production due unrecovered panic.
-			// TODO: this should be turned to error/panic in `v5`
-			continue
+			return nil, fmt.Errorf("invalid AllowOrigins pattern for CORS middleware, err: %w", err)
 		}
 		allowOriginPatterns = append(allowOriginPatterns, re)
 	}
@@ -178,7 +180,7 @@ func CORSWithConfig(config CORSConfig) echo.MiddlewareFunc {
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if config.Skipper(c) {
 				return next(c)
 			}
@@ -245,7 +247,7 @@ func CORSWithConfig(config CORSConfig) echo.MiddlewareFunc {
 				checkPatterns := false
 				if allowOrigin == "" {
 					// to avoid regex cost by invalid (long) domains (253 is domain name max limit)
-					if len(origin) <= (253+3+5) && strings.Contains(origin, "://") {
+					if len(origin) <= (5+3+253) && strings.Contains(origin, "://") {
 						checkPatterns = true
 					}
 				}
@@ -303,5 +305,5 @@ func CORSWithConfig(config CORSConfig) echo.MiddlewareFunc {
 			}
 			return c.NoContent(http.StatusNoContent)
 		}
-	}
+	}, nil
 }

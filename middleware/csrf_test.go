@@ -10,21 +10,22 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestCSRF_tokenExtractors(t *testing.T) {
 	var testCases = []struct {
-		name              string
-		whenTokenLookup   string
-		whenCookieName    string
-		givenCSRFCookie   string
-		givenMethod       string
-		givenQueryTokens  map[string][]string
-		givenFormTokens   map[string][]string
-		givenHeaderTokens map[string][]string
-		expectError       string
+		name                    string
+		whenTokenLookup         string
+		whenCookieName          string
+		givenCSRFCookie         string
+		givenMethod             string
+		givenQueryTokens        map[string][]string
+		givenFormTokens         map[string][]string
+		givenHeaderTokens       map[string][]string
+		expectError             string
+		expectToMiddlewareError string
 	}{
 		{
 			name:            "ok, multiple token lookups sources, succeeds on last one",
@@ -55,6 +56,7 @@ func TestCSRF_tokenExtractors(t *testing.T) {
 			givenFormTokens: map[string][]string{
 				"csrf": {"invalid", "token"},
 			},
+			expectError: "code=403, message=invalid csrf token",
 		},
 		{
 			name:            "nok, invalid token from POST form",
@@ -72,7 +74,7 @@ func TestCSRF_tokenExtractors(t *testing.T) {
 			givenCSRFCookie: "token",
 			givenMethod:     http.MethodPost,
 			givenFormTokens: map[string][]string{},
-			expectError:     "code=400, message=missing csrf token in the form parameter",
+			expectError:     "code=400, message=Bad Request, err=missing value in the form",
 		},
 		{
 			name:            "ok, token from POST header",
@@ -84,13 +86,14 @@ func TestCSRF_tokenExtractors(t *testing.T) {
 			},
 		},
 		{
-			name:            "ok, token from POST header, second token passes",
+			name:            "nok, token from POST header, tokens limited to 1, second token would pass",
 			whenTokenLookup: "header:" + echo.HeaderXCSRFToken,
 			givenCSRFCookie: "token",
 			givenMethod:     http.MethodPost,
 			givenHeaderTokens: map[string][]string{
 				echo.HeaderXCSRFToken: {"invalid", "token"},
 			},
+			expectError: "code=403, message=invalid csrf token",
 		},
 		{
 			name:            "nok, invalid token from POST header",
@@ -108,7 +111,7 @@ func TestCSRF_tokenExtractors(t *testing.T) {
 			givenCSRFCookie:   "token",
 			givenMethod:       http.MethodPost,
 			givenHeaderTokens: map[string][]string{},
-			expectError:       "code=400, message=missing csrf token in request header",
+			expectError:       "code=400, message=Bad Request, err=missing value in request header",
 		},
 		{
 			name:            "ok, token from PUT query param",
@@ -120,13 +123,14 @@ func TestCSRF_tokenExtractors(t *testing.T) {
 			},
 		},
 		{
-			name:            "ok, token from PUT query form, second token passes",
+			name:            "nok, token from PUT query form, second token would pass",
 			whenTokenLookup: "query:csrf",
 			givenCSRFCookie: "token",
 			givenMethod:     http.MethodPut,
 			givenQueryTokens: map[string][]string{
 				"csrf": {"invalid", "token"},
 			},
+			expectError: "code=403, message=invalid csrf token",
 		},
 		{
 			name:            "nok, invalid token from PUT query form",
@@ -144,7 +148,15 @@ func TestCSRF_tokenExtractors(t *testing.T) {
 			givenCSRFCookie:  "token",
 			givenMethod:      http.MethodPut,
 			givenQueryTokens: map[string][]string{},
-			expectError:      "code=400, message=missing csrf token in the query string",
+			expectError:      "code=400, message=Bad Request, err=missing value in the query string",
+		},
+		{
+			name:                    "nok, invalid TokenLookup",
+			whenTokenLookup:         "q",
+			givenCSRFCookie:         "token",
+			givenMethod:             http.MethodPut,
+			givenQueryTokens:        map[string][]string{},
+			expectToMiddlewareError: "extractor source for lookup could not be split into needed parts: q",
 		},
 	}
 
@@ -188,16 +200,23 @@ func TestCSRF_tokenExtractors(t *testing.T) {
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
 
-			csrf := CSRFWithConfig(CSRFConfig{
+			config := CSRFConfig{
 				TokenLookup: tc.whenTokenLookup,
 				CookieName:  tc.whenCookieName,
-			})
+			}
+			csrf, err := config.ToMiddleware()
+			if tc.expectToMiddlewareError != "" {
+				assert.EqualError(t, err, tc.expectToMiddlewareError)
+				return
+			} else if err != nil {
+				assert.NoError(t, err)
+			}
 
-			h := csrf(func(c echo.Context) error {
+			h := csrf(func(c *echo.Context) error {
 				return c.String(http.StatusOK, "test")
 			})
 
-			err := h(c)
+			err = h(c)
 			if tc.expectError != "" {
 				assert.EqualError(t, err, tc.expectError)
 			} else {
@@ -213,7 +232,25 @@ func TestCSRF(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 	csrf := CSRF()
-	h := csrf(func(c echo.Context) error {
+	h := csrf(func(c *echo.Context) error {
+		return c.String(http.StatusOK, "test")
+	})
+
+	// Generate CSRF token
+	h(c)
+	assert.Contains(t, rec.Header().Get(echo.HeaderSetCookie), "_csrf")
+
+}
+
+func TestMustCSRFWithConfig(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	csrf := CSRFWithConfig(CSRFConfig{
+		TokenLength: 16,
+	})
+	h := csrf(func(c *echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	})
 
@@ -235,7 +272,7 @@ func TestCSRF(t *testing.T) {
 	assert.Error(t, h(c))
 
 	// Valid CSRF token
-	token := randomString(32)
+	token := randomString(16)
 	req.Header.Set(echo.HeaderCookie, "_csrf="+token)
 	req.Header.Set(echo.HeaderXCSRFToken, token)
 	if assert.NoError(t, h(c)) {
@@ -253,7 +290,7 @@ func TestCSRFSetSameSiteMode(t *testing.T) {
 		CookieSameSite: http.SameSiteStrictMode,
 	})
 
-	h := csrf(func(c echo.Context) error {
+	h := csrf(func(c *echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	})
 
@@ -270,7 +307,7 @@ func TestCSRFWithoutSameSiteMode(t *testing.T) {
 
 	csrf := CSRFWithConfig(CSRFConfig{})
 
-	h := csrf(func(c echo.Context) error {
+	h := csrf(func(c *echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	})
 
@@ -289,7 +326,7 @@ func TestCSRFWithSameSiteDefaultMode(t *testing.T) {
 		CookieSameSite: http.SameSiteDefaultMode,
 	})
 
-	h := csrf(func(c echo.Context) error {
+	h := csrf(func(c *echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	})
 
@@ -304,11 +341,12 @@ func TestCSRFWithSameSiteModeNone(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	csrf := CSRFWithConfig(CSRFConfig{
+	csrf, err := CSRFConfig{
 		CookieSameSite: http.SameSiteNoneMode,
-	})
+	}.ToMiddleware()
+	assert.NoError(t, err)
 
-	h := csrf(func(c echo.Context) error {
+	h := csrf(func(c *echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	})
 
@@ -344,12 +382,12 @@ func TestCSRFConfig_skipper(t *testing.T) {
 			c := e.NewContext(req, rec)
 
 			csrf := CSRFWithConfig(CSRFConfig{
-				Skipper: func(c echo.Context) bool {
+				Skipper: func(c *echo.Context) bool {
 					return tc.whenSkip
 				},
 			})
 
-			h := csrf(func(c echo.Context) error {
+			h := csrf(func(c *echo.Context) error {
 				return c.String(http.StatusOK, "test")
 			})
 
@@ -363,13 +401,13 @@ func TestCSRFConfig_skipper(t *testing.T) {
 
 func TestCSRFErrorHandling(t *testing.T) {
 	cfg := CSRFConfig{
-		ErrorHandler: func(err error, c echo.Context) error {
+		ErrorHandler: func(c *echo.Context, err error) error {
 			return echo.NewHTTPError(http.StatusTeapot, "error_handler_executed")
 		},
 	}
 
 	e := echo.New()
-	e.POST("/", func(c echo.Context) error {
+	e.POST("/", func(c *echo.Context) error {
 		return c.String(http.StatusNotImplemented, "should not end up here")
 	})
 

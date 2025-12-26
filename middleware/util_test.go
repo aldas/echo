@@ -4,11 +4,18 @@
 package middleware
 
 import (
-	"testing"
-
+	"context"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"log/slog"
+	"testing"
 )
+
+type discardHandler struct {
+	slog.JSONHandler
+}
+
+func (d *discardHandler) Enabled(context.Context, slog.Level) bool { return false }
 
 func Test_matchScheme(t *testing.T) {
 	tests := []struct {
