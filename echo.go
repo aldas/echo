@@ -56,6 +56,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 )
 
 // Echo is the top-level framework instance.
@@ -600,20 +601,22 @@ func (e *Echo) serveHTTP(w http.ResponseWriter, r *http.Request) {
 //
 // In need of customization use:
 //
+//	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+//	defer cancel()
 //	sc := echo.StartConfig{Address: ":8080"}
-//	if err := sc.Start(context.Background(), e); err != http.ErrServerClosed {
-//		log.Fatal(err)
+//	if err := sc.Start(ctx, e); err != nil && !errors.Is(err, http.ErrServerClosed) {
+//		slog.Error(err.Error())
 //	}
 //
 // // or standard library `http.Server`
 //
 //	s := http.Server{Addr: ":8080", Handler: e}
-//	if err := s.ListenAndServe(); err != http.ErrServerClosed {
-//		log.Fatal(err)
+//	if err := s.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+//		slog.Error(err.Error())
 //	}
 func (e *Echo) Start(address string) error {
 	sc := StartConfig{Address: address}
-	ctx, cancel := signal.NotifyContext(stdContext.Background(), os.Interrupt) // start shutdown process on ctrl+c
+	ctx, cancel := signal.NotifyContext(stdContext.Background(), os.Interrupt, syscall.SIGTERM) // start shutdown process on ctrl+c
 	defer cancel()
 	if err := sc.Start(ctx, e); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
