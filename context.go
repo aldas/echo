@@ -591,16 +591,13 @@ func (c *Context) JSONP(code int, callback string, i any) (err error) {
 func (c *Context) JSONPBlob(code int, callback string, b []byte) (err error) {
 	c.writeContentType(MIMEApplicationJavaScriptCharsetUTF8)
 	c.response.WriteHeader(code)
-	if _, err = c.response.Write(stringToBytes(callback)); err != nil {
-		return
-	}
-	if _, err = c.response.Write(jsonpOpen); err != nil {
+	if _, err = c.response.Write([]byte(callback + "(")); err != nil {
 		return
 	}
 	if _, err = c.response.Write(b); err != nil {
 		return
 	}
-	_, err = c.response.Write(jsonpClose)
+	_, err = c.response.Write([]byte(");"))
 	return
 }
 
